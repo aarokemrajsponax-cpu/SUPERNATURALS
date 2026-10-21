@@ -5,6 +5,9 @@ local Services = script.Parent.Services
 
 local ORDER = {
 	"AntiExploitService",
+	"DataService",
+	"CurrencyService",
+	"PurchaseService",
 	"ArenaService",
 	"CharacterService",
 	"DamageService",

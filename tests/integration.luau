@@ -53,17 +53,12 @@ end
 MatchConfig.Modes.Practice.Duration = 40
 
 -- Start the services exactly like Bootstrap does -----------------------------------------
-local ORDER = {
-	"AntiExploitService",
-	"ArenaService",
-	"CharacterService",
-	"DamageService",
-	"CombatService",
-	"DummyService",
-	"MatchService",
-	"AdminEventService",
-	"OwnerService",
-}
+-- (the same list Bootstrap uses, read from its source so they never drift apart)
+local ORDER = {}
+local bootstrapSource = find("ServerScriptService.Server.Bootstrap").Source
+for name in string.gmatch(string.match(bootstrapSource, "local ORDER = (%b{})") or "", '"([%w_]+)"') do
+	table.insert(ORDER, name)
+end
 local services = {}
 for _, name in ORDER do
 	services[name] = world.require(find("ServerScriptService.Server.Services." .. name))
@@ -196,8 +191,13 @@ check("players join and become fighters with full health", function()
 	alice = join("Alice")
 	bob = join("Bob")
 	assert(fighterOf(alice) and fighterOf(bob), "both registered")
-	assert(fighterOf(alice).humanoid.Health == Combat.MaxHealth, "full health")
-	assert(fighterOf(alice).humanoid.WalkSpeed == Combat.Movement.WalkSpeed, "normal speed")
+	-- Everyone starts as Strong Dude, with his own health and speed
+	waitFor(function()
+		return fighterOf(alice).power ~= nil and fighterOf(bob).power ~= nil
+	end, 3, "powers to be equipped")
+	local fighter = fighterOf(alice)
+	assert(fighter.humanoid.Health == fighter.combat.MaxHealth, "full health")
+	assert(fighter.humanoid.WalkSpeed == fighter.combat.Movement.WalkSpeed, "normal speed")
 end)
 
 check("players can't hurt each other in the lobby", function()
@@ -298,7 +298,7 @@ check("after the match nobody is stuck: lobby, unfrozen, full health, arena free
 		assert(fighter, player.Name .. " has a fighter")
 		assert(services.MatchService:getMatchOf(fighter) == nil, player.Name .. " left the match")
 		assert(player:GetAttribute("MatchId") == nil, player.Name .. " MatchId cleared")
-		assert(fighter.humanoid.WalkSpeed == Combat.Movement.WalkSpeed, `{player.Name} walk speed {fighter.humanoid.WalkSpeed}`)
+		assert(fighter.humanoid.WalkSpeed == fighter.combat.Movement.WalkSpeed, `{player.Name} walk speed {fighter.humanoid.WalkSpeed}`)
 		assert(fighter.humanoid.Health == fighter.humanoid.MaxHealth, player.Name .. " healed")
 		assert(not fighter.root.Anchored, player.Name .. " not anchored")
 	end
@@ -333,16 +333,21 @@ check("a player leaving mid-duel gives the other a forfeit win", function()
 	bob = join("Bob")
 end)
 
-check("practice: a sparring dummy joins, can be knocked out, and is removed after", function()
-	request("MatchRequest", alice, "Queue", "Practice")
+check("CPU practice: a CPU opponent joins, can be knocked out, and is removed after", function()
+	request("MatchRequest", alice, "Queue", "Practice", { cpuPower = "StrongDude", cpuDifficulty = "Easy" })
 	waitFor(function()
 		local state = lastSent(alice, "State")
 		return state and state.mode == "Practice" and state.phase == "Active"
 	end, 3, "practice to begin")
 	local state = lastSent(alice, "State")
 	assert(#state.participants == 2 and state.participants[2].npc, "a dummy opponent")
-	local dummy = Characters:getById(state.participants[2].id)
-	assert(dummy, "dummy fighter exists")
+	local dummy = nil
+	waitFor(function()
+		dummy = Characters:getById(state.participants[2].id)
+		return dummy ~= nil
+	end, 3, "the CPU fighter")
+	-- Speed things up: the CPU starts nearly beaten
+	dummy.humanoid.Health = 20
 	local swings = 0
 	local function dummyUp()
 		return dummy.model.Parent ~= nil and dummy.humanoid.Health > 0
@@ -390,10 +395,12 @@ end)
 
 check("dodge and block requests work and expire", function()
 	local fa = fighterOf(alice)
+	-- Let the last swing (Strong Dude recovers slowly) finish first
+	task.wait(0.5)
 	request("CombatRequest", alice, "BlockStart")
 	task.wait(0.05)
 	assert(fa.model:GetAttribute("Blocking") == true, "blocking")
-	assert(fa.humanoid.WalkSpeed == Combat.Movement.BlockingSpeed, "slowed while blocking")
+	assert(fa.humanoid.WalkSpeed == fa.combat.Movement.BlockingSpeed, "slowed while blocking")
 	request("CombatRequest", alice, "BlockEnd")
 	task.wait(0.05)
 	assert(fa.model:GetAttribute("Blocking") == false, "not blocking")
@@ -401,7 +408,7 @@ check("dodge and block requests work and expire", function()
 	task.wait(0.05)
 	assert(fa.model:GetAttribute("DodgeReadyAt") > 0, "dodge on cooldown")
 	task.wait(0.5)
-	assert(fa.humanoid.WalkSpeed == Combat.Movement.WalkSpeed, "back to normal after the dodge")
+	assert(fa.humanoid.WalkSpeed == fa.combat.Movement.WalkSpeed, "back to normal after the dodge")
 end)
 
 check("owner panel: the owner can run events, actions and announcements", function()

@@ -644,9 +644,6 @@ end)
 roblox.implementMethod("Workspace", "GetPartsInPart", function()
 	return {}
 end)
-roblox.implementMethod("Player", "GetNetworkPing", function()
-	return 0.05
-end)
 roblox.implementMethod("Camera", "ViewportPointToRay", function(self, x, y)
 	local cframe = self.CFrame
 	return { Origin = cframe.Position, Direction = cframe.LookVector }
