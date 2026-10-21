@@ -25,8 +25,19 @@ export type Fighter = {
 	trainingDummy: boolean,
 	displayName: string,
 	state: FighterState.State,
+	-- The combat numbers this fighter uses (Config/Combat changed by its power,
+	-- degree and form). PowerService swaps it; everything else just reads it.
+	combat: any,
 	-- Walk speed multiplier from the owner panel's speed boost
 	moveBoost: number,
+	-- Walk speed multiplier from status effects (slows, hastes), set by StatusService
+	statusSpeed: number,
+	-- Rooted by a status: can still attack, can't walk
+	rooted: boolean,
+	-- Until when this fighter's own ability is moving it (dashes, charges)
+	dashUntil: number,
+	-- The power this fighter is using (PowerService's runtime record), if any
+	power: any?,
 	-- When the fighter was last teleported (positions can lag just after)
 	teleportedAt: number,
 	movementToken: number,
@@ -39,6 +50,8 @@ local byPlayer: { [Player]: Fighter } = {}
 
 local knockoutListeners: { (Fighter, Fighter?) -> () } = {}
 local spawnListeners: { (Fighter) -> () } = {}
+local restoreListeners: { (Fighter) -> () } = {}
+local unregisterListeners: { (Fighter) -> () } = {}
 local spawnResolver: ((Player) -> CFrame?)? = nil
 
 local function now(): number
@@ -143,6 +156,7 @@ function CharacterService:register(model: Model, info: { id: string, displayName
 
 	humanoid.MaxHealth = Combat.MaxHealth
 	humanoid.Health = Combat.MaxHealth
+	model:SetAttribute(Attribute.MaxHealth, Combat.MaxHealth)
 	humanoid.UseJumpPower = false
 	-- Clients draw their own name and health bars over fighters
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -157,7 +171,12 @@ function CharacterService:register(model: Model, info: { id: string, displayName
 		trainingDummy = info.trainingDummy == true,
 		displayName = info.displayName,
 		state = FighterState.new(info.id, Combat, now()),
+		combat = Combat,
 		moveBoost = 1,
+		statusSpeed = 1,
+		rooted = false,
+		dashUntil = 0,
+		power = nil,
 		teleportedAt = 0,
 		movementToken = 0,
 		connections = {},
@@ -202,6 +221,14 @@ function CharacterService:unregister(fighter: Fighter)
 	if fighter.player and byPlayer[fighter.player] == fighter then
 		byPlayer[fighter.player] = nil
 	end
+	for _, listener in unregisterListeners do
+		task.spawn(listener, fighter)
+	end
+end
+
+-- Runs when a fighter stops existing (character removed, player left)
+function CharacterService:onUnregistered(callback: (Fighter) -> ())
+	table.insert(unregisterListeners, callback)
 end
 
 function CharacterService:_onDied(fighter: Fighter)
@@ -226,9 +253,12 @@ function CharacterService:refresh(fighter: Fighter)
 	local time = now()
 	local humanoid = fighter.humanoid
 
-	local walkSpeed, jumpHeight, autoRotate = FighterState.movement(state, Combat, time)
+	local walkSpeed, jumpHeight, autoRotate = FighterState.movement(state, fighter.combat, time)
+	if fighter.rooted then
+		walkSpeed, jumpHeight = 0, 0
+	end
 	if humanoid.Health > 0 then
-		humanoid.WalkSpeed = walkSpeed * fighter.moveBoost
+		humanoid.WalkSpeed = walkSpeed * fighter.moveBoost * fighter.statusSpeed
 		humanoid.JumpHeight = jumpHeight
 		humanoid.AutoRotate = autoRotate
 	end
@@ -327,13 +357,49 @@ function CharacterService:restore(fighter: Fighter, protection: number?)
 	if fighter.humanoid.Health > 0 then
 		fighter.humanoid.Health = fighter.humanoid.MaxHealth
 	end
-	FighterState.reset(fighter.state, Combat, now(), protection)
+	FighterState.reset(fighter.state, fighter.combat, now(), protection)
 	self:refresh(fighter)
+	for _, listener in restoreListeners do
+		task.spawn(listener, fighter)
+	end
+end
+
+-- Runs after restore() (powers reset their resources, statuses are cleared)
+function CharacterService:onRestored(callback: (Fighter) -> ())
+	table.insert(restoreListeners, callback)
 end
 
 function CharacterService:setFrozen(fighter: Fighter, frozen: boolean)
-	FighterState.setFrozen(fighter.state, frozen, Combat, now())
+	FighterState.setFrozen(fighter.state, frozen, fighter.combat, now())
 	self:refresh(fighter)
+end
+
+-- Switches the fighter to new combat numbers (a power, degree or form change).
+-- Health keeps the same share of the new maximum.
+function CharacterService:setCombatProfile(fighter: Fighter, profile)
+	if fighter.combat == profile then
+		return
+	end
+	fighter.combat = profile
+	local humanoid = fighter.humanoid
+	local maxHealth = profile.MaxHealth or Combat.MaxHealth
+	if humanoid.MaxHealth ~= maxHealth then
+		local share = if humanoid.MaxHealth > 0 then humanoid.Health / humanoid.MaxHealth else 1
+		humanoid.MaxHealth = maxHealth
+		if humanoid.Health > 0 then
+			humanoid.Health = math.max(1, math.floor(maxHealth * share + 0.5))
+		end
+		fighter.model:SetAttribute(Attribute.MaxHealth, maxHealth)
+	end
+	fighter.model:SetAttribute(Attribute.MaxGuard, profile.Block.MaxGuard)
+	self:refresh(fighter)
+end
+
+function CharacterService:heal(fighter: Fighter, amount: number)
+	local humanoid = fighter.humanoid
+	if amount > 0 and humanoid.Health > 0 then
+		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + amount)
+	end
 end
 
 return CharacterService

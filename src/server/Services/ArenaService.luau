@@ -3,9 +3,11 @@
 -- Arenas are built from parts in code; each match gets its own copy so several
 -- matches can run at once without overlapping.
 
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MatchConfig = require(ReplicatedStorage.Shared.Config.Match)
+local Protocol = require(ReplicatedStorage.Shared.Protocol)
 
 local ArenaService = {}
 
@@ -79,6 +81,53 @@ local function addLabel(parent: BasePart, face: Enum.NormalId, text: string, col
 	label.TextColor3 = color
 	label.Parent = gui
 	gui.Parent = parent
+end
+
+-- Objects Strong Dude can lift and throw. Weight 1 = light (crates, barrels),
+-- 2 = heavy (boulders), 3 = enormous (a pillar section). They return to their
+-- spot a few seconds after being thrown.
+local THROWABLES = {
+	{ name = "Crate", weight = 1, size = Vector3.new(3, 3, 3), color = rgb(150, 105, 60), material = Enum.Material.WoodPlanks },
+	{ name = "Barrel", weight = 1, size = Vector3.new(3.2, 2.4, 2.4), color = rgb(120, 70, 45), material = Enum.Material.Wood, shape = Enum.PartType.Cylinder },
+	{ name = "Boulder", weight = 2, size = Vector3.new(5, 4.4, 4.6), color = rgb(95, 92, 100), material = Enum.Material.Slate, shape = Enum.PartType.Ball },
+	{ name = "Pillar", weight = 3, size = Vector3.new(9, 4.5, 4.5), color = rgb(70, 72, 88), material = Enum.Material.Concrete, shape = Enum.PartType.Cylinder },
+}
+
+local function addThrowable(parent: Instance, kind, position: Vector3, yaw: number)
+	local prop = part(parent, {
+		Name = kind.name,
+		Shape = kind.shape or Enum.PartType.Block,
+		Size = kind.size,
+		CFrame = CFrame.new(position + Vector3.new(0, kind.size.Y / 2, 0)) * CFrame.Angles(0, yaw, if kind.shape == Enum.PartType.Cylinder then math.rad(90) else 0),
+		Color = kind.color,
+		Material = kind.material,
+	})
+	if kind.shape == Enum.PartType.Cylinder then
+		-- Cylinders lie along X; stand barrels and pillars upright
+		prop.CFrame = CFrame.new(position + Vector3.new(0, kind.size.X / 2, 0)) * CFrame.Angles(0, yaw, math.rad(90))
+	end
+	prop:SetAttribute("Weight", kind.weight)
+	prop:SetAttribute("HomeCFrame", prop.CFrame)
+	CollectionService:AddTag(prop, Protocol.Tag.Throwable)
+	return prop
+end
+
+-- Spread around the arena (as a share of its half-size), the centre kept clear
+local THROWABLE_SPOTS = {
+	{ kind = 1, at = Vector3.new(-0.55, 0, 0.2) },
+	{ kind = 2, at = Vector3.new(0.55, 0, -0.2) },
+	{ kind = 3, at = Vector3.new(0.25, 0, 0.6) },
+	{ kind = 1, at = Vector3.new(-0.25, 0, -0.62) },
+	{ kind = 3, at = Vector3.new(-0.62, 0, -0.35) },
+	{ kind = 2, at = Vector3.new(0.62, 0, 0.38) },
+	{ kind = 4, at = Vector3.new(0.35, 0, -0.4) },
+}
+
+local function scatterThrowables(parent: Instance, top: Vector3, half: Vector3)
+	for index, spot in THROWABLE_SPOTS do
+		local position = top + Vector3.new(spot.at.X * half.X, 0, spot.at.Z * half.Z)
+		addThrowable(parent, THROWABLES[spot.kind], position, index * 0.7)
+	end
 end
 
 local function buildArena(id: number): Arena
@@ -190,6 +239,8 @@ local function buildArena(id: number): Arena
 		table.insert(spawns, CFrame.lookAt(position, Vector3.new(top.X, position.Y, top.Z)))
 	end
 
+	scatterThrowables(model, top, half)
+
 	model.Parent = arenaFolder
 	return {
 		id = id,
@@ -233,6 +284,11 @@ local function buildTrainingGround()
 		CanCollide = false,
 	})
 	addLabel(sign, Enum.NormalId.Front, "TRAINING GROUND", PALETTE.cyan)
+
+	-- A few things to practise throwing
+	addThrowable(model, THROWABLES[1], top + Vector3.new(10, 0, -16), 0.3)
+	addThrowable(model, THROWABLES[2], top + Vector3.new(12, 0, 16), 1.1)
+	addThrowable(model, THROWABLES[3], top + Vector3.new(4, 0, -18), 0.6)
 
 	trainingSpots = {}
 	for _, z in { -12, 0, 12 } do
@@ -300,6 +356,24 @@ function ArenaService:isOutOfBounds(arena: Arena, position: Vector3): boolean
 	local offset = position - arena.center
 	local margin = 6
 	return math.abs(offset.X) > ARENA.Size.X / 2 + margin or math.abs(offset.Z) > ARENA.Size.Z / 2 + margin
+end
+
+-- The nearest point inside the arena's walls (keeping `margin` studs from them),
+-- at the same height. Teleports and knockback targets use it.
+function ArenaService:clampInside(arena: Arena, position: Vector3, margin: number): Vector3
+	local half = Vector3.new(ARENA.Size.X / 2 - margin, 0, ARENA.Size.Z / 2 - margin)
+	local offset = position - arena.center
+	return Vector3.new(
+		arena.center.X + math.clamp(offset.X, -half.X, half.X),
+		position.Y,
+		arena.center.Z + math.clamp(offset.Z, -half.Z, half.Z)
+	)
+end
+
+function ArenaService:contains(arena: Arena, position: Vector3, margin: number?): boolean
+	local offset = position - arena.center
+	local pad = margin or 0
+	return math.abs(offset.X) <= ARENA.Size.X / 2 - pad and math.abs(offset.Z) <= ARENA.Size.Z / 2 - pad
 end
 
 function ArenaService:lobbySpawn(): CFrame

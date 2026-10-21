@@ -1,12 +1,13 @@
--- Training dummies: NPC fighters for practising on. They use the same fighter
--- records and combat rules as players, so anything that works on a dummy works
--- in a real fight. (Full CPU opponents that attack come in a later milestone.)
+-- NPC fighters: training dummies for practising on, and CPU opponents (whose
+-- brain is CpuService). They use the same fighter records and combat rules as
+-- players, so anything that works on a dummy works in a real fight.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Combat = require(ReplicatedStorage.Shared.Config.Combat)
 local FighterState = require(ReplicatedStorage.Shared.Combat.FighterState)
+local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 
 local DummyService = {}
@@ -20,6 +21,8 @@ local KINDS = {
 	Guard = { name = "Guard Dummy", behavior = "Guard", color = rgb(80, 140, 230) },
 	-- Faces you and blocks now and then: practise reading a defence
 	Sparring = { name = "Sparring Dummy", behavior = "Spar", color = rgb(200, 70, 90) },
+	-- A CPU opponent with a power (see CpuService)
+	Cpu = { name = "CPU", behavior = "Cpu", color = rgb(120, 120, 140) },
 }
 
 local TRAINING_ORDER = { "PunchingBag", "Guard", "Sparring" }
@@ -37,6 +40,8 @@ export type Dummy = {
 	active: boolean,
 	model: Model?,
 	fighter: any?,
+	-- CPU opponents: which power and degree they play, and how well
+	cpu: { power: string, degree: number, difficulty: string }?,
 }
 
 local dummies: { [string]: Dummy } = {}
@@ -44,6 +49,7 @@ local counter = 0
 local folder: Folder
 
 function DummyService:Init(services)
+	self.services = services
 	self.characters = services.CharacterService
 	self.arenas = services.ArenaService
 	self.combat = services.CombatService
@@ -82,7 +88,8 @@ function DummyService:reserveId(): string
 end
 
 -- Creates a dummy that respawns at spawnAt() whenever it's knocked out, until despawned
-function DummyService:spawn(kindName: string, options: { spawnAt: () -> CFrame, id: string?, training: boolean?, parent: Instance? }): Dummy
+-- options.cpu = { power, degree, difficulty } for a CPU opponent
+function DummyService:spawn(kindName: string, options: { spawnAt: () -> CFrame, id: string?, training: boolean?, parent: Instance?, cpu: { power: string, degree: number, difficulty: string }? }): Dummy
 	local dummy: Dummy = {
 		id = options.id or self:reserveId(),
 		kind = KINDS[kindName] or KINDS.PunchingBag,
@@ -92,6 +99,7 @@ function DummyService:spawn(kindName: string, options: { spawnAt: () -> CFrame, 
 		active = true,
 		model = nil,
 		fighter = nil,
+		cpu = options.cpu,
 	}
 	dummies[dummy.id] = dummy
 	self:_build(dummy)
@@ -122,13 +130,16 @@ function DummyService:_build(dummy: Dummy)
 		dummy.model = nil
 	end
 	local kind = dummy.kind
+	local cpu = dummy.cpu
+	local powerDef = if cpu then Powers.get(cpu.power) else nil
+	local bodyColor = if powerDef then powerDef.colors.primary else kind.color
 	local description = Instance.new("HumanoidDescription")
 	description.HeadColor = rgb(235, 235, 240)
-	description.TorsoColor = kind.color
-	description.LeftArmColor = kind.color
-	description.RightArmColor = kind.color
-	description.LeftLegColor = rgb(60, 62, 75)
-	description.RightLegColor = rgb(60, 62, 75)
+	description.TorsoColor = bodyColor
+	description.LeftArmColor = bodyColor
+	description.RightArmColor = bodyColor
+	description.LeftLegColor = if powerDef then powerDef.colors.secondary else rgb(60, 62, 75)
+	description.RightLegColor = if powerDef then powerDef.colors.secondary else rgb(60, 62, 75)
 
 	local ok, result = pcall(function()
 		return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15)
@@ -148,7 +159,8 @@ function DummyService:_build(dummy: Dummy)
 	end
 
 	local model = result :: Model
-	model.Name = kind.name
+	local displayName = if powerDef and cpu then `{powerDef.name} CPU` else kind.name
+	model.Name = displayName
 	local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	model:PivotTo(dummy.spawnAt())
@@ -162,11 +174,18 @@ function DummyService:_build(dummy: Dummy)
 	dummy.model = model
 	dummy.fighter = self.characters:register(model, {
 		id = dummy.id,
-		displayName = kind.name,
+		displayName = displayName,
 		npc = true,
 		trainingDummy = dummy.training,
 	})
 	model:SetAttribute("DummyKind", kind.behavior)
+	if cpu and powerDef then
+		-- A CPU plays its power's default loadout for that degree
+		self.services.PowerService:equip(dummy.fighter, cpu.power, cpu.degree, Powers.defaultLoadout(cpu.power, cpu.degree))
+		model:SetAttribute("CpuDifficulty", cpu.difficulty)
+		self.services.CpuService:run(dummy.fighter, cpu.difficulty)
+		return
+	end
 	task.spawn(self._behave, self, dummy, dummy.fighter)
 end
 

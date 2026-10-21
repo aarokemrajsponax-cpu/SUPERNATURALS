@@ -210,6 +210,7 @@ roblox.implementMethod("ParticleEmitter", "Emit", function() end)
 roblox.implementMethod("Sound", "Play", function() end)
 roblox.implementMethod("Sound", "Stop", function() end)
 roblox.implementMethod("Humanoid", "ChangeState", function() end)
+roblox.implementMethod("Humanoid", "MoveTo", function() end)
 
 -- Services ------------------------------------------------------------------------------
 -- Lune's own CollectionService/Players methods can't be replaced, so game code
@@ -613,7 +614,47 @@ local startClock = os.clock()
 roblox.implementMethod("Workspace", "GetServerTimeNow", function()
 	return 1000 + (os.clock() - startClock)
 end)
-roblox.implementMethod("Workspace", "Raycast", function()
+-- Tests can give the world simple ground: Engine.raycast(origin, direction, params)
+-- returns { Position, Normal, Instance, Material } or nil. By default nothing is hit.
+Engine.raycast = nil :: ((Vector3, Vector3, any) -> any)?
+roblox.implementMethod("Workspace", "Raycast", function(_, origin, direction, params)
+	if Engine.raycast then
+		return Engine.raycast(origin, direction, params)
+	end
+	return nil
+end)
+roblox.implementMethod("Workspace", "Spherecast", function(_, origin, _radius, direction, params)
+	if Engine.raycast then
+		return Engine.raycast(origin, direction, params)
+	end
+	return nil
+end)
+roblox.implementMethod("Workspace", "Blockcast", function(_, cframe, _size, direction, params)
+	if Engine.raycast then
+		return Engine.raycast(cframe.Position, direction, params)
+	end
+	return nil
+end)
+roblox.implementMethod("Workspace", "GetPartBoundsInBox", function()
+	return {}
+end)
+roblox.implementMethod("Workspace", "GetPartBoundsInRadius", function()
+	return {}
+end)
+roblox.implementMethod("Workspace", "GetPartsInPart", function()
+	return {}
+end)
+roblox.implementMethod("Player", "GetNetworkPing", function()
+	return 0.05
+end)
+roblox.implementMethod("Camera", "ViewportPointToRay", function(self, x, y)
+	local cframe = self.CFrame
+	return { Origin = cframe.Position, Direction = cframe.LookVector }
+end)
+roblox.implementMethod("UserInputService", "GetMouseLocation", function()
+	return roblox.Vector2.new(640, 360)
+end)
+roblox.implementMethod("UserInputService", "GetFocusedTextBox", function()
 	return nil
 end)
 
@@ -628,6 +669,12 @@ local TweenInfo = {
 local RaycastParams = {
 	new = function()
 		return { FilterType = nil, FilterDescendantsInstances = {}, RespectCanCollide = false, IgnoreWater = false }
+	end,
+}
+
+local OverlapParams = {
+	new = function()
+		return { FilterType = nil, FilterDescendantsInstances = {}, RespectCanCollide = false, MaxParts = 0 }
 	end,
 }
 
@@ -797,6 +844,7 @@ function Engine.load(placePath: string)
 		require = requireModule,
 		TweenInfo = TweenInfo,
 		RaycastParams = RaycastParams,
+		OverlapParams = OverlapParams,
 		Random = Random,
 		DateTime = DateTime,
 		typeof = typeof,

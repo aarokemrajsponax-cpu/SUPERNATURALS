@@ -6,8 +6,11 @@ local Controllers = script.Parent.Controllers
 local ORDER = {
 	"CameraController",
 	"EffectsController",
+	"PowerFxController",
 	"CombatController",
+	"AbilityController",
 	"InputController",
+	"DefenseController",
 	"UIController",
 	"AdminEffectsController",
 	"OwnerController",

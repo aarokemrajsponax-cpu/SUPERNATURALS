@@ -17,6 +17,8 @@ export type Outcome = {
 	guardDamage: number,
 	attackerStun: number,
 	comboCapped: boolean,
+	-- Absorbed by super armor: damage still lands, but no flinch
+	armored: boolean,
 }
 
 export type Side = {
@@ -36,6 +38,7 @@ local function outcome(result: string): Outcome
 		guardDamage = 0,
 		attackerStun = 0,
 		comboCapped = false,
+		armored = false,
 	}
 end
 
@@ -60,7 +63,7 @@ function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now
 		local broken = FighterState.guardAt(state, config, now) - guardDamage <= 0
 		local result = outcome(if broken then "GuardBreak" else "Blocked")
 		result.damage = attack.Damage * block.DamageMultiplier
-		result.knockback = attack.Knockback * block.PushbackMultiplier
+		result.knockback = (attack.Knockback or 0) * block.PushbackMultiplier
 		result.guardDamage = guardDamage
 		result.hitstun = if broken then block.GuardBreakStun else 0
 		return result
@@ -68,9 +71,17 @@ function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now
 
 	local hit = outcome("Hit")
 	hit.damage = attack.Damage
-	hit.hitstun = attack.Hitstun
-	hit.knockback = attack.Knockback
+	hit.hitstun = attack.Hitstun or 0
+	hit.knockback = attack.Knockback or 0
 	hit.launch = attack.Launch or 0
+	-- Super armor (a committed charge, an ultimate's wind-up) takes the hit without flinching
+	if FighterState.hasArmor(state, now) then
+		hit.armored = true
+		hit.hitstun = 0
+		hit.knockback *= 0.15
+		hit.launch = 0
+		return hit
+	end
 	-- Past the combo limit, hits still hurt but stop stunning and push the victim clear
 	if FighterState.projectedCombo(state, config, now) > config.MaxComboHits then
 		hit.comboCapped = true
@@ -100,6 +111,10 @@ function HitResolver.apply(result: Outcome, config, attacker: Side, defender: Si
 	end
 
 	FighterState.registerHit(defender.state, config, attacker.id, now)
+	if result.armored then
+		FighterState.useArmor(defender.state)
+		return
+	end
 	FighterState.applyStun(defender.state, result.hitstun, now)
 end
 

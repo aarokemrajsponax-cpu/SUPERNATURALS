@@ -32,11 +32,13 @@ Match.Modes = {
 		ResultsDuration = 10,
 	},
 	Practice = {
-		DisplayName = "Practice",
-		Description = "Fight a sparring dummy to learn the controls.",
+		DisplayName = "CPU Practice",
+		Description = "Fight a CPU opponent with a power of your choice.",
 		MinPlayers = 1,
 		MaxPlayers = 1,
-		-- Practice adds sparring dummies so the player has someone to fight
+		-- Starts straight away for one player (no queue)
+		Solo = true,
+		-- Practice adds a CPU opponent so the player has someone to fight
 		Dummies = 1,
 		Countdown = 5,
 		Duration = 120,
