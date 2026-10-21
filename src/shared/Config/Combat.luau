@@ -106,4 +106,85 @@ Combat.Dodge = {
 -- How long knockback pushes for before gravity and friction take over
 Combat.KnockbackDuration = 0.18
 
+-- Share of damage and knockback a fighter actually takes (powers and degrees change these)
+Combat.DamageTaken = 1
+Combat.KnockbackTaken = 1
+
+-- Abilities ------------------------------------------------------------------------
+
+Combat.Abilities = {
+	-- Walk speed while using an ability that doesn't set its own
+	MoveSpeed = 4,
+	-- A request this much early is still accepted (network delay)
+	CooldownLeeway = 0.08,
+	-- Most an aimed ability can reach past its own range when clamping a target point
+	AimSlack = 4,
+}
+
+-- Ultimate charge: fills from fighting; the ultimate needs a full bar
+Combat.Ultimate = {
+	Max = 100,
+	-- Charge per point of damage dealt and taken
+	PerDamageDealt = 0.9,
+	PerDamageTaken = 0.45,
+	-- Slow passive charge per second while in a running match
+	PassivePerSecond = 0.6,
+	-- Training dummies charge it this much faster, so it can be practised
+	TrainingMultiplier = 4,
+}
+
+-- Status effects: what each one does and the longest it can ever last, so
+-- nothing can stun, slow or trap someone indefinitely
+Combat.Statuses = {
+	Slow = { max = 4, label = "Slowed", icon = "🐌" },
+	Haste = { max = 6, label = "Hasted", icon = "💨" },
+	Root = { max = 2.5, label = "Rooted", icon = "⛓️" },
+	Freeze = { max = 2.5, label = "Frozen", icon = "🧊" },
+	Mark = { max = 8, label = "Marked", icon = "🎯" },
+	Burn = { max = 5, label = "Burning", icon = "🔥", tick = 0.5 },
+	Shield = { max = 6, label = "Shielded", icon = "🛡️" },
+	Armor = { max = 6, label = "Armored", icon = "🪨" },
+	Concealed = { max = 4, label = "Concealed", icon = "👻" },
+	Distort = { max = 4, label = "Distorted", icon = "🌀" },
+	Trapped = { max = 3.5, label = "Trapped", icon = "🔒" },
+	Vulnerable = { max = 4, label = "Exposed", icon = "💢" },
+	Gravity = { max = 6, label = "Gravity", icon = "🪐" },
+	Sealed = { max = 2, label = "Sealed", icon = "🚫" },
+	Grabbed = { max = 3, label = "Grabbed", icon = "✊" },
+	Transformed = { max = 30, label = "Transformed", icon = "🐾" },
+}
+
+-- Interactive defense windows
+Combat.Defense = {
+	-- Dodge/block prompt: shown this long before a telegraphed attack lands
+	PromptLead = 0.6,
+	-- A block or dodge started inside the prompt window counts as a perfect defense
+	PerfectStun = 0.5,
+	-- Timing bar for massive attacks: how far from the centre (seconds) still counts
+	PerfectWindow = 0.07,
+	GoodWindow = 0.17,
+	-- Good timing takes this share of the damage
+	GoodDamage = 0.5,
+	-- How long the attacker is left open after a perfect timing defense
+	TimingPunish = 0.6,
+	-- Grab escapes: presses faster than this apart don't count (stops macro spam)
+	MashMinInterval = 1 / 14,
+	-- After escaping a grab the grabber staggers for this long
+	EscapeStun = 0.6,
+	-- Most network delay we allow for when judging timing (seconds, one way)
+	LatencyCap = 0.15,
+	-- Syntax redirect: offered when an eligible projectile is this close
+	RedirectRange = 22,
+	RedirectWindow = 0.6,
+}
+
+Combat.Projectiles = {
+	MaxPerFighter = 14,
+	MaxTotal = 220,
+	-- Every projectile is gone after this long, whatever it says
+	MaxLifetime = 6,
+	-- Redirected projectiles deal at most this much
+	RedirectDamageCap = 18,
+}
+
 return Combat

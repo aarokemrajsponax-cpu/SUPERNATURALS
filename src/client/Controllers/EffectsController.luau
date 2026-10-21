@@ -224,6 +224,30 @@ function EffectsController:_onHit(data)
 		end
 	elseif result == "Invulnerable" then
 		Vfx.popup(position, "DODGE", Colors.TextDim, 0.8)
+	elseif result == "Perfect" or result == "PerfectBlock" then
+		-- A perfectly timed defense: the whole attack is negated
+		Vfx.shockwave(position, Colors.Gold, 2, 12, 0.35)
+		Vfx.ring(CFrame.new(position) * CFrame.Angles(math.rad(90), 0, 0), 3, Colors.Gold, 0.25, 0.4, 9)
+		Vfx.sparks(position, Colors.Gold, 30, 30)
+		Vfx.popup(position, "PERFECT!", Colors.Gold, 1.5)
+		Vfx.sound("Parry", position)
+		if involved then
+			self.camera:shake(1.2, 0.2)
+			self.camera:punch(5)
+		end
+	elseif result == "Good" then
+		Vfx.sparks(position, Colors.Cyan, 14, 22)
+		Vfx.popup(position, "GOOD", Colors.Cyan, 1.1)
+	elseif result == "Endured" then
+		Vfx.sparks(position, Color3.fromRGB(200, 200, 210), 18, 20)
+		Vfx.popup(position, "ENDURED", Color3.fromRGB(220, 220, 230), 1)
+	elseif result == "Countered" then
+		Vfx.shockwave(position, Colors.Purple, 2, 10, 0.3)
+		Vfx.popup(position, "COUNTER!", Colors.Purple, 1.4)
+		Vfx.sound("Parry", position)
+	end
+	if data.armored and result == "Hit" then
+		Vfx.popup(position + Vector3.new(0, 1.5, 0), "ARMOR", Color3.fromRGB(200, 200, 210), 0.8)
 	end
 end
 
@@ -371,14 +395,37 @@ function EffectsController:_updateOverheads()
 			local fraction = if humanoid.MaxHealth > 0 then humanoid.Health / humanoid.MaxHealth else 0
 			overhead.setHealth(fraction, if fraction < 0.3 then Colors.HealthLow else Colors.Health)
 		end
-		overhead.setGuard(currentGuard(model) / Combat.Block.MaxGuard)
+		local maxGuard = model:GetAttribute(Attribute.MaxGuard) or Combat.Block.MaxGuard
+		overhead.setGuard(currentGuard(model) / math.max(1, maxGuard))
+		-- Concealed fighters (the Ghost's veil) don't give themselves away with a name tag
+		local concealed = time < (model:GetAttribute(Attribute.StatusPrefix .. "Concealed") or 0)
+		if concealed then
+			overhead.gui.Enabled = false
+		end
 		local text = ""
-		if time < (model:GetAttribute(Attribute.StunnedUntil) or 0) then
+		local function active(statusId: string): boolean
+			return time < (model:GetAttribute(Attribute.StatusPrefix .. statusId) or 0)
+		end
+		if active("Grabbed") then
+			text = "GRABBED"
+		elseif active("Freeze") then
+			text = "FROZEN"
+		elseif active("Trapped") then
+			text = "TRAPPED"
+		elseif time < (model:GetAttribute(Attribute.StunnedUntil) or 0) then
 			text = "STUNNED"
+		elseif active("Sealed") then
+			text = "SEALED"
+		elseif active("Root") then
+			text = "ROOTED"
 		elseif model:GetAttribute(Attribute.Blocking) then
 			text = "GUARDING"
 		elseif time < (model:GetAttribute(Attribute.ProtectedUntil) or 0) then
 			text = "PROTECTED"
+		elseif active("Mark") then
+			text = "MARKED"
+		elseif active("Slow") then
+			text = "SLOWED"
 		end
 		overhead.status.Text = text
 	end

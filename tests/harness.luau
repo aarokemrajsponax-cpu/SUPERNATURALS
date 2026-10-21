@@ -62,6 +62,10 @@ RefMeta.__index = function(self, key: string)
 		return makeRef(parentPath(path), true)
 	elseif key == "Name" then
 		return string.match(path, "([^/]+)$")
+	elseif key == "FindFirstChild" then
+		return function(_, name: string)
+			return rawget(self, "__folder") and childRef(path, name) or nil
+		end
 	end
 	local child = rawget(self, "__folder") and childRef(path, key)
 	if not child then

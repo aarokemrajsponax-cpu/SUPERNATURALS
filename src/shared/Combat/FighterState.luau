@@ -43,6 +43,9 @@ export type State = {
 	lastAttackerAt: number,
 	knockedOut: boolean,
 	frozen: boolean,
+	-- Super armor: hits absorbed without flinching until armorUntil
+	armorHits: number,
+	armorUntil: number,
 }
 
 local NEVER = -math.huge
@@ -79,6 +82,8 @@ function FighterState.reset(state: State, config, now: number, protection: numbe
 	state.lastAttackerAt = NEVER
 	state.knockedOut = false
 	state.frozen = false
+	state.armorHits = 0
+	state.armorUntil = NEVER
 end
 
 -- Queries -------------------------------------------------------------------
@@ -137,7 +142,11 @@ function FighterState.movement(state: State, config, now: number): (number, numb
 		return 0, 0, true
 	elseif FighterState.isAttacking(state, now) then
 		-- Attacks keep the facing they started with, so a strafing player still
-		-- hits where they aimed
+		-- hits where they aimed. Abilities can set their own speed (0 = rooted).
+		local def = (state.attack :: Attack).def
+		if def.MoveSpeed ~= nil then
+			return def.MoveSpeed, 0, def.AutoRotate == true
+		end
 		return move.AttackingSpeed, 0, false
 	elseif FighterState.isBlocking(state) then
 		return move.BlockingSpeed, 0, true
@@ -266,6 +275,58 @@ function FighterState.startHeavy(state: State, config, now: number): (Attack?, s
 	return attack, nil
 end
 
+-- Abilities use the same timing as attacks: startup, active, recovery. `timing`
+-- holds Startup, Active, Recovery and optionally MoveSpeed, AutoRotate and Armor
+-- (hits shrugged off during startup).
+function FighterState.startAbility(state: State, timing, now: number): (Attack?, string?)
+	local blocked = unavailable(state, now)
+	if blocked then
+		return nil, blocked
+	end
+	if FighterState.isAttacking(state, now) then
+		return nil, "busy"
+	end
+	local attack = begin(state, "Ability", 0, timing, now)
+	state.lightStep = 0
+	state.lightChainUntil = NEVER
+	local armor = timing.Armor or 0
+	if armor > 0 then
+		state.armorHits = armor
+		state.armorUntil = attack.activeEnd
+	end
+	return attack, nil
+end
+
+-- Ends an ability early (or late, for channels that ran their course): recovery
+-- starts now. Returns the new end of recovery, or nil if the ability isn't current.
+function FighterState.finishAbility(state: State, token: number, now: number): number?
+	local attack = state.attack
+	if not attack or attack.token ~= token then
+		return nil
+	end
+	attack.activeEnd = math.min(attack.activeEnd, now)
+	attack.recoveryEnd = now + attack.def.Recovery
+	state.armorUntil = math.min(state.armorUntil, now)
+	return attack.recoveryEnd
+end
+
+-- Adds extra recovery (a missed charge leaves you open longer)
+function FighterState.extendRecovery(state: State, token: number, extra: number)
+	local attack = state.attack
+	if attack and attack.token == token and extra > 0 then
+		attack.recoveryEnd += extra
+	end
+end
+
+-- Would a hit right now be absorbed by super armor? (doesn't use it up)
+function FighterState.hasArmor(state: State, now: number): boolean
+	return state.armorHits > 0 and now < state.armorUntil
+end
+
+function FighterState.useArmor(state: State)
+	state.armorHits = math.max(0, state.armorHits - 1)
+end
+
 -- Called when the attack's active window closes. A heavy that hit nothing
 -- leaves the attacker open for longer.
 function FighterState.endActive(state: State, config, token: number, landed: boolean)
@@ -296,6 +357,8 @@ function FighterState.cancelAttack(state: State)
 	state.bufferedLight = false
 	state.lightStep = 0
 	state.lightChainUntil = NEVER
+	state.armorHits = 0
+	state.armorUntil = NEVER
 end
 
 -- `canParry` is false for a block that was held down through a stun and

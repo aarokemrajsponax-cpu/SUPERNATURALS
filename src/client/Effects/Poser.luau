@@ -51,7 +51,39 @@ Poser.Poses = {
 	Hurt = { Torso = { 14, 0, 0 }, Neck = { 18, 0, 0 }, RightShoulder = { 10, 0, 25 }, LeftShoulder = { 10, 0, -25 } },
 	Stagger = { Torso = { 22, 10, 0 }, Neck = { 25, 0, 0 }, RightShoulder = { 40, 0, 60 }, LeftShoulder = { 40, 0, -60 } },
 	Dodge = { Torso = { -15, 0, 0 }, RightShoulder = { -30, 0, 10 }, LeftShoulder = { -30, 0, -10 } },
+
+	-- Ability poses any power can use (powers can add their own with Poser.register)
+	Slam = { RightShoulder = { 170, 0, -20 }, LeftShoulder = { 170, 0, 20 }, RightElbow = { 20, 0, 0 }, LeftElbow = { 20, 0, 0 }, Torso = { 25, 0, 0 } },
+	SlamWindup = { RightShoulder = { 175, 0, -10 }, LeftShoulder = { 175, 0, 10 }, Torso = { -18, 0, 0 }, Neck = { -10, 0, 0 } },
+	Reach = { RightShoulder = { 95, 0, -15 }, LeftShoulder = { 95, 0, 15 }, Torso = { 12, 0, 0 } },
+	Charge = { Torso = { 28, 0, 0 }, RightShoulder = { -40, 0, 20 }, LeftShoulder = { 70, 0, 20 }, Neck = { -15, 0, 0 } },
+	Uppercut = { RightShoulder = { 175, 0, -5 }, RightElbow = { 40, 0, 0 }, Torso = { -15, 25, 0 }, Neck = { -15, 0, 0 } },
+	UppercutWindup = { RightShoulder = { -25, 0, 30 }, RightElbow = { 90, 0, 0 }, Torso = { 20, -25, 0 } },
+	Stomp = { RightHip = { 60, 0, 0 }, Torso = { 10, 0, 0 }, RightShoulder = { 30, 0, 40 }, LeftShoulder = { 30, 0, -40 } },
+	Lift = { RightShoulder = { 175, 0, -10 }, LeftShoulder = { 175, 0, 10 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, Torso = { -10, 0, 0 } },
+	Throw = { RightShoulder = { 120, 0, -10 }, LeftShoulder = { 120, 0, 10 }, Torso = { 25, 0, 0 } },
+	Brace = { RightShoulder = { 70, 0, -50 }, LeftShoulder = { 70, 0, 50 }, RightElbow = { 110, 0, 0 }, LeftElbow = { 110, 0, 0 }, Torso = { 12, 0, 0 }, RightHip = { 20, 0, 10 }, LeftHip = { 20, 0, -10 } },
+	PowerWindup = { RightShoulder = { -50, 0, 50 }, RightElbow = { 100, 0, 0 }, LeftShoulder = { 70, 0, 30 }, Torso = { 10, -55, 0 }, Neck = { 0, 30, 0 } },
+	PowerPunch = { RightShoulder = { 100, 0, -5 }, RightElbow = { 0, 0, 0 }, LeftShoulder = { -40, 0, 20 }, Torso = { -10, 55, 0 } },
+	Cast = { RightShoulder = { 95, 0, -5 }, RightElbow = { 10, 0, 0 }, Torso = { 0, 15, 0 } },
+	CastBoth = { RightShoulder = { 95, 0, -20 }, LeftShoulder = { 95, 0, 20 }, Torso = { -5, 0, 0 } },
+	Aim = { RightShoulder = { 90, 0, 0 }, LeftShoulder = { 80, 0, 35 }, LeftElbow = { 30, 0, 0 }, Torso = { 0, 20, 0 } },
+	Recoil = { RightShoulder = { 120, 0, 0 }, LeftShoulder = { 100, 0, 35 }, Torso = { -12, 20, 0 }, Neck = { -8, 0, 0 } },
+	Raise = { RightShoulder = { 160, 0, -30 }, LeftShoulder = { 160, 0, 30 }, Torso = { -12, 0, 0 }, Neck = { -20, 0, 0 } },
+	Spread = { RightShoulder = { 20, 0, 80 }, LeftShoulder = { 20, 0, -80 }, Torso = { -8, 0, 0 }, Neck = { -15, 0, 0 } },
+	Kneel = { Torso = { 30, 0, 0 }, RightHip = { 90, 0, 0 }, LeftHip = { -10, 0, 0 }, RightShoulder = { 20, 0, 20 }, Neck = { 10, 0, 0 } },
+	SlashRight = { RightShoulder = { 100, 0, 60 }, RightElbow = { 20, 0, 0 }, Torso = { 0, -35, 0 } },
+	SlashLeft = { RightShoulder = { 100, 0, -70 }, RightElbow = { 10, 0, 0 }, Torso = { 0, 40, 0 } },
+	SlashUp = { RightShoulder = { 170, 0, -10 }, RightElbow = { 10, 0, 0 }, Torso = { -10, 10, 0 } },
+	SlashDown = { RightShoulder = { 60, 0, -10 }, RightElbow = { 0, 0, 0 }, Torso = { 25, 15, 0 } },
+	Sheathe = { RightShoulder = { 30, 0, 30 }, RightElbow = { 80, 0, 0 }, Torso = { 0, -10, 0 } },
+	Victory = { RightShoulder = { 170, 0, -20 }, LeftShoulder = { 40, 0, -30 }, Torso = { -8, 0, 0 }, Neck = { -15, 0, 0 } },
 }
+
+-- Adds (or replaces) a pose, for powers with moves of their own
+function Poser.register(name: string, pose: { [string]: { number } })
+	Poser.Poses[name] = pose
+end
 
 -- The resting C0 of each joint and which poses are held are stored as (local)
 -- attributes on the instances themselves: Roblox can recycle the Lua object for

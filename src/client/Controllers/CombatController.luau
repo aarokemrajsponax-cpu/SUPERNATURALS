@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Combat = require(ReplicatedStorage.Shared.Config.Combat)
+local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Poser = require(script.Parent.Parent.Effects.Poser)
 
@@ -85,6 +86,44 @@ end
 
 function CombatController:Init(controllers)
 	self.effects = controllers.EffectsController
+	self.abilities = controllers.AbilityController
+	self.powerFx = controllers.PowerFxController
+end
+
+-- This fighter's combat numbers (their power, degree and form change them)
+local function profileOf(character: Model)
+	local powerId = character:GetAttribute(Attribute.Power)
+	return Powers.combatProfile(
+		if typeof(powerId) == "string" then powerId else nil,
+		character:GetAttribute(Attribute.Degree),
+		character:GetAttribute(Attribute.Form)
+	)
+end
+
+-- Some powers replace Light/Heavy with their own move (blasters, animal bites):
+-- send the aim along and show that move instead of a punch
+function CombatController:_basicOverride(character: Model, root: BasePart, humanoid: Humanoid, kind: string): boolean
+	local powerId = character:GetAttribute(Attribute.Power)
+	local override = Powers.basicFor(
+		if typeof(powerId) == "string" then powerId else nil,
+		character:GetAttribute(Attribute.Degree),
+		character:GetAttribute(Attribute.Form),
+		kind
+	)
+	if not override then
+		return false
+	end
+	local def = Powers.abilityFor(powerId, override, character:GetAttribute(Attribute.Degree) or 1)
+	if def and serverNow() + Combat.Abilities.CooldownLeeway < attributeTime(character, Attribute.CooldownPrefix .. override) then
+		return true
+	end
+	faceCamera(root, humanoid)
+	CombatRequest:FireServer(if kind == "Light" then Action.Light else Action.Heavy, if self.abilities then self.abilities:aim() else nil)
+	Poser.release(character, "Block")
+	if self.powerFx then
+		self.powerFx:predict(character, powerId, override)
+	end
+	return true
 end
 
 function CombatController:Start()
@@ -150,6 +189,10 @@ function CombatController:light()
 	if serverBusy(character, Combat.InputBuffer) then
 		return
 	end
+	if self:_basicOverride(character, root, humanoid, "Light") then
+		return
+	end
+	local profile = profileOf(character)
 	faceCamera(root, humanoid)
 	CombatRequest:FireServer(Action.Light)
 
@@ -158,7 +201,7 @@ function CombatController:light()
 	if time < busyUntil - Combat.InputBuffer or time < lightReadyAt then
 		return
 	end
-	local steps = Combat.Light.Steps
+	local steps = profile.Light.Steps
 	local start = math.max(time, busyUntil)
 	if start > chainUntil or chainStep >= #steps then
 		chainStep = 0
@@ -166,9 +209,9 @@ function CombatController:light()
 	chainStep += 1
 	local def = steps[chainStep]
 	busyUntil = start + def.Startup + def.Active + def.Recovery
-	chainUntil = busyUntil + Combat.Light.ChainWindow
+	chainUntil = busyUntil + profile.Light.ChainWindow
 	if chainStep == #steps then
-		lightReadyAt = busyUntil + Combat.Light.ChainCooldown
+		lightReadyAt = busyUntil + profile.Light.ChainCooldown
 	end
 	-- Attacking drops the guard; let go of the block pose so it can't cut the swing short
 	Poser.release(character, "Block")
@@ -181,12 +224,18 @@ function CombatController:heavy()
 		return
 	end
 	local time = os.clock()
-	if time < busyUntil or serverBusy(character) or serverNow() < attributeTime(character, Attribute.HeavyReadyAt) then
+	if time < busyUntil or serverBusy(character) then
+		return
+	end
+	if self:_basicOverride(character, root, humanoid, "Heavy") then
+		return
+	end
+	if serverNow() < attributeTime(character, Attribute.HeavyReadyAt) then
 		return
 	end
 	faceCamera(root, humanoid)
 	CombatRequest:FireServer(Action.Heavy)
-	local def = Combat.Heavy
+	local def = profileOf(character).Heavy
 	busyUntil = time + def.Startup + def.Active + def.Recovery
 	chainStep = 0
 	Poser.release(character, "Block")
@@ -216,9 +265,10 @@ function CombatController:dodge()
 	if time < busyUntil or time < dodgeReadyAt or serverBusy(character) or serverNow() < attributeTime(character, Attribute.DodgeReadyAt) then
 		return
 	end
-	dodgeReadyAt = time + Combat.Dodge.Cooldown
+	local dodge = profileOf(character).Dodge
+	dodgeReadyAt = time + dodge.Cooldown
 	-- No attacking until the dodge (and its short recovery) is over
-	busyUntil = math.max(busyUntil, time + Combat.Dodge.Duration + Combat.Dodge.Recovery)
+	busyUntil = math.max(busyUntil, time + dodge.Duration + dodge.Recovery)
 
 	-- Dash where you're moving; standing still dashes backwards
 	local moving = humanoid.MoveDirection
@@ -242,11 +292,11 @@ function CombatController:dodge()
 	mover.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
 	mover.PrimaryTangentAxis = Vector3.xAxis
 	mover.SecondaryTangentAxis = Vector3.zAxis
-	mover.PlaneVelocity = Vector2.new(direction.X, direction.Z) * Combat.Dodge.Speed
+	mover.PlaneVelocity = Vector2.new(direction.X, direction.Z) * dodge.Speed
 	mover.MaxForce = math.huge
 	mover.Parent = root
-	Debris:AddItem(mover, Combat.Dodge.Duration)
-	Debris:AddItem(attachment, Combat.Dodge.Duration)
+	Debris:AddItem(mover, dodge.Duration)
+	Debris:AddItem(attachment, dodge.Duration)
 
 	-- Dodging drops your block; say so explicitly in case the dodge is refused
 	if blocking then

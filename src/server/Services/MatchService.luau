@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Combat = require(ReplicatedStorage.Shared.Config.Combat)
 local MatchConfig = require(ReplicatedStorage.Shared.Config.Match)
 local MatchFlow = require(ReplicatedStorage.Shared.Match.MatchFlow)
+local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -59,6 +60,7 @@ local function playerId(player: Player): string
 end
 
 function MatchService:Init(services)
+	self.services = services
 	self.characters = services.CharacterService
 	self.arenas = services.ArenaService
 	self.dummies = services.DummyService
@@ -69,14 +71,14 @@ function MatchService:Init(services)
 end
 
 function MatchService:Start()
-	MatchRequest.OnServerEvent:Connect(function(player, action, argument)
+	MatchRequest.OnServerEvent:Connect(function(player, action, argument, options)
 		if not self.antiExploit:allow(player, "Match") then
 			return
 		end
 		if typeof(action) ~= "string" then
 			return
 		end
-		self:_onRequest(player, action, argument)
+		self:_onRequest(player, action, argument, options)
 	end)
 
 	self.characters:setSpawnResolver(function(player)
@@ -157,7 +159,7 @@ end
 
 -- Requests -------------------------------------------------------------------------
 
-function MatchService:_onRequest(player: Player, action: string, argument: any)
+function MatchService:_onRequest(player: Player, action: string, argument: any, options: any)
 	local inMatch = matchOfFighter[playerId(player)]
 	if action == Action.Queue then
 		if typeof(argument) ~= "string" or MatchConfig.Modes[argument] == nil then
@@ -167,9 +169,18 @@ function MatchService:_onRequest(player: Player, action: string, argument: any)
 			self:_notice(player, "You're already in a match.")
 			return
 		end
-		if argument == "Practice" then
+		-- Premium powers being tried out can't go into PvP queues
+		local powers = self.services.PowerService
+		if powers then
+			local allowed, reason = powers:queueCheck(player, argument)
+			if not allowed then
+				self:_notice(player, reason or "You can't queue with that power.")
+				return
+			end
+		end
+		if MatchConfig.Modes[argument].Solo then
 			self:_leaveQueues(player)
-			if not self:_startMatch("Practice", { player }) then
+			if not self:_startMatch(argument, { player }, self:_cpuOptions(options)) then
 				self:_notice(player, "All arenas are busy. Try again in a moment.")
 			end
 		else
@@ -282,7 +293,35 @@ end
 
 -- Match lifecycle ------------------------------------------------------------------
 
-function MatchService:_startMatch(modeName: string, players: { Player }): boolean
+-- What a solo player asked for in CPU Practice: which power the CPU plays, at
+-- what degree and difficulty (anything unknown falls back to a sensible choice)
+function MatchService:_cpuOptions(options: any)
+	local cpu = { power = "Random", degree = 1, difficulty = "Normal" }
+	if typeof(options) == "table" then
+		if typeof(options.cpuPower) == "string" and (options.cpuPower == "Random" or Powers.get(options.cpuPower)) then
+			cpu.power = options.cpuPower
+		end
+		if typeof(options.cpuDegree) == "number" and options.cpuDegree >= 1 and options.cpuDegree <= 3 then
+			cpu.degree = math.floor(options.cpuDegree)
+		end
+		local difficulties = self.services.CpuService and self.services.CpuService.Difficulties
+		if typeof(options.cpuDifficulty) == "string" and difficulties and difficulties[options.cpuDifficulty] then
+			cpu.difficulty = options.cpuDifficulty
+		end
+	end
+	if cpu.power == "Random" then
+		local choices = {}
+		for _, powerId in Powers.Order do
+			if Powers.get(powerId) then
+				table.insert(choices, powerId)
+			end
+		end
+		cpu.power = choices[math.random(1, #choices)]
+	end
+	return cpu
+end
+
+function MatchService:_startMatch(modeName: string, players: { Player }, cpu: { power: string, degree: number, difficulty: string }?): boolean
 	local mode = MatchConfig.Modes[modeName]
 	local arena = self.arenas:reserve()
 	if not arena then
@@ -313,14 +352,20 @@ function MatchService:_startMatch(modeName: string, players: { Player }): boolea
 		MatchEvent:FireClient(player, Event.Queue, nil)
 		player:SetAttribute(Protocol.Attribute.MatchId, match.id)
 		add({ id = playerId(player), name = player.DisplayName, player = player, returned = false })
+		-- Power, degree and loadout stay exactly as they are until the match ends
+		if self.services.PowerService then
+			self.services.PowerService:lock(player)
+		end
 	end
 
 	-- Reserve dummy ids first so the match rules exist before anything can yield
 	-- (creating a dummy waits on Roblox; nothing may see a match without rules)
 	local dummyCount = mode.Dummies or 0
 	local dummyParticipants: { Participant } = {}
+	local cpuDef = cpu and Powers.get(cpu.power)
 	for _ = 1, dummyCount do
-		local participant: Participant = { id = self.dummies:reserveId(), name = "Sparring Dummy", returned = false }
+		local name = if cpuDef and cpu then `{cpuDef.name} CPU ({cpu.difficulty})` else "Sparring Dummy"
+		local participant: Participant = { id = self.dummies:reserveId(), name = name, returned = false }
 		table.insert(dummyParticipants, participant)
 		add(participant)
 	end
@@ -348,12 +393,13 @@ function MatchService:_startMatch(modeName: string, players: { Player }): boolea
 
 	for index, participant in dummyParticipants do
 		local startIndex = #players + index
-		participant.dummy = self.dummies:spawn("Sparring", {
+		participant.dummy = self.dummies:spawn(if cpu then "Cpu" else "Sparring", {
 			id = participant.id,
 			spawnAt = function()
 				return self:_spawnFor(match, participant.id, startIndex)
 			end,
 			parent = match.arena.model,
+			cpu = cpu,
 		})
 		-- The match may have ended while the dummy was being created
 		if not matches[match.id] then
@@ -508,6 +554,9 @@ function MatchService:_sendHome(match: Match, participant: Participant?)
 	local player = participant.player
 	if not player then
 		return
+	end
+	if self.services.PowerService then
+		self.services.PowerService:unlock(player)
 	end
 	if player.Parent then
 		player:SetAttribute(Protocol.Attribute.MatchId, nil)
