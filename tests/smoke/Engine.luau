@@ -645,6 +645,31 @@ end)
 roblox.implementMethod("Workspace", "GetPartsInPart", function()
 	return {}
 end)
+-- Terrain: fills are recorded (Engine.terrainOps) so tests and the preview
+-- renderer can see what was built; there are no voxels to read back
+Engine.terrainOps = {}
+roblox.implementMethod("Terrain", "FillBlock", function(_, cframe, size, material)
+	table.insert(Engine.terrainOps, { kind = "Block", cframe = cframe, size = size, material = material })
+end)
+roblox.implementMethod("Terrain", "FillBall", function(_, center, radius, material)
+	table.insert(Engine.terrainOps, { kind = "Ball", center = center, radius = radius, material = material })
+end)
+roblox.implementMethod("Terrain", "FillCylinder", function(_, cframe, height, radius, material)
+	table.insert(Engine.terrainOps, { kind = "Cylinder", cframe = cframe, height = height, radius = radius, material = material })
+end)
+roblox.implementMethod("Terrain", "FillWedge", function(_, cframe, size, material)
+	table.insert(Engine.terrainOps, { kind = "Wedge", cframe = cframe, size = size, material = material })
+end)
+roblox.implementMethod("Terrain", "Clear", function()
+	table.clear(Engine.terrainOps)
+end)
+Engine.terrainColors = {}
+roblox.implementMethod("Terrain", "SetMaterialColor", function(_, material, color)
+	Engine.terrainColors[material.Name] = color
+end)
+roblox.implementMethod("Terrain", "GetMaterialColor", function(_, material)
+	return Engine.terrainColors[material.Name] or roblox.Color3.fromRGB(128, 128, 128)
+end)
 roblox.implementMethod("Camera", "ViewportPointToRay", function(self, x, y)
 	local cframe = self.CFrame
 	return { Origin = cframe.Position, Direction = cframe.LookVector }
@@ -715,6 +740,13 @@ function Engine.load(placePath: string)
 	local game = roblox.deserializePlace(fs.readFile(placePath))
 	local workspace = game:GetService("Workspace")
 
+	-- Every real place has Terrain; a place built by Rojo may not
+	if not workspace:FindFirstChildOfClass("Terrain") then
+		local terrain = Instance.new("Terrain")
+		terrain.Name = "Terrain"
+		terrain.Parent = workspace
+	end
+
 	local camera = Instance.new("Camera")
 	camera.Name = "Camera"
 	camera.CFrame = roblox.CFrame.new(0, 10, 20)
@@ -736,7 +768,13 @@ function Engine.load(placePath: string)
 		ColorShift_Bottom = roblox.Color3.new(0, 0, 0),
 		ExposureCompensation = 0,
 	} do
-		lighting[key] = value
+		-- Keep what the place sets (default.project.json); fill in only what's missing
+		local ok, current = pcall(function()
+			return lighting[key]
+		end)
+		if not ok or current == nil then
+			lighting[key] = value
+		end
 	end
 
 	local localPlayer = Instance.new("Player")
