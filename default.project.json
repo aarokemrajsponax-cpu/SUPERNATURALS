@@ -12,11 +12,29 @@
         "Client": {
           "$path": "src/client"
         }
+      },
+      "StarterCharacterScripts": {
+        "$path": "src/character"
       }
     },
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "CombatRequest": {
+          "$className": "RemoteEvent"
+        },
+        "CombatEvent": {
+          "$className": "RemoteEvent"
+        },
+        "MatchRequest": {
+          "$className": "RemoteEvent"
+        },
+        "MatchEvent": {
+          "$className": "RemoteEvent"
+        }
       }
     }
   }
