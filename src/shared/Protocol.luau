@@ -23,10 +23,15 @@ Protocol.CombatEvent = {
 
 -- Client -> server, through Remotes.MatchRequest
 Protocol.MatchAction = {
-	Queue = "Queue", -- (modeName)
+	Queue = "Queue", -- (modeName, options: { arena: string?, cpuPower: string?, cpuDifficulty: string? }?)
 	LeaveQueue = "LeaveQueue",
-	Travel = "Travel", -- ("Lobby" | "Training")
+	Travel = "Travel", -- ("Lobby" | "Training" | "Base")
 	ReturnToLobby = "ReturnToLobby",
+	Rematch = "Rematch", -- vote to play again from the results screen
+	ListMatches = "ListMatches", -- ask for the matches you can watch
+	Spectate = "Spectate", -- (matchId)
+	StopSpectating = "StopSpectating",
+	Predict = "Predict", -- (matchId, fighterId) free spectator prediction, no stakes
 }
 
 -- Server -> clients, through Remotes.MatchEvent
@@ -37,7 +42,89 @@ Protocol.MatchEvent = {
 	Results = "Results", -- { reason, draw, winners: {string}, ranking: {{name, score, knockouts, deaths}} }
 	Ended = "Ended",
 	Notice = "Notice", -- { text: string }
+	Matches = "Matches", -- { { id, mode, arena, phase, names: {string} } } watchable matches
+	Spectating = "Spectating", -- { matchId, fighters: { Model } } or nil when you stop
+	Highlight = "Highlight", -- recorded final moments, see ReplayService
+	Rematch = "Rematch", -- { votes: number, needed: number }
 }
+
+-- Client -> server, through Remotes.AbilityRequest: (abilityId, aim: { direction: Vector3?, point: Vector3? }?)
+-- The ultimate is requested with its own ability id. Shapeshifter forms are abilities too.
+
+-- Server -> clients, through Remotes.AbilityEvent
+Protocol.AbilityEvent = {
+	Fx = "Fx", -- { fighter: Model, power: string, fx: string, data: {} } something to draw
+	Cast = "Cast", -- { fighter: Model, power: string, ability: string, startup: number } an ability started
+	ProjectileSpawn = "ProjectileSpawn", -- see ProjectileService
+	ProjectileUpdate = "ProjectileUpdate", -- redirected or changed course
+	ProjectileEnd = "ProjectileEnd", -- { id, position, hit: boolean }
+	Rejected = "Rejected", -- { ability: string, reason: string } (only to the caster)
+}
+
+-- Server -> one client, through Remotes.DefenseEvent
+Protocol.DefenseEvent = {
+	Cue = "Cue", -- { id, kind: "Prompt" | "Mash" | "Timing" | "Redirect", opensAt, closesAt, ... }
+	Result = "Result", -- { id, kind, result: "Perfect" | "Good" | "Escaped" | "Failed" | "Countered" }
+	Clear = "Clear", -- { id } the cue no longer applies
+}
+
+-- Client -> server, through Remotes.DefenseInput: (kind, cueId)
+Protocol.DefenseInput = {
+	Mash = "Mash",
+	Timing = "Timing",
+	Redirect = "Redirect",
+}
+
+-- Client -> server, through Remotes.PowerRequest (only outside an active fight)
+Protocol.PowerAction = {
+	Select = "Select", -- (powerId, degree)
+	SetLoadout = "SetLoadout", -- (powerId, degree, { abilityId })
+	UnlockAbility = "UnlockAbility", -- (powerId, abilityId) pays the listed Money/Gems price
+	UnlockDegree = "UnlockDegree", -- (powerId, degree) pays the listed Money price
+	UnlockPower = "UnlockPower", -- (powerId) premium power through the Gems path
+	PromptPass = "PromptPass", -- (powerId) opens the Roblox purchase prompt for its game pass
+}
+
+-- Server -> one client, through Remotes.DataEvent
+Protocol.DataEvent = {
+	Profile = "Profile", -- the player's saved data (safe copy), sent on join and after changes
+	Persistence = "Persistence", -- { saving: boolean, message: string? } false when progress can't be saved
+	Reward = "Reward", -- { money, gems, xp, lines: { { label, money?, gems?, xp? } } } after a match
+	Toast = "Toast", -- { text, kind: "info" | "success" | "error" | "reward" }
+}
+
+-- Client -> server, through Remotes.ShopRequest
+Protocol.ShopAction = {
+	Buy = "Buy", -- (itemId)
+	Equip = "Equip", -- (slot, itemId?)
+	PromptProduct = "PromptProduct", -- (productKey) Robux developer product (e.g. a gem pack)
+}
+
+-- Client -> server, through Remotes.BaseRequest
+Protocol.BaseAction = {
+	Save = "Save", -- (layout: { { item, x, z, r, c, m } }) replaces the whole furniture layout
+	SetStyle = "SetStyle", -- ("floor" | "wall" | "lighting", styleId)
+	SetAccess = "SetAccess", -- ("Everyone" | "Friends" | "Nobody")
+	Visit = "Visit", -- (userId)
+	Home = "Home",
+	Upgrade = "Upgrade", -- buy more furniture capacity
+}
+
+-- Server -> clients, through Remotes.BaseEvent
+Protocol.BaseEvent = {
+	Result = "Result", -- { ok: boolean, message: string } (to the requester)
+	Plots = "Plots", -- { { index, userId, name, access } } who lives where
+}
+
+-- Client -> server, through Remotes.ProgressRequest
+Protocol.ProgressAction = {
+	ClaimChallenge = "ClaimChallenge", -- (challengeId)
+	StartLesson = "StartLesson", -- (lessonId) tutorial lesson in the training ground
+	StopLesson = "StopLesson",
+	Welcome = "Welcome", -- the new-player welcome was seen
+}
+
+-- Client -> server, through Remotes.SettingsRequest: (settings table, sanitized on the server)
 
 -- Client -> server, through Remotes.AdminRequest (owner only; checked on the server)
 Protocol.AdminAction = {
@@ -74,6 +161,28 @@ Protocol.Attribute = {
 	BusyUntil = "BusyUntil",
 	ProtectedUntil = "ProtectedUntil",
 	MatchId = "MatchId",
+	-- Powers (on fighter models)
+	Power = "SNPower",
+	Degree = "SNDegree",
+	-- Shapeshifter's current animal ("" when human)
+	Form = "SNForm",
+	-- The power's resource (fuel, grit, corruption...) and its maximum
+	Resource = "SNRes",
+	ResourceMax = "SNResMax",
+	-- Ultimate charge, 0 to 100
+	Ultimate = "SNUlt",
+	-- Equipped abilities in slot order, comma separated
+	Loadout = "SNLoadout",
+	-- "SNCD_" .. abilityId = server time the ability is ready again
+	CooldownPrefix = "SNCD_",
+	-- "SNS_" .. statusId = server time the status ends (nil when it's not active)
+	StatusPrefix = "SNS_",
+	-- A power's visual stage (Corruption's overwrite, Machine Master's heat...), 0 to 1
+	Phase = "SNPhase",
+	MaxHealth = "SNMaxHealth",
+	-- On Player objects: which base plot is theirs, and what they're watching
+	Plot = "SNPlot",
+	Spectating = "SNSpectating",
 	-- On a character: frozen in ice by the owner or an event
 	Iced = "SNIced",
 	-- On Player objects (owner panel)
@@ -100,6 +209,12 @@ Protocol.Attribute = {
 
 Protocol.Tag = {
 	Fighter = "SNFighter",
+	-- Arena props Strong Dude can pick up and throw (attribute "Weight": 1 light, 2 heavy, 3 enormous)
+	Throwable = "SNThrowable",
+	-- Arena objects Syntax can take over (attribute "Interaction": what it does)
+	Interactive = "SNInteractive",
+	-- Temporary barriers and constructs that stop projectiles
+	Construct = "SNConstruct",
 }
 
 return Protocol

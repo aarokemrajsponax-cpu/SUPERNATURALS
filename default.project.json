@@ -40,6 +40,39 @@
         },
         "AdminEvent": {
           "$className": "RemoteEvent"
+        },
+        "AbilityRequest": {
+          "$className": "RemoteEvent"
+        },
+        "AbilityEvent": {
+          "$className": "RemoteEvent"
+        },
+        "DefenseInput": {
+          "$className": "RemoteEvent"
+        },
+        "DefenseEvent": {
+          "$className": "RemoteEvent"
+        },
+        "PowerRequest": {
+          "$className": "RemoteEvent"
+        },
+        "DataEvent": {
+          "$className": "RemoteEvent"
+        },
+        "ShopRequest": {
+          "$className": "RemoteEvent"
+        },
+        "BaseRequest": {
+          "$className": "RemoteEvent"
+        },
+        "BaseEvent": {
+          "$className": "RemoteEvent"
+        },
+        "ProgressRequest": {
+          "$className": "RemoteEvent"
+        },
+        "SettingsRequest": {
+          "$className": "RemoteEvent"
         }
       }
     }
