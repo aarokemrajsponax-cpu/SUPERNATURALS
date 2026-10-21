@@ -428,7 +428,7 @@ check("owner panel: the owner can run events, actions and announcements", functi
 	ownerRequest(owner, "EndMatches")
 	task.wait(0.2)
 	assert(owner:GetAttribute("SNCanFly") == true, "fly enabled")
-	assert(world.game:GetService("Lighting").ClockTime == 0, "time set to night")
+	assert(world.game:GetService("Lighting"):GetAttribute("SNOwnerClockTime") == 0, "time set to night")
 	assert(fighterOf(alice).root.Anchored == true, "Alice is frozen by the owner")
 end)
 

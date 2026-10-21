@@ -102,10 +102,16 @@ function CombatController:Start()
 			local character, humanoid = myCharacter()
 			if character and humanoid then
 				local serverBlocking = character:GetAttribute(Attribute.Blocking) == true
-				if blocking and not serverBlocking and canAct(character, humanoid) and os.clock() >= busyUntil and not serverBusy(character) then
+				local free = canAct(character, humanoid) and os.clock() >= busyUntil and not serverBusy(character)
+				if blocking and not serverBlocking and free then
 					CombatRequest:FireServer(Action.BlockStart, "Held")
+					Poser.hold(character, "Block")
 				elseif not blocking and serverBlocking then
 					CombatRequest:FireServer(Action.BlockEnd)
+				end
+				-- A swing turns auto-rotate off; turn it back on once nothing is playing
+				if free and not humanoid.AutoRotate then
+					humanoid.AutoRotate = true
 				end
 			end
 		end
@@ -121,9 +127,17 @@ function CombatController:Start()
 			removeDodgeMover(character and character:FindFirstChild("HumanoidRootPart") :: BasePart?)
 			dodgeReadyAt = 0
 		elseif data.action == Action.Light or data.action == Action.Heavy then
+			-- "busy" just means the press landed mid-swing; the swing still plays
+			if data.reason == "busy" or data.reason == "buffered" then
+				return
+			end
 			busyUntil = 0
 			chainStep = 0
 			lightReadyAt = 0
+			local character, humanoid = myCharacter()
+			if character and humanoid and canAct(character, humanoid) and not serverBusy(character) then
+				humanoid.AutoRotate = true
+			end
 		end
 	end)
 end

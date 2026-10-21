@@ -114,15 +114,18 @@ function AdminEffectsController:_watchEvents()
 		liveChip = self:_liveChip(def, context.endsAt)
 	end
 
+	-- The server sets AdminEventRun last, after the event's other attributes,
+	-- and it changes on every start (even of the same event again)
 	local function sync()
+		local run = ReplicatedStorage:GetAttribute(Attribute.AdminEventRun)
 		local id = ReplicatedStorage:GetAttribute(Attribute.AdminEvent)
-		if typeof(id) == "string" and id ~= "" then
+		if typeof(run) == "string" and run ~= "" and typeof(id) == "string" and id ~= "" then
 			start(id)
 		else
 			stop()
 		end
 	end
-	ReplicatedStorage:GetAttributeChangedSignal(Attribute.AdminEvent):Connect(sync)
+	ReplicatedStorage:GetAttributeChangedSignal(Attribute.AdminEventRun):Connect(sync)
 	sync()
 
 	AdminEvent.OnClientEvent:Connect(function(kind, data)
@@ -437,9 +440,15 @@ local function buildTitle(head: BasePart): BillboardGui
 	return gui
 end
 
+-- Roblox only draws about 30 Highlights at once, and the panel can give
+-- everyone an aura; past this many, auras keep their sparkles but no outline
+local MAX_OUTLINES = 6
+
 function AdminEffectsController:_watchPlayers()
-	type Decor = { cleanup: { Instance }, connections: { RBXScriptConnection } }
+	type Decor = { cleanup: { Instance }, connections: { RBXScriptConnection }, outlined: boolean }
 	local decorations: { [Player]: Decor } = {}
+	local refreshers: { [Player]: () -> () } = {}
+	local outlines = 0
 
 	local function clear(target: Player)
 		local decor = decorations[target]
@@ -449,6 +458,9 @@ function AdminEffectsController:_watchPlayers()
 			end
 			for _, connection in decor.connections do
 				connection:Disconnect()
+			end
+			if decor.outlined then
+				outlines -= 1
 			end
 			decorations[target] = nil
 		end
@@ -462,29 +474,41 @@ function AdminEffectsController:_watchPlayers()
 		if not character or not head or not root or not head:IsA("BasePart") or not root:IsA("BasePart") then
 			return
 		end
-		local decor: Decor = { cleanup = {}, connections = {} }
+		local decor: Decor = { cleanup = {}, connections = {}, outlined = false }
 		decorations[target] = decor
 		local invisible = target:GetAttribute(Attribute.Invisible) == true
 
+		-- Giant and tiny resize the body; build everything again at the new size
+		local refresh = refreshers[target]
+		if refresh then
+			table.insert(decor.connections, head:GetPropertyChangedSignal("Size"):Connect(refresh))
+			table.insert(decor.connections, root:GetPropertyChangedSignal("Size"):Connect(refresh))
+		end
+
 		local aura = target:GetAttribute(Attribute.Aura)
 		if typeof(aura) == "string" and AdminEvents.Auras[aura] and not invisible then
-			local volume = Common.part({ Size = Vector3.new(4, 5.5, 4), CFrame = root.CFrame, Transparency = 1, Parent = character })
+			local bodyScale = root.Size.Y / 2
+			local volume = Common.part({ Size = Vector3.new(4, 5.5, 4) * bodyScale, CFrame = root.CFrame, Transparency = 1, Parent = character })
 			weldTo(volume, root)
 			auraEmitters(volume, aura)
 			table.insert(decor.cleanup, volume)
-			local outline = make("Highlight", {
-				Adornee = character,
-				FillTransparency = 1,
-				OutlineTransparency = 0.25,
-				OutlineColor = AdminEvents.Auras[aura][1],
-				DepthMode = Enum.HighlightDepthMode.Occluded,
-				Parent = workspace.CurrentCamera,
-			})
-			table.insert(decor.cleanup, outline)
-			if aura == "Rainbow" then
-				table.insert(decor.connections, RunService.RenderStepped:Connect(function()
-					outline.OutlineColor = Common.hue(0)
-				end))
+			if outlines < MAX_OUTLINES then
+				outlines += 1
+				decor.outlined = true
+				local outline = make("Highlight", {
+					Adornee = character,
+					FillTransparency = 1,
+					OutlineTransparency = 0.25,
+					OutlineColor = AdminEvents.Auras[aura][1],
+					DepthMode = Enum.HighlightDepthMode.Occluded,
+					Parent = workspace.CurrentCamera,
+				})
+				table.insert(decor.cleanup, outline)
+				if aura == "Rainbow" then
+					table.insert(decor.connections, RunService.RenderStepped:Connect(function()
+						outline.OutlineColor = Common.hue(0)
+					end))
+				end
 			end
 		end
 
@@ -495,9 +519,21 @@ function AdminEffectsController:_watchPlayers()
 	end
 
 	local function watch(target: Player)
+		-- Many changes can arrive together (a resize changes every part); draw once
+		local pending = false
 		local function refresh()
-			task.defer(render, target)
+			if pending then
+				return
+			end
+			pending = true
+			task.defer(function()
+				pending = false
+				if target.Parent then
+					render(target)
+				end
+			end)
 		end
+		refreshers[target] = refresh
 		target.CharacterAdded:Connect(function(character)
 			character:WaitForChild("Head", 5)
 			character:WaitForChild("HumanoidRootPart", 5)
@@ -511,7 +547,10 @@ function AdminEffectsController:_watchPlayers()
 		end
 	end
 	Players.PlayerAdded:Connect(watch)
-	Players.PlayerRemoving:Connect(clear)
+	Players.PlayerRemoving:Connect(function(target)
+		clear(target)
+		refreshers[target] = nil
+	end)
 	for _, target in Players:GetPlayers() do
 		watch(target)
 	end
@@ -581,31 +620,67 @@ end
 
 function AdminEffectsController:_watchIce()
 	local blocks: { [Model]: { BasePart } } = {}
-	local function refresh(model: Model)
-		local iced = model:GetAttribute(Attribute.Iced) == true and model.Parent ~= nil
-		local existing = blocks[model]
-		if iced and not existing then
-			blocks[model] = iceBlock(model)
-		elseif not iced and existing then
-			blocks[model] = nil
-			shatter(existing)
-		end
+	local watched: { [Model]: { RBXScriptConnection } } = {}
+
+	local function hidden(model: Model): boolean
+		local owner = Players:GetPlayerFromCharacter(model)
+		return owner ~= nil and owner:GetAttribute(Attribute.Invisible) == true
 	end
-	local function watch(model: Instance)
-		if not model:IsA("Model") then
+	local function removeBlock(model: Model, burst: boolean)
+		local existing = blocks[model]
+		if not existing then
 			return
 		end
-		model:GetAttributeChangedSignal(Attribute.Iced):Connect(function()
-			refresh(model)
-		end)
-		model.AncestryChanged:Connect(function()
-			if not model:IsDescendantOf(workspace) and blocks[model] then
-				for _, part in blocks[model] do
-					part:Destroy()
-				end
-				blocks[model] = nil
+		blocks[model] = nil
+		if burst then
+			shatter(existing)
+		else
+			for _, part in existing do
+				part:Destroy()
 			end
-		end)
+		end
+	end
+	local function refresh(model: Model)
+		local iced = model:GetAttribute(Attribute.Iced) == true and model:IsDescendantOf(workspace)
+		-- An invisible owner stays invisible, ice and all
+		if iced and hidden(model) then
+			removeBlock(model, false)
+		elseif iced and not blocks[model] then
+			blocks[model] = iceBlock(model)
+		elseif not iced then
+			removeBlock(model, true)
+		end
+	end
+	local function unwatch(model: Model)
+		local connections = watched[model]
+		if connections then
+			watched[model] = nil
+			for _, connection in connections do
+				connection:Disconnect()
+			end
+		end
+		removeBlock(model, false)
+	end
+	local function watch(model: Instance)
+		if not model:IsA("Model") or watched[model] then
+			return
+		end
+		local connections = {}
+		watched[model] = connections
+		table.insert(connections, model:GetAttributeChangedSignal(Attribute.Iced):Connect(function()
+			refresh(model)
+		end))
+		table.insert(connections, model.AncestryChanged:Connect(function()
+			if not model:IsDescendantOf(workspace) then
+				unwatch(model)
+			end
+		end))
+		local owner = Players:GetPlayerFromCharacter(model)
+		if owner then
+			table.insert(connections, owner:GetAttributeChangedSignal(Attribute.Invisible):Connect(function()
+				refresh(model)
+			end))
+		end
 		refresh(model)
 	end
 	for _, model in CollectionService:GetTagged(Protocol.Tag.Fighter) do

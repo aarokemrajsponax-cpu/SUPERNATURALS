@@ -105,12 +105,22 @@ function CharacterService:_onCharacter(player: Player, character: Model)
 		-- Wait a frame so Roblox finishes placing the character at its spawn
 		-- first, then check once more in case the engine moved it back
 		task.defer(function()
-			if character.Parent then
-				self:teleport(fighter, destination)
+			if not character.Parent then
+				return
 			end
+			self:teleport(fighter, destination)
+			local stamp = fighter.teleportedAt
 			task.wait(0.25)
-			if character.Parent and (fighter.root.Position - destination.Position).Magnitude > 12 then
-				self:teleport(fighter, destination)
+			-- Only if nothing else has moved them since, and they still belong there
+			local still = spawnResolver and spawnResolver(player)
+			if
+				character.Parent
+				and byPlayer[player] == fighter
+				and fighter.teleportedAt == stamp
+				and still
+				and (fighter.root.Position - still.Position).Magnitude > 12
+			then
+				self:teleport(fighter, still)
 			end
 		end)
 	end

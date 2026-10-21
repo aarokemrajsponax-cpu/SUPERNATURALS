@@ -8,6 +8,7 @@
 -- through Remotes.AdminEvent.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local AdminEvents = require(ReplicatedStorage.Shared.Config.AdminEvents)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
@@ -27,6 +28,7 @@ type Running = {
 }
 
 local current: Running? = nil
+local runCount = 0
 
 local groundParams = RaycastParams.new()
 groundParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -55,6 +57,7 @@ end
 
 function AdminEventService:Start()
 	ReplicatedStorage:SetAttribute(Attribute.AdminEvent, "")
+	ReplicatedStorage:SetAttribute(Attribute.AdminEventRun, "")
 end
 
 -- Fighters an event may push around: anyone alive who isn't in a match and
@@ -131,6 +134,10 @@ function AdminEventService:start(id: string, owner: Player?): boolean
 	ReplicatedStorage:SetAttribute(Attribute.AdminEventEndsAt, startedAt + def.duration)
 	ReplicatedStorage:SetAttribute(Attribute.AdminEventCenter, center)
 	ReplicatedStorage:SetAttribute(Attribute.AdminEvent, id)
+	-- Written last and unique per run, so clients notice even a restart of the
+	-- same event within one frame
+	runCount += 1
+	ReplicatedStorage:SetAttribute(Attribute.AdminEventRun, `{id}#{runCount}`)
 
 	local context = {
 		def = def,
@@ -232,14 +239,40 @@ function AdminEventService:_runBlackHole(context)
 	local core = context.center + Vector3.new(0, 24, 0)
 	local collapseAt = context.startedAt + def.collapseAt
 	self:_scheduleBlackHoleBlast(context)
+
+	-- One pull per fighter for the whole event, updated in place (creating a
+	-- new mover every step would flood every client with replication)
+	local pulls: { [BasePart]: LinearVelocity } = {}
+	local function release(root: BasePart)
+		local mover = pulls[root]
+		if mover then
+			local attachment = mover.Attachment0
+			mover:Destroy()
+			if attachment then
+				attachment:Destroy()
+			end
+			pulls[root] = nil
+		end
+	end
+	local function releaseAll()
+		for root in pulls do
+			release(root)
+		end
+	end
+	context.onCleanup(releaseAll)
+
 	every(context, 0.15, function()
 		if now() >= collapseAt then
+			releaseAll()
 			return
 		end
+		local inRange: { [BasePart]: boolean } = {}
 		for _, fighter in self:eligible() do
-			local toCore = core - fighter.root.Position
+			local root = fighter.root
+			local toCore = core - root.Position
 			local distance = toCore.Magnitude
-			if distance < def.pullRange and distance > 0.5 then
+			if distance < def.pullRange and distance > 0.5 and not root.Anchored then
+				inRange[root] = true
 				local inward = toCore.Unit
 				local swirl = Vector3.yAxis:Cross(inward)
 				swirl = if swirl.Magnitude > 1e-3 then swirl.Unit else Vector3.zero
@@ -247,7 +280,27 @@ function AdminEventService:_runBlackHole(context)
 				local speed = def.pullSpeed * (0.6 + 0.4 * closeness)
 				-- Near the core, hover in orbit instead of piling into the middle
 				local inwardShare = if distance < 10 then 0.15 else 1
-				self.damage:setVelocity(fighter, inward * speed * inwardShare + swirl * 22, 0.2)
+				local mover = pulls[root]
+				if not mover or mover.Parent == nil then
+					local attachment = Instance.new("Attachment")
+					attachment.Name = "SNPull"
+					attachment.Parent = root
+					local newMover = Instance.new("LinearVelocity")
+					newMover.Name = "SNPull"
+					newMover.Attachment0 = attachment
+					newMover.RelativeTo = Enum.ActuatorRelativeTo.World
+					newMover.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+					newMover.MaxForce = math.huge
+					newMover.Parent = root
+					pulls[root] = newMover
+					mover = newMover
+				end
+				(mover :: LinearVelocity).VectorVelocity = inward * speed * inwardShare + swirl * 22
+			end
+		end
+		for root in pulls do
+			if not inRange[root] then
+				release(root)
 			end
 		end
 	end)
@@ -358,7 +411,8 @@ function AdminEventService:_runLowGravity(context)
 				affected[root] = true
 			end
 			-- Cancel most of gravity for the whole character
-			local lift = root.AssemblyMass * workspace.Gravity * (1 - def.gravity)
+			local mass = root.AssemblyMass
+			local lift = if root.Anchored or mass ~= mass or mass == math.huge then 0 else mass * workspace.Gravity * (1 - def.gravity)
 			;(force :: VectorForce).Force = Vector3.new(0, lift, 0)
 		end
 		for root in affected do
@@ -368,6 +422,24 @@ function AdminEventService:_runLowGravity(context)
 		end
 	end
 	refresh()
+	-- Mass changes the moment a player is resized (owner Giant/Tiny), so the
+	-- lift is recalculated every frame; who's affected is re-checked twice a second
+	local heartbeat = RunService.Heartbeat:Connect(function()
+		for root in affected do
+			local force = root:FindFirstChild(FORCE_NAME .. "Force") :: VectorForce?
+			if force then
+				local mass = root.AssemblyMass
+				local lift = if root.Anchored or mass ~= mass or mass == math.huge then 0 else mass * workspace.Gravity * (1 - def.gravity)
+				local wanted = Vector3.new(0, lift, 0)
+				if force.Force ~= wanted then
+					force.Force = wanted
+				end
+			end
+		end
+	end)
+	context.onCleanup(function()
+		heartbeat:Disconnect()
+	end)
 	every(context, 0.5, refresh)
 end
 

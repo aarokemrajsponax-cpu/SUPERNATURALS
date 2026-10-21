@@ -88,6 +88,10 @@ function CombatService:perform(fighter, action: string, payload: any?): (boolean
 	if action ~= Action.BlockEnd and not matchService:isCombatAllowed(fighter) then
 		return false, "unavailable"
 	end
+	-- Frozen in ice (owner panel or Ice Age): no fighting until thawed
+	if action ~= Action.BlockEnd and (fighter.root.Anchored or fighter.model:GetAttribute(Protocol.Attribute.Iced) == true) then
+		return false, "frozen"
+	end
 	local state = fighter.state
 	local time = now()
 
@@ -215,10 +219,17 @@ local DRIFT_SLACK = 4
 function CombatService:_sweep(attacker, attack, alreadyHit: { [string]: boolean }, startedAt: Vector3): boolean
 	local matchService = self.services.MatchService
 	local origin = attacker.root.Position
-	-- Characters move on their own client, so check the attacker didn't jump
-	-- (teleport) somewhere mid-swing to land an impossible hit
-	local allowed = Combat.Movement.AttackingSpeed * (now() - attack.startedAt) + DRIFT_SLACK
-	if (origin - startedAt).Magnitude > allowed then
+	-- Characters move on their own client, so check the attacker didn't teleport
+	-- somewhere mid-swing to land an impossible hit. Only sideways movement
+	-- counts (jumps and falls are fine), at full walking speed (the slow-down
+	-- reaches their client a moment late), and pushes or teleports are excused.
+	local drift = origin - startedAt
+	local sideways = Vector3.new(drift.X, 0, drift.Z).Magnitude
+	local allowed = Combat.Movement.WalkSpeed * attacker.moveBoost * (now() - attack.startedAt) + DRIFT_SLACK
+	local excused = attacker.root:FindFirstChild("SNKnockback") ~= nil
+		or attacker.root:FindFirstChild("SNPull") ~= nil
+		or attacker.teleportedAt >= attack.startedAt
+	if sideways > allowed and not excused then
 		if attacker.player then
 			self.antiExploit:flag(attacker.player, "moved too far during an attack")
 		end

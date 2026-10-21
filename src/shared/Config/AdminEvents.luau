@@ -147,6 +147,7 @@ AdminEvents.Auras = {
 }
 
 AdminEvents.TimesOfDay = {
+	{ id = "Auto", label = "🗓️ Season default", clockTime = nil :: number? },
 	{ id = "Dawn", label = "🌅 Dawn", clockTime = 6.3 },
 	{ id = "Day", label = "☀️ Day", clockTime = 13 },
 	{ id = "Sunset", label = "🌇 Sunset", clockTime = 17.8 },

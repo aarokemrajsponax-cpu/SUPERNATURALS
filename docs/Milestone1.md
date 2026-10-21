@@ -59,14 +59,18 @@ server checks every request, so nobody else can use it.
 - **PLAYERS:** pick a player, "Everyone" or "Everyone but me", then Heal, Knock
   Out, Fling, Freeze, Bring, Go To, Giant, Tiny, Normal Size, Speed Boost, auras
   (Gold, Rainbow, Void, Frost, Remove), Kick, or Ban from this server. Kick and
-  ban need two clicks.
+  ban need two clicks. "Everyone" actions skip players in a running match (auras,
+  kick and ban still reach them); pick a player by name to target them anyway.
 - **ME:** Fly (G toggles; Space up, Ctrl down, Shift for speed), Immune to events,
   Invisible, Crown & owner title, your own aura and speed boost.
-- **SERVER:** announcements (they go through Roblox's text filter), time of day,
-  force a holiday season (or Auto), end all matches, stop the current event.
+- **SERVER:** announcements (they go through Roblox's text filter), time of day
+  (or back to the season's default), force a holiday season (or Auto), end all
+  matches, stop the current event.
 
-To give the panel to more accounts, add usernames or user ids in
-`src/server/OwnerConfig.luau`. The account that owns the game always gets it.
+Only XxxXxxX_77797 (user id 8722595934) gets it. To give it to more accounts,
+add user ids (best, they never change) or usernames in
+`src/server/OwnerConfig.luau`. Set `IncludeGameCreator = true` there if the
+account or group that publishes the game should get it too.
 
 ## Where to tune things
 

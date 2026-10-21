@@ -100,6 +100,7 @@ local function buildEvents(page: Frame, send: Send)
 		local card = make("Frame", {
 			LayoutOrder = order,
 			BackgroundColor3 = Color3.new(1, 1, 1),
+			Active = true,
 			Parent = grid,
 		}, {
 			Components.corner(),
@@ -202,6 +203,7 @@ local function buildPlayers(page: Frame, send: Send)
 		Position = UDim2.fromOffset(264, 0),
 		Size = UDim2.new(1, -264, 1, 0),
 		BackgroundTransparency = 1,
+		Active = true,
 		Parent = page,
 	})
 	local selectedLabel = Components.label("", {
@@ -502,6 +504,8 @@ function OwnerPanel.build(parent: Instance, send: Send)
 		BackgroundTransparency = 0.04,
 		Visible = false,
 		ZIndex = 30,
+		-- Clicks on the panel stay on the panel (no swinging or camera turning)
+		Active = true,
 		Parent = parent,
 	}, { Components.corner(UDim.new(0, 18)) })
 	local windowScale = make("UIScale", { Scale = 0.9, Parent = window })

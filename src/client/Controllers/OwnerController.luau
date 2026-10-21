@@ -83,13 +83,18 @@ local function startFlying()
 		local camera = workspace.CurrentCamera
 		local move = humanoid.MoveDirection
 		local vertical = 0
-		if UserInputService:IsKeyDown(Enum.KeyCode.Space) or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonA) then
+		-- Typing an announcement mustn't fly you around
+		local typing = UserInputService:GetFocusedTextBox() ~= nil
+		local function keyDown(key: Enum.KeyCode): boolean
+			return not typing and UserInputService:IsKeyDown(key)
+		end
+		if keyDown(Enum.KeyCode.Space) or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonA) then
 			vertical += 1
 		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonL2) then
+		if keyDown(Enum.KeyCode.LeftControl) or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonL2) then
 			vertical -= 1
 		end
-		local speed = if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then FLY_SPEED * FLY_BOOST else FLY_SPEED
+		local speed = if keyDown(Enum.KeyCode.LeftShift) then FLY_SPEED * FLY_BOOST else FLY_SPEED
 		-- Moving forward follows where the camera points, so you can dive and climb
 		local look = camera.CFrame.LookVector
 		local flatLook = Vector3.new(look.X, 0, look.Z)
@@ -129,7 +134,10 @@ local function build()
 	local scale = Components.make("UIScale", { Parent = gui })
 	local function rescale()
 		local viewport = workspace.CurrentCamera.ViewportSize
-		scale.Scale = math.clamp(math.min(viewport.X / 1280, viewport.Y / 720), 0.55, 1.2)
+		-- Normal size on a desktop; on small screens as big as still fits the 800x520 panel
+		local wanted = math.max(math.min(viewport.X / 1280, viewport.Y / 720), 0.62)
+		local fits = math.min(viewport.X / 820, viewport.Y / 560)
+		scale.Scale = math.clamp(math.min(wanted, fits), 0.3, 1.2)
 	end
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
 	rescale()

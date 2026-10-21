@@ -185,7 +185,7 @@ local function nearestPlayer(characters, fighter)
 end
 
 local function hasKnockback(root: BasePart): boolean
-	return root:FindFirstChild("SNKnockback") ~= nil
+	return root:FindFirstChild("SNKnockback") ~= nil or root:FindFirstChild("SNPull") ~= nil
 end
 
 function DummyService:_behave(dummy: Dummy, fighter)

@@ -428,7 +428,7 @@ function MatchService:_holdAtSpawns(match: Match, time: number)
 				fighter
 				and self.characters:isAlive(fighter)
 				and time - fighter.teleportedAt > 0.5
-				and (fighter.root.Position - spawn.Position).Magnitude > HOLD_RANGE
+				and Vector3.new(fighter.root.Position.X - spawn.Position.X, 0, fighter.root.Position.Z - spawn.Position.Z).Magnitude > HOLD_RANGE
 			then
 				self.characters:teleport(fighter, spawn)
 			end

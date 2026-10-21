@@ -88,7 +88,14 @@ Protocol.Attribute = {
 	AdminEventStartedAt = "AdminEventStartedAt",
 	AdminEventEndsAt = "AdminEventEndsAt",
 	AdminEventCenter = "AdminEventCenter",
+	-- Unique per event run ("" when none); clients restart visuals when it changes
+	AdminEventRun = "AdminEventRun",
 	SeasonOverride = "SeasonOverride",
+	-- On Lighting: the owner's chosen time of day (nil = the season decides)
+	OwnerClockTime = "SNOwnerClockTime",
+	-- On Lighting: the lighting the server wants ("SNBase_" .. property), so
+	-- clients can return to it after an event changed their lighting locally
+	BaseLightingPrefix = "SNBase_",
 }
 
 Protocol.Tag = {

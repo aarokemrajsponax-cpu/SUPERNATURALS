@@ -153,9 +153,13 @@ function OwnerService:_handle(owner: Player, action: string, first: any, second:
 			self:_announce(owner, first)
 		end
 	elseif action == Action.SetTime then
+		-- SeasonalSync applies it (and keeps it through season changes)
+		if first == "Auto" then
+			Lighting:SetAttribute(Attribute.OwnerClockTime, nil)
+		end
 		for _, option in AdminEvents.TimesOfDay do
 			if option.id == first then
-				Lighting.ClockTime = option.clockTime
+				Lighting:SetAttribute(Attribute.OwnerClockTime, option.clockTime)
 			end
 		end
 	elseif action == Action.SetSeason then
@@ -221,9 +225,16 @@ function OwnerService:_playerAction(owner: Player, target: any, actionId: string
 		return
 	end
 
+	local group = target == "All" or target == "Others"
 	for index, player in players do
 		local fighter = self.characters:getByPlayer(player)
 		local alive = fighter ~= nil and self.characters:isAlive(fighter)
+		-- Group actions leave players in running matches alone (like events do);
+		-- picking one player on purpose still works
+		local inMatch = fighter ~= nil and self.services.MatchService:getMatchOf(fighter) ~= nil
+		if group and inMatch and actionId ~= "Kick" and actionId ~= "Ban" and not string.find(actionId, "^Aura") then
+			continue
+		end
 
 		if actionId == "Kick" or actionId == "Ban" then
 			if player ~= owner and not self:isOwner(player) then
@@ -338,7 +349,15 @@ end
 
 -- Announcements go through Roblox's text filter like any other player text
 function OwnerService:_announce(owner: Player, text: string)
-	text = string.sub(string.gsub(text, "^%s+", ""), 1, MAX_ANNOUNCEMENT)
+	text = string.gsub(text, "^%s+", "")
+	if utf8.len(text) == nil then
+		return
+	end
+	-- Cut by characters, not bytes, so an emoji is never split in half
+	local cut = utf8.offset(text, MAX_ANNOUNCEMENT + 1)
+	if cut then
+		text = string.sub(text, 1, cut - 1)
+	end
 	if text == "" then
 		return
 	end

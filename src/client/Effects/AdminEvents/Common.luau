@@ -27,6 +27,21 @@ function Common.folder(): Folder
 	return newFolder
 end
 
+-- Loose pieces (rock chunks, ice shards) have to live in the workspace: parts
+-- under the camera are drawn but never simulated, so they'd hang in the air.
+-- Parts this client creates stay on this client.
+local looseFolder: Folder? = nil
+local function loose(): Folder
+	if looseFolder and looseFolder.Parent then
+		return looseFolder
+	end
+	local newFolder = Instance.new("Folder")
+	newFolder.Name = "SNLocalDebris"
+	newFolder.Parent = workspace
+	looseFolder = newFolder
+	return newFolder
+end
+
 function Common.part(props: { [string]: any }): BasePart
 	local part = Instance.new(props.ClassName or "Part")
 	part.Anchored = true
@@ -44,7 +59,7 @@ function Common.part(props: { [string]: any }): BasePart
 	end
 	part.Size = props.Size or Vector3.one
 	part.CFrame = props.CFrame or CFrame.new()
-	part.Parent = props.Parent or Common.folder()
+	part.Parent = props.Parent or if props.Anchored == false then loose() else Common.folder()
 	return part
 end
 
@@ -60,7 +75,11 @@ function Common.fadeOut(instance: Instance, duration: number, goal: { [string]: 
 end
 
 -- Temporarily changes Lighting properties on this client; the returned
--- function eases them back to how they were
+-- function eases them back. The server keeps the lighting the game should have
+-- right now (season, owner's time of day) in "SNBase_" attributes, so the
+-- event goes back to that even if it changed while the event was running.
+local BASE_PREFIX = "SNBase_"
+
 function Common.lighting(goal: { [string]: any }, duration: number?): () -> ()
 	local original = {}
 	for key in goal do
@@ -68,7 +87,12 @@ function Common.lighting(goal: { [string]: any }, duration: number?): () -> ()
 	end
 	Common.tween(Lighting, duration or 2, goal)
 	return function()
-		Common.tween(Lighting, 2, original)
+		local restore = {}
+		for key, value in original do
+			local current = Lighting:GetAttribute(BASE_PREFIX .. key)
+			restore[key] = if typeof(current) == typeof(value) then current else value
+		end
+		Common.tween(Lighting, 2, restore)
 	end
 end
 

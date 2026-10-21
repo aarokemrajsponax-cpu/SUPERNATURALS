@@ -58,6 +58,8 @@ Poser.Poses = {
 -- an Instance, so tables keyed by Instances may forget them. Active tweens and
 -- tokens only need to live while a pose is playing (their closures keep them).
 local BASE_ATTRIBUTE = "SNBaseC0"
+-- Character scale when the resting C0 was saved (giant/tiny effects resize joints)
+local SCALE_ATTRIBUTE = "SNBaseScale"
 local HOLD_PREFIX = "SNHold_"
 local tweens: { [Motor6D]: Tween } = setmetatable({}, { __mode = "k" }) :: any
 local tokens: { [Motor6D]: number } = setmetatable({}, { __mode = "k" }) :: any
@@ -81,11 +83,27 @@ local function findMotor(character: Model, joint: string): Motor6D?
 	return nil
 end
 
+local function modelScale(motor: Motor6D): number
+	local model = motor:FindFirstAncestorOfClass("Model")
+	return if model then model:GetScale() else 1
+end
+
 local function base(motor: Motor6D): CFrame
 	local original = motor:GetAttribute(BASE_ATTRIBUTE)
+	local scale = modelScale(motor)
 	if typeof(original) ~= "CFrame" then
 		original = motor.C0
 		motor:SetAttribute(BASE_ATTRIBUTE, original)
+		motor:SetAttribute(SCALE_ATTRIBUTE, scale)
+	else
+		-- Resizing a character moves its joints; move the saved rest pose with them
+		local savedScale = motor:GetAttribute(SCALE_ATTRIBUTE)
+		if typeof(savedScale) == "number" and savedScale > 0 and math.abs(savedScale - scale) > 1e-3 then
+			local saved = original :: CFrame
+			original = CFrame.new(saved.Position * (scale / savedScale)) * saved.Rotation
+			motor:SetAttribute(BASE_ATTRIBUTE, original)
+			motor:SetAttribute(SCALE_ATTRIBUTE, scale)
+		end
 	end
 	return original :: CFrame
 end

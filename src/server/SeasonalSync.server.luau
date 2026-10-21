@@ -94,6 +94,21 @@ end
 
 local currentId: string? = nil
 
+-- The time of day: the owner's choice if they made one, else the season's
+local OWNER_CLOCK = "SNOwnerClockTime"
+local BASE_PREFIX = "SNBase_"
+local function applyClock()
+	local override = Lighting:GetAttribute(OWNER_CLOCK)
+	if typeof(override) == "number" then
+		Lighting.ClockTime = override
+	end
+	-- Tell clients what the lighting should be, so they can return to it after
+	-- an admin event changed theirs
+	for _, name in { "ClockTime", "Brightness", "OutdoorAmbient" } do
+		Lighting:SetAttribute(BASE_PREFIX .. name, Lighting[name])
+	end
+end
+
 local function applySeason(id: string?)
 	resetLighting()
 	SeasonalDecor.clear()
@@ -108,11 +123,21 @@ local function applySeason(id: string?)
 		print("[Seasons] No holiday right now, using the normal look.")
 	end
 
+	applyClock()
 	-- Clients and other scripts react to this
 	ReplicatedStorage:SetAttribute(Seasons.ATTRIBUTE, id or Seasons.NONE)
 end
 
 applySeason(Seasons.getCurrentId())
+
+-- The owner panel's time of day (clearing it goes back to the season's time)
+Lighting:GetAttributeChangedSignal(OWNER_CLOCK):Connect(function()
+	if Lighting:GetAttribute(OWNER_CLOCK) == nil then
+		local theme = Seasons.getTheme(currentId)
+		Lighting.ClockTime = if theme and theme.lighting.ClockTime then theme.lighting.ClockTime else originalLighting.ClockTime
+	end
+	applyClock()
+end)
 
 -- The owner panel can switch seasons instantly
 ReplicatedStorage:GetAttributeChangedSignal("SeasonOverride"):Connect(function()

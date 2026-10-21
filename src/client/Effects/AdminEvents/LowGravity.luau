@@ -2,8 +2,12 @@
 -- and a comet trail behind every character as they bound around.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Common = require(script.Parent.Common)
+
+local INVISIBLE = Protocol.Attribute.Invisible
 
 local TEAL = Color3.fromRGB(120, 255, 220)
 
@@ -47,13 +51,23 @@ return function(context)
 		direction = Enum.NormalId.Top,
 	})
 
-	local trails: { Instance } = {}
+	local trails: { Trail } = {}
+	local current: { [Player]: Trail } = {}
+	-- An invisible owner leaves no trail to give them away
+	local function showIfVisible(player: Player)
+		local trail = current[player]
+		if trail then
+			trail.Enabled = player:GetAttribute(INVISIBLE) ~= true
+		end
+	end
 	local function decorate(player: Player)
 		local character = player.Character
 		if character then
 			local trail = addTrail(character)
 			if trail then
 				table.insert(trails, trail)
+				current[player] = trail
+				showIfVisible(player)
 			end
 		end
 	end
@@ -67,6 +81,9 @@ return function(context)
 			if context.running() then
 				decorate(player)
 			end
+		end))
+		table.insert(connections, player:GetAttributeChangedSignal(INVISIBLE):Connect(function()
+			showIfVisible(player)
 		end))
 	end
 
