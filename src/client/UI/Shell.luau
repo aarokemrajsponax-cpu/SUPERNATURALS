@@ -888,6 +888,11 @@ function Shell.isOpen(id: string?): boolean
 	return openId ~= nil
 end
 
+-- Has a window with this id been registered?
+function Shell.hasWindow(id: string): boolean
+	return registry[id] ~= nil
+end
+
 function Shell.registerWindow(id: string, spec: WindowSpec)
 	assert(typeof(id) == "string" and id ~= "", "window id must be a string")
 	assert(typeof(spec) == "table" and typeof(spec.build) == "function", "window spec needs a build function")

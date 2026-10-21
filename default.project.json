@@ -75,6 +75,100 @@
           "$className": "RemoteEvent"
         }
       }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "Brightness": 2.6,
+        "ClockTime": 16.6,
+        "GeographicLatitude": 32,
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.22,
+        "Ambient": [
+          0.17,
+          0.16,
+          0.22
+        ],
+        "OutdoorAmbient": [
+          0.47,
+          0.43,
+          0.55
+        ],
+        "ExposureCompensation": 0.08,
+        "ColorShift_Top": [
+          0.08,
+          0.05,
+          0.0
+        ],
+        "ColorShift_Bottom": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "NexusAtmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.3,
+          "Offset": 0.16,
+          "Color": [
+            0.8,
+            0.74,
+            0.95
+          ],
+          "Decay": [
+            0.44,
+            0.4,
+            0.58
+          ],
+          "Glare": 0.32,
+          "Haze": 1.5
+        }
+      },
+      "NexusBloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.55,
+          "Size": 26,
+          "Threshold": 1.45
+        }
+      },
+      "NexusSunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": {
+          "Intensity": 0.07,
+          "Spread": 0.55
+        }
+      },
+      "NexusGrade": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.02,
+          "Contrast": 0.09,
+          "Saturation": 0.12,
+          "TintColor": [
+            1.0,
+            0.98,
+            0.96
+          ]
+        }
+      },
+      "NexusSky": {
+        "$className": "Sky",
+        "$properties": {
+          "SunAngularSize": 13,
+          "MoonAngularSize": 10,
+          "StarCount": 3000,
+          "CelestialBodiesShown": true
+        }
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false
+      }
     }
   }
 }

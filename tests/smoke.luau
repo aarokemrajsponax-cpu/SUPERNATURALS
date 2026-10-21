@@ -60,6 +60,34 @@ check("ArenaService builds the training ground and arenas", function()
 end)
 
 -- Server: seasonal decorations --------------------------------------------------------------
+check("the Nexus lobby builds: plaza, gates with prompts, statues, spawn", function()
+	local Nexus = world.require(world.find("ServerScriptService.Server.World.Nexus"))
+	local folder = world.Instance.new("Folder")
+	folder.Name = "NexusTest"
+	local spawn = Nexus.build(folder)
+	assert(spawn and spawn:IsA("SpawnLocation") and spawn.Enabled, "a spawn on the dais")
+	local prompts = 0
+	for _, item in folder:GetDescendants() do
+		if item:IsA("ProximityPrompt") then
+			prompts += 1
+			assert(typeof(item:GetAttribute("Action")) == "string", "every gate says what it does")
+			assert(item.KeyboardKeyCode ~= roblox.Enum.KeyCode.E and item.KeyboardKeyCode ~= roblox.Enum.KeyCode.F, "gate keys don't clash with combat keys")
+		end
+	end
+	assert(prompts == #Nexus.Gates, `one prompt per gate ({prompts})`)
+	local statues = 0
+	for _, child in folder:GetChildren() do
+		if string.sub(child.Name, 1, 7) == "Statue_" then
+			statues += 1
+		end
+	end
+	assert(statues == 7, "seven statues")
+	local parts = count(folder, "BasePart")
+	assert(parts < 1600, `lobby part budget ({parts})`)
+	print(`     nexus: {parts} parts`)
+	folder:Destroy()
+end)
+
 check("every holiday's decorations build without errors", function()
 	local SeasonalDecor = world.require(world.find("ServerScriptService.Server.SeasonalDecor"))
 	for _, id in { "Halloween", "Thanksgiving", "Christmas", "NewYears", "Valentines", "StPatricks", "Easter" } do

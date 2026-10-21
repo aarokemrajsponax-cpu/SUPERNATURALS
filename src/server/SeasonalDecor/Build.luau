@@ -15,7 +15,7 @@ Build.CENTER = Vector3.new(0, 0, 0)
 
 -- Spots decorations stay away from
 Build.KEEP_CLEAR = {
-	{ position = Vector3.new(0, 0, 0), radius = 10 }, -- spawn
+	{ position = Vector3.new(0, 0, 0), radius = 13 }, -- spawn dais
 	{ position = Vector3.new(0, 0, -25), radius = 13 }, -- luxury car
 	{ position = Vector3.new(0, 0, 40), radius = 18 }, -- each holiday's main display (see featureSpot)
 }

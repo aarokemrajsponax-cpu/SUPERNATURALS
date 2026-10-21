@@ -58,6 +58,10 @@ local function resetLighting()
 	for _, child in Lighting:GetChildren() do
 		if child:GetAttribute("Seasonal") then
 			child:Destroy()
+		elseif child:GetAttribute("PausedForSeason") then
+			-- The place's own effect comes back once the holiday's is gone
+			child:SetAttribute("PausedForSeason", nil)
+			;(child :: any).Enabled = true
 		end
 	end
 end
@@ -81,6 +85,13 @@ local function applyLighting(theme)
 	for key, className in EFFECTS do
 		local settings = theme[key]
 		if settings then
+			-- A holiday's effect replaces the place's own one of the same kind (no double glow)
+			for _, child in Lighting:GetChildren() do
+				if child.ClassName == className and not child:GetAttribute("Seasonal") and (child :: any).Enabled then
+					;(child :: any).Enabled = false
+					child:SetAttribute("PausedForSeason", true)
+				end
+			end
 			local effect = Instance.new(className)
 			effect.Name = "Seasonal" .. className
 			effect:SetAttribute("Seasonal", true)
