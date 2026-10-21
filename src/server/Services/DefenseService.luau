@@ -60,6 +60,12 @@ export type Counter = {
 
 local cues: { [string]: { [string]: Cue } } = {}
 local counters: { [string]: Counter } = {}
+-- callback(fighter, kind, result) whenever a defense is judged
+local resultListeners: { (any, string, string) -> () } = {}
+
+function DefenseService:onResult(callback: (any, string, string) -> ())
+	table.insert(resultListeners, callback)
+end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -142,6 +148,9 @@ function DefenseService:_send(fighter, cue: Cue, extra: { [string]: any }?)
 end
 
 function DefenseService:_result(fighter, cue: Cue, result: string)
+	for _, listener in resultListeners do
+		task.spawn(listener, fighter, cue.kind, result)
+	end
 	if fighter.player and fighter.player.Parent then
 		DefenseEvent:FireClient(fighter.player, Event.Result, { id = cue.id, kind = cue.kind, result = result })
 	end

@@ -23,6 +23,9 @@ local Event = Protocol.CombatEvent
 
 local CombatService = {}
 
+-- Other services can listen to every resolved hit (progression, replays)
+local hitListeners: { (attacker: any, target: any, outcome: any, opts: any) -> () } = {}
+
 -- Small delay added to scheduled steps so they never run a hair early
 local SCHEDULE_SLACK = 0.005
 
@@ -100,6 +103,11 @@ function CombatService:Start()
 			CombatEvent:FireClient(player, Event.Rejected, { action = action, reason = reason })
 		end
 	end)
+end
+
+-- callback(attacker, target, outcome, opts) after every resolved hit
+function CombatService:onHit(callback: (any, any, any, any) -> ())
+	table.insert(hitListeners, callback)
 end
 
 -- Can this fighter act at all right now? (Shared by basic attacks and abilities.)
@@ -413,6 +421,9 @@ function CombatService:applyHit(attacker, target, hit, opts: HitOptions)
 	end
 	if powers then
 		powers:onHitResolved(attacker, target, outcome, opts)
+	end
+	for _, listener in hitListeners do
+		task.spawn(listener, attacker, target, outcome, opts)
 	end
 
 	CombatEvent:FireAllClients(Event.Hit, {

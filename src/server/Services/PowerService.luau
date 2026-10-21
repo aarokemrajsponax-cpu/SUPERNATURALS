@@ -239,6 +239,11 @@ function PowerService:isLocked(player: Player): boolean
 	return locked[player] ~= nil
 end
 
+-- The power, degree and loadout a player is locked into for their current match
+function PowerService:lockedSelection(player: Player): { power: string, degree: number, loadout: { string } }?
+	return locked[player]
+end
+
 -- Requests -------------------------------------------------------------------------------
 
 function PowerService:_onRequest(player: Player, action: string, first: any, second: any, third: any)

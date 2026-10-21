@@ -26,6 +26,13 @@ local ULTIMATE = Combat.Ultimate
 
 local AbilityService = {}
 
+-- callback(fighter, abilityId, def, basic) after an ability starts
+local usedListeners: { (any, string, any, string?) -> () } = {}
+
+function AbilityService:onUsed(callback: (any, string, any, string?) -> ())
+	table.insert(usedListeners, callback)
+end
+
 -- Small delay added to scheduled steps so they never run a hair early
 local SCHEDULE_SLACK = 0.005
 
@@ -217,6 +224,10 @@ function AbilityService:use(fighter, abilityId: string, aim: any?, opts: { basic
 		direction = aimData.direction,
 		basic = basic,
 	})
+
+	for _, listener in usedListeners do
+		task.spawn(listener, fighter, abilityId, def, basic)
+	end
 
 	local ctx = AbilityKit.new(fighter, runtime, def, aimData, attack)
 	task.spawn(function()

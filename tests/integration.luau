@@ -44,7 +44,8 @@ Combat.SpawnProtection = 0.1
 Combat.Heavy.Cooldown = 0.2
 for _, mode in MatchConfig.Modes do
 	mode.Countdown = 0.3
-	mode.Duration = 10
+	-- Long enough for a full-health knockout with plain attacks (about 10 s), with room to spare
+	mode.Duration = 18
 	mode.ResultsDuration = 0.4
 	mode.SuddenDeathDuration = 0.6
 	mode.QueueFillDelay = 0.3
@@ -274,7 +275,7 @@ check("a full duel: queue, countdown, fight, knockout, respawn, results, back to
 
 	waitFor(function()
 		return lastSent(alice, "Results") ~= nil
-	end, 6, "the results")
+	end, 16, "the results")
 	duelResults = lastSent(alice, "Results")
 	waitFor(function()
 		return lastSent(alice, "Ended") ~= nil or alice:GetAttribute("MatchId") == nil

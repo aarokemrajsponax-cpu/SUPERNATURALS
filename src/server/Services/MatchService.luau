@@ -44,12 +44,26 @@ type Match = {
 	arena: any,
 	participants: { Participant },
 	byId: { [string]: Participant },
+	-- When the fight itself began (after the countdown)
+	fightStartedAt: number?,
+	-- The CPU opponent's settings, for CPU practice (and rematches of it)
+	cpu: any?,
+	-- Players watching, their free predictions, and rematch votes
+	spectators: { [Player]: boolean },
+	predictions: { [Player]: string },
+	rematch: { [Player]: boolean },
 }
 
 local queues: { [string]: { Player } } = {}
 local queueFilledAt: { [string]: number? } = {}
 local matches: { [string]: Match } = {}
 local matchOfFighter: { [string]: Match } = {}
+
+local startedListeners: { (Match) -> () } = {}
+local finishedListeners: { (Match, any) -> () } = {}
+
+-- Predictions are only taken before the fight is this many seconds old
+local PREDICTION_WINDOW = 20
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -109,6 +123,11 @@ function MatchService:Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		self:_leaveQueues(player)
+		for _, match in matches do
+			match.spectators[player] = nil
+			match.predictions[player] = nil
+			match.rematch[player] = nil
+		end
 		local match = matchOfFighter[playerId(player)]
 		if match then
 			self:_participantLeft(match, playerId(player))
@@ -150,6 +169,20 @@ function MatchService:canDamage(attacker, target): boolean
 	return target.trainingDummy
 end
 
+-- callback(match) when a match's fight begins (after the countdown)
+function MatchService:onStarted(callback: (Match) -> ())
+	table.insert(startedListeners, callback)
+end
+
+-- callback(match, result) when a match finishes (results are shown)
+function MatchService:onFinished(callback: (Match, any) -> ())
+	table.insert(finishedListeners, callback)
+end
+
+function MatchService:getMatch(matchId: string): Match?
+	return matches[matchId]
+end
+
 -- Ends every running match at once (owner panel)
 function MatchService:endAll()
 	for _, match in matches do
@@ -169,6 +202,7 @@ function MatchService:_onRequest(player: Player, action: string, argument: any, 
 			self:_notice(player, "You're already in a match.")
 			return
 		end
+		self:_stopSpectating(player)
 		-- Premium powers being tried out can't go into PvP queues
 		local powers = self.services.PowerService
 		if powers then
@@ -205,7 +239,121 @@ function MatchService:_onRequest(player: Player, action: string, argument: any, 
 		if inMatch and inMatch.flow.phase == "Results" then
 			self:_sendHome(inMatch, inMatch.byId[playerId(player)])
 		end
+	elseif action == Action.Rematch then
+		if inMatch and inMatch.flow.phase == "Results" and inMatch.byId[playerId(player)] then
+			inMatch.rematch[player] = true
+			local votes, needed = self:_rematchCount(inMatch)
+			self:_broadcast(inMatch, Event.Rematch, { votes = votes, needed = needed })
+		end
+	elseif action == Action.ListMatches then
+		MatchEvent:FireClient(player, Event.Matches, self:_watchable())
+	elseif action == Action.Spectate then
+		if inMatch then
+			self:_notice(player, "You can't watch while you're in a match.")
+			return
+		end
+		local match = if typeof(argument) == "string" then matches[argument] else nil
+		if not match or match.flow.phase == "Ended" then
+			self:_notice(player, "That match has already ended.")
+			return
+		end
+		self:_stopSpectating(player)
+		match.spectators[player] = true
+		player:SetAttribute(Protocol.Attribute.Spectating, match.id)
+		local fighters = {}
+		for _, participant in match.participants do
+			local fighter = self.characters:getById(participant.id)
+			if fighter and not participant.returned then
+				table.insert(fighters, fighter.model)
+			end
+		end
+		MatchEvent:FireClient(player, Event.Spectating, { matchId = match.id, fighters = fighters, mode = match.mode.DisplayName })
+		self:_broadcastState(match)
+	elseif action == Action.StopSpectating then
+		self:_stopSpectating(player)
+	elseif action == Action.Predict then
+		-- A free guess at the winner: no stakes, a small reward if right
+		local match = if typeof(argument) == "string" then matches[argument] else nil
+		if not match or not match.spectators[player] or match.predictions[player] or typeof(options) ~= "string" or not match.byId[options] then
+			return
+		end
+		local early = match.flow.phase == "Countdown" or (match.fightStartedAt ~= nil and now() - match.fightStartedAt <= PREDICTION_WINDOW and match.flow.phase == "Active")
+		if early then
+			match.predictions[player] = options
+			self:_notice(player, `Prediction locked in: {self:_nameOf(match, options)}.`)
+		else
+			self:_notice(player, "Predictions close early in the fight.")
+		end
 	end
+end
+
+-- Watching ---------------------------------------------------------------------------
+
+function MatchService:_stopSpectating(player: Player)
+	for _, match in matches do
+		if match.spectators[player] then
+			match.spectators[player] = nil
+		end
+	end
+	if player:GetAttribute(Protocol.Attribute.Spectating) ~= nil then
+		player:SetAttribute(Protocol.Attribute.Spectating, nil)
+		if player.Parent then
+			MatchEvent:FireClient(player, Event.Spectating, nil)
+		end
+	end
+end
+
+-- Matches other players can watch (with real players in them)
+function MatchService:_watchable()
+	local list = {}
+	for _, match in matches do
+		if match.flow.phase ~= "Ended" then
+			local names = {}
+			local humans = 0
+			for _, participant in match.participants do
+				if not participant.returned then
+					table.insert(names, participant.name)
+					if participant.player then
+						humans += 1
+					end
+				end
+			end
+			if humans > 0 then
+				table.insert(list, {
+					id = match.id,
+					mode = match.mode.DisplayName,
+					arena = match.arena.name,
+					phase = match.flow.phase,
+					names = names,
+					watchers = (function()
+						local count = 0
+						for _ in match.spectators do
+							count += 1
+						end
+						return count
+					end)(),
+				})
+			end
+		end
+	end
+	return list
+end
+
+-- Rematches --------------------------------------------------------------------------
+
+-- How many players voted, and how many are needed (everyone still there)
+function MatchService:_rematchCount(match: Match): (number, number)
+	local votes, needed = 0, 0
+	for _, participant in match.participants do
+		local player = participant.player
+		if player and not participant.returned and player.Parent then
+			needed += 1
+			if match.rematch[player] then
+				votes += 1
+			end
+		end
+	end
+	return votes, needed
 end
 
 function MatchService:_notice(player: Player, text: string)
@@ -336,6 +484,11 @@ function MatchService:_startMatch(modeName: string, players: { Player }, cpu: { 
 		arena = arena,
 		participants = {},
 		byId = {},
+		fightStartedAt = nil,
+		cpu = cpu,
+		spectators = {},
+		predictions = {},
+		rematch = {},
 	}
 	local function add(participant: Participant)
 		table.insert(match.participants, participant)
@@ -485,10 +638,14 @@ end
 function MatchService:_handle(match: Match, events: { MatchFlow.Event })
 	for _, event in events do
 		if event.kind == "Begin" then
+			match.fightStartedAt = now()
 			self:_forEachFighter(match, function(fighter)
 				self.characters:setFrozen(fighter, false)
 			end)
 			self:_broadcastState(match)
+			for _, listener in startedListeners do
+				task.spawn(listener, match)
+			end
 		elseif event.kind == "SuddenDeath" then
 			self:_broadcastState(match)
 			self:_broadcast(match, Event.Notice, { text = "SUDDEN DEATH! Next knockout wins." })
@@ -504,6 +661,9 @@ function MatchService:_handle(match: Match, events: { MatchFlow.Event })
 			end)
 			self:_broadcast(match, Event.Results, self:_results(match, event.result))
 			self:_broadcastState(match)
+			for _, listener in finishedListeners do
+				task.spawn(listener, match, event.result)
+			end
 		elseif event.kind == "Ended" then
 			self:_cleanup(match)
 		end
@@ -575,6 +735,20 @@ function MatchService:_cleanup(match: Match)
 	if not matches[match.id] then
 		return
 	end
+	-- Everyone still here voted for a rematch: same mode, same players, straight away
+	local votes, needed = self:_rematchCount(match)
+	local again: { Player }? = nil
+	if needed > 0 and votes == needed then
+		again = {}
+		for player in match.rematch do
+			if player.Parent then
+				table.insert(again :: { Player }, player)
+			end
+		end
+	end
+	for player in match.spectators do
+		self:_stopSpectating(player)
+	end
 	matches[match.id] = nil
 	for _, participant in match.participants do
 		if participant.dummy then
@@ -586,6 +760,16 @@ function MatchService:_cleanup(match: Match)
 		end
 	end
 	self.arenas:release(match.arena)
+	if again and #again >= match.mode.MinPlayers then
+		task.defer(function()
+			for _, player in again :: { Player } do
+				if not player.Parent or matchOfFighter[playerId(player)] then
+					return
+				end
+			end
+			self:_startMatch(match.modeName, again :: { Player }, match.cpu)
+		end)
+	end
 end
 
 -- Messages -------------------------------------------------------------------------
@@ -610,6 +794,14 @@ function MatchService:_broadcast(match: Match, kind: string, data: any)
 	for _, participant in match.participants do
 		if participant.player and not participant.returned and participant.player.Parent then
 			MatchEvent:FireClient(participant.player, kind, data)
+		end
+	end
+	-- Watchers see the same scoreboard, feed and results (never anything a fighter can't see)
+	if kind ~= Event.Rematch then
+		for player in match.spectators do
+			if player.Parent then
+				MatchEvent:FireClient(player, kind, data)
+			end
 		end
 	end
 end
