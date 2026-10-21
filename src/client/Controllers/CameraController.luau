@@ -11,8 +11,19 @@ local CameraController = {}
 local shakeUntil = 0
 local shakeStrength = 0
 local BASE_FOV = 70
+-- The wobble added last frame. Roblox's camera scripts build each frame from the
+-- previous camera CFrame, so the wobble is removed before they run, or it would
+-- slowly turn the view for good.
+local lastOffset = CFrame.identity
 
 function CameraController:Start()
+	RunService:BindToRenderStep("SNCameraUnshake", Enum.RenderPriority.Camera.Value - 1, function()
+		if lastOffset ~= CFrame.identity then
+			local camera = workspace.CurrentCamera
+			camera.CFrame *= lastOffset:Inverse()
+			lastOffset = CFrame.identity
+		end
+	end)
 	RunService:BindToRenderStep("SNCameraShake", Enum.RenderPriority.Camera.Value + 1, function()
 		local remaining = shakeUntil - os.clock()
 		if remaining <= 0 then
@@ -27,6 +38,7 @@ function CameraController:Start()
 			math.rad(math.noise(t, t) * strength * 0.5)
 		)
 		camera.CFrame *= offset
+		lastOffset = offset
 	end)
 end
 

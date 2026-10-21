@@ -25,6 +25,10 @@ export type Fighter = {
 	trainingDummy: boolean,
 	displayName: string,
 	state: FighterState.State,
+	-- Walk speed multiplier from the owner panel's speed boost
+	moveBoost: number,
+	-- When the fighter was last teleported (positions can lag just after)
+	teleportedAt: number,
 	movementToken: number,
 	connections: { RBXScriptConnection },
 }
@@ -78,7 +82,12 @@ end
 function CharacterService:_onCharacter(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid", 10)
 	local root = character:WaitForChild("HumanoidRootPart", 10)
-	if not humanoid or not root or character.Parent == nil or player.Character ~= character then
+	-- CharacterAdded can fire before the character is put in the world, so wait for that
+	local deadline = os.clock() + 10
+	while player.Character == character and not character:IsDescendantOf(workspace) and os.clock() < deadline do
+		task.wait()
+	end
+	if not humanoid or not root or player.Character ~= character or not character:IsDescendantOf(workspace) then
 		return
 	end
 	local previous = byPlayer[player]
@@ -93,9 +102,14 @@ function CharacterService:_onCharacter(player: Player, character: Model)
 
 	local destination = spawnResolver and spawnResolver(player)
 	if destination then
-		-- Defer so Roblox finishes placing the character at its spawn first
+		-- Wait a frame so Roblox finishes placing the character at its spawn
+		-- first, then check once more in case the engine moved it back
 		task.defer(function()
 			if character.Parent then
+				self:teleport(fighter, destination)
+			end
+			task.wait(0.25)
+			if character.Parent and (fighter.root.Position - destination.Position).Magnitude > 12 then
 				self:teleport(fighter, destination)
 			end
 		end)
@@ -120,6 +134,8 @@ function CharacterService:register(model: Model, info: { id: string, displayName
 	humanoid.MaxHealth = Combat.MaxHealth
 	humanoid.Health = Combat.MaxHealth
 	humanoid.UseJumpPower = false
+	-- Clients draw their own name and health bars over fighters
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 
 	local fighter: Fighter = {
 		id = info.id,
@@ -131,6 +147,8 @@ function CharacterService:register(model: Model, info: { id: string, displayName
 		trainingDummy = info.trainingDummy == true,
 		displayName = info.displayName,
 		state = FighterState.new(info.id, Combat, now()),
+		moveBoost = 1,
+		teleportedAt = 0,
 		movementToken = 0,
 		connections = {},
 	}
@@ -200,7 +218,7 @@ function CharacterService:refresh(fighter: Fighter)
 
 	local walkSpeed, jumpHeight, autoRotate = FighterState.movement(state, Combat, time)
 	if humanoid.Health > 0 then
-		humanoid.WalkSpeed = walkSpeed
+		humanoid.WalkSpeed = walkSpeed * fighter.moveBoost
 		humanoid.JumpHeight = jumpHeight
 		humanoid.AutoRotate = autoRotate
 	end
@@ -212,6 +230,7 @@ function CharacterService:refresh(fighter: Fighter)
 	model:SetAttribute(Attribute.StunnedUntil, stamp(state.stunUntil))
 	model:SetAttribute(Attribute.HeavyReadyAt, stamp(state.heavyReadyAt))
 	model:SetAttribute(Attribute.DodgeReadyAt, stamp(state.dodgeReadyAt))
+	model:SetAttribute(Attribute.BusyUntil, stamp(FighterState.busyUntil(state)))
 	model:SetAttribute(Attribute.ProtectedUntil, stamp(state.protectedUntil))
 
 	-- Come back when a timed state (stun, attack, dodge) runs out. Only the
@@ -277,6 +296,17 @@ end
 -- Actions ----------------------------------------------------------------------
 
 function CharacterService:teleport(fighter: Fighter, destination: CFrame)
+	-- Stand up first: a seated character would drag its (anchored) seat along
+	local humanoid = fighter.humanoid
+	local seat = humanoid.SeatPart
+	if seat then
+		humanoid.Sit = false
+		local weld = seat:FindFirstChild("SeatWeld")
+		if weld then
+			weld:Destroy()
+		end
+	end
+	fighter.teleportedAt = now()
 	fighter.root.AssemblyLinearVelocity = Vector3.zero
 	fighter.root.AssemblyAngularVelocity = Vector3.zero
 	fighter.model:PivotTo(destination)

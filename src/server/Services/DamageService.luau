@@ -29,11 +29,15 @@ end
 
 -- Push along a flat unit `direction` with `horizontal` speed, plus `vertical` lift
 function DamageService:push(fighter, direction: Vector3, horizontal: number, vertical: number, duration: number?)
+	self:setVelocity(fighter, direction * horizontal + Vector3.new(0, vertical, 0), duration)
+end
+
+-- Holds a fighter at `velocity` for a moment (knockback, dodges, event pulls)
+function DamageService:setVelocity(fighter, velocity: Vector3, duration: number?)
 	local root = fighter.root
-	if not root or root.Parent == nil then
+	if not root or root.Parent == nil or root.Anchored then
 		return
 	end
-	local velocity = direction * horizontal + Vector3.new(0, vertical, 0)
 	if velocity.Magnitude < 1 then
 		return
 	end

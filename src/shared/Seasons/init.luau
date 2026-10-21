@@ -227,8 +227,13 @@ Seasons.Themes = {
 	},
 }
 
--- The season the calendar says it is right now (UTC), or Config.ForceSeason when set
+-- The season the calendar says it is right now (UTC). The owner panel's
+-- override wins, then Config.ForceSeason.
 function Seasons.getCurrentId(): string?
+	local override = ReplicatedStorage:GetAttribute("SeasonOverride")
+	if typeof(override) == "string" and Seasons.Themes[override] then
+		return override
+	end
 	local forced = Config.ForceSeason
 	if forced then
 		if Seasons.Themes[forced] then

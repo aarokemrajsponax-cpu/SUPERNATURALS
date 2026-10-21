@@ -143,6 +143,13 @@ function MatchService:canDamage(attacker, target): boolean
 	return target.trainingDummy
 end
 
+-- Ends every running match at once (owner panel)
+function MatchService:endAll()
+	for _, match in matches do
+		self:_handle(match, MatchFlow.abort(match.flow))
+	end
+end
+
 -- Requests -------------------------------------------------------------------------
 
 function MatchService:_onRequest(player: Player, action: string, argument: any)
@@ -358,7 +365,7 @@ function MatchService:_spawnFor(match: Match, id: string, startIndex: number?): 
 	end
 	local others = {}
 	for _, participant in match.participants do
-		if participant.id ~= id then
+		if participant.id ~= id and not participant.returned and matchOfFighter[participant.id] == match then
 			local fighter = self.characters:getById(participant.id)
 			if fighter and self.characters:isAlive(fighter) then
 				table.insert(others, fighter.root.Position)
@@ -379,10 +386,19 @@ function MatchService:_update()
 	for _, match in matches do
 		self:_handle(match, MatchFlow.tick(match.flow, time))
 		if matches[match.id] and MatchFlow.isFighting(match.flow) then
-			-- Falling out of the arena is a knockout (credited to whoever hit you last)
+			-- Falling out of the arena is a knockout (credited to whoever hit you last).
+			-- Skipped right after a respawn or teleport, while positions settle.
 			for _, participant in match.participants do
 				local fighter = self.characters:getById(participant.id)
-				if fighter and self.characters:isAlive(fighter) and self.arenas:isOutOfBounds(match.arena, fighter.root.Position) then
+				if
+					fighter
+					and not participant.returned
+					and matchOfFighter[participant.id] == match
+					and self.characters:isAlive(fighter)
+					and time >= fighter.state.protectedUntil
+					and time - fighter.teleportedAt > 1
+					and self.arenas:isOutOfBounds(match.arena, fighter.root.Position)
+				then
 					fighter.humanoid.Health = 0
 				end
 			end

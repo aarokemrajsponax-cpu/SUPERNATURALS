@@ -86,6 +86,31 @@ return function(t)
 		t.equal(ko[2].result.reason, "SuddenDeath", "reason")
 	end)
 
+	t.test("sudden death: a tied leader leaving hands the win to the other leader", function()
+		local ffa = MatchConfig.Modes.FreeForAll
+		local flow = MatchFlow.new(ffa, { "A", "B", "C" }, 0)
+		MatchFlow.tick(flow, ffa.Countdown)
+		MatchFlow.knockout(flow, "C", "A", 10)
+		MatchFlow.knockout(flow, "C", "B", 20)
+		MatchFlow.tick(flow, ffa.Countdown + ffa.Duration)
+		t.equal(flow.phase, "SuddenDeath", "A and B tied")
+		local events = MatchFlow.leave(flow, "B", ffa.Countdown + ffa.Duration + 5)
+		t.equal(kinds(events), "Finish", "decided")
+		t.equal(events[1].result.winners[1], "A", "A wins")
+		t.equal(events[1].result.draw, false, "not a draw")
+	end)
+
+	t.test("sudden death running out with a single leader is a win, not a draw", function()
+		local flow = startedDuel()
+		local timeUp = Duel.Countdown + Duel.Duration
+		MatchFlow.tick(flow, timeUp)
+		-- Force a lead without a knockout event (e.g. scores changed by a leave in FFA)
+		flow.board.entries.A.score = 1
+		local events = MatchFlow.tick(flow, timeUp + Duel.SuddenDeathDuration)
+		t.equal(events[1].result.draw, false, "a win")
+		t.equal(events[1].result.winners[1], "A", "A wins")
+	end)
+
 	t.test("sudden death that runs out is a draw", function()
 		local flow = startedDuel()
 		local timeUp = Duel.Countdown + Duel.Duration

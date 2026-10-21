@@ -166,6 +166,8 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 	local state: any = nil
 	local results: any = nil
 	local lastCount: number? = nil
+	-- Newest knockout first: each entry gets a lower LayoutOrder than the last
+	local feedOrder = 0
 
 	local function chip(order: number, entry)
 		local mine = entry.id == myId
@@ -230,9 +232,10 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 
 	local function addKnockout(data)
 		local text = if data.credited then `{data.credited}  ⚔  {data.victim}` else `{data.victim} was knocked out`
+		feedOrder -= 1
 		local entry = Components.panel({
 			Size = UDim2.fromOffset(280, 30),
-			LayoutOrder = -math.floor(os.clock() * 1000),
+			LayoutOrder = feedOrder,
 			Parent = feed,
 		})
 		Components.label(text, {

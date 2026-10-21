@@ -34,6 +34,12 @@
         },
         "MatchEvent": {
           "$className": "RemoteEvent"
+        },
+        "AdminRequest": {
+          "$className": "RemoteEvent"
+        },
+        "AdminEvent": {
+          "$className": "RemoteEvent"
         }
       }
     }

@@ -78,14 +78,20 @@ function UIController:Start()
 		Parent = gui,
 	})
 	local noticeToken = 0
+	local noticeFade: Tween? = nil
 	local function showNotice(text: string)
 		noticeToken += 1
 		local token = noticeToken
+		if noticeFade then
+			noticeFade:Cancel()
+			noticeFade = nil
+		end
 		notice.Text = text
 		notice.TextTransparency = 0
 		task.delay(2.5, function()
 			if token == noticeToken then
-				TweenService:Create(notice, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+				noticeFade = TweenService:Create(notice, TweenInfo.new(0.4), { TextTransparency = 1 })
+				;(noticeFade :: Tween):Play()
 			end
 		end)
 	end

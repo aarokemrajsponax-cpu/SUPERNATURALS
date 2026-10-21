@@ -136,7 +136,9 @@ function FighterState.movement(state: State, config, now: number): (number, numb
 	elseif state.frozen then
 		return 0, 0, true
 	elseif FighterState.isAttacking(state, now) then
-		return move.AttackingSpeed, 0, true
+		-- Attacks keep the facing they started with, so a strafing player still
+		-- hits where they aimed
+		return move.AttackingSpeed, 0, false
 	elseif FighterState.isBlocking(state) then
 		return move.BlockingSpeed, 0, true
 	end
@@ -158,6 +160,14 @@ function FighterState.nextMovementChange(state: State, now: number): number?
 		consider(attack.recoveryEnd)
 	end
 	return soonest
+end
+
+-- When this fighter can next start an attack or dodge (the end of its current
+-- swing, including a missed heavy's longer recovery, or of its dodge)
+function FighterState.busyUntil(state: State): number
+	local attack = state.attack
+	local attackEnd = if attack then attack.recoveryEnd else -math.huge
+	return math.max(attackEnd, state.dodgeUntil)
 end
 
 -- Credit for a knockout goes to whoever touched this fighter last, if recent enough

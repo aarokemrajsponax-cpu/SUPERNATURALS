@@ -13,6 +13,7 @@ local Poser = require(script.Parent.Parent.Effects.Poser)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local CombatRequest = Remotes:WaitForChild("CombatRequest") :: RemoteEvent
+local CombatEvent = Remotes:WaitForChild("CombatEvent") :: RemoteEvent
 
 local Action = Protocol.CombatAction
 local Attribute = Protocol.Attribute
@@ -53,12 +54,32 @@ local function canAct(character: Model, humanoid: Humanoid): boolean
 	return humanoid.WalkSpeed > 0 and serverNow() >= attributeTime(character, Attribute.StunnedUntil)
 end
 
--- Attacks go where the camera looks, not wherever you happened to be walking
-local function faceCamera(root: BasePart)
+-- Still finishing a swing or dodge according to the server (this includes the
+-- longer recovery after a missed heavy, which the client can't predict)
+local function serverBusy(character: Model, leeway: number?): boolean
+	return serverNow() < attributeTime(character, Attribute.BusyUntil) - (leeway or 0)
+end
+
+-- Attacks go where the camera looks, not wherever you happened to be walking.
+-- Turning off auto-rotate straight away keeps that facing until the server's
+-- own setting (no turning mid-attack) arrives.
+local function faceCamera(root: BasePart, humanoid: Humanoid)
 	local look = workspace.CurrentCamera.CFrame.LookVector
 	local flat = Vector3.new(look.X, 0, look.Z)
 	if flat.Magnitude > 0.1 then
 		root.CFrame = CFrame.lookAt(root.Position, root.Position + flat.Unit)
+		humanoid.AutoRotate = false
+	end
+end
+
+local function removeDodgeMover(root: BasePart?)
+	if not root then
+		return
+	end
+	for _, child in root:GetChildren() do
+		if child.Name == "SNDodge" then
+			child:Destroy()
+		end
 	end
 end
 
@@ -72,18 +93,37 @@ function CombatController:Start()
 		blocking = false
 	end)
 
-	-- Holding block through a stun (or a swing) raises it again once you can,
-	-- without a parry window
+	-- Keep the server's block in step with the button: holding block through
+	-- a stun (or a swing) raises it again once you can, without a parry
+	-- window, and a block the server still has up after you let go is released
 	task.spawn(function()
 		while true do
 			task.wait(0.2)
 			local character, humanoid = myCharacter()
-			if blocking and character and humanoid and canAct(character, humanoid)
-				and os.clock() >= busyUntil
-				and character:GetAttribute(Attribute.Blocking) ~= true
-			then
-				CombatRequest:FireServer(Action.BlockStart, "Held")
+			if character and humanoid then
+				local serverBlocking = character:GetAttribute(Attribute.Blocking) == true
+				if blocking and not serverBlocking and canAct(character, humanoid) and os.clock() >= busyUntil and not serverBusy(character) then
+					CombatRequest:FireServer(Action.BlockStart, "Held")
+				elseif not blocking and serverBlocking then
+					CombatRequest:FireServer(Action.BlockEnd)
+				end
 			end
+		end
+	end)
+
+	-- When the server refuses something, undo the instant preview of it
+	CombatEvent.OnClientEvent:Connect(function(kind, data)
+		if kind ~= Protocol.CombatEvent.Rejected or typeof(data) ~= "table" then
+			return
+		end
+		if data.action == Action.Dodge then
+			local character = player.Character
+			removeDodgeMover(character and character:FindFirstChild("HumanoidRootPart") :: BasePart?)
+			dodgeReadyAt = 0
+		elseif data.action == Action.Light or data.action == Action.Heavy then
+			busyUntil = 0
+			chainStep = 0
+			lightReadyAt = 0
 		end
 	end)
 end
@@ -93,7 +133,10 @@ function CombatController:light()
 	if not character or not humanoid or not root or not canAct(character, humanoid) then
 		return
 	end
-	faceCamera(root)
+	if serverBusy(character, Combat.InputBuffer) then
+		return
+	end
+	faceCamera(root, humanoid)
 	CombatRequest:FireServer(Action.Light)
 
 	-- Preview the swing (also covers a press buffered near the end of a swing)
@@ -113,6 +156,8 @@ function CombatController:light()
 	if chainStep == #steps then
 		lightReadyAt = busyUntil + Combat.Light.ChainCooldown
 	end
+	-- Attacking drops the guard; let go of the block pose so it can't cut the swing short
+	Poser.release(character, "Block")
 	self.effects:predictAttack(character, "Light", chainStep, def, start - time)
 end
 
@@ -122,14 +167,15 @@ function CombatController:heavy()
 		return
 	end
 	local time = os.clock()
-	if time < busyUntil or serverNow() < attributeTime(character, Attribute.HeavyReadyAt) then
+	if time < busyUntil or serverBusy(character) or serverNow() < attributeTime(character, Attribute.HeavyReadyAt) then
 		return
 	end
-	faceCamera(root)
+	faceCamera(root, humanoid)
 	CombatRequest:FireServer(Action.Heavy)
 	local def = Combat.Heavy
 	busyUntil = time + def.Startup + def.Active + def.Recovery
 	chainStep = 0
+	Poser.release(character, "Block")
 	self.effects:predictAttack(character, "Heavy", 1, def, 0)
 end
 
@@ -153,10 +199,12 @@ function CombatController:dodge()
 		return
 	end
 	local time = os.clock()
-	if time < busyUntil or time < dodgeReadyAt or serverNow() < attributeTime(character, Attribute.DodgeReadyAt) then
+	if time < busyUntil or time < dodgeReadyAt or serverBusy(character) or serverNow() < attributeTime(character, Attribute.DodgeReadyAt) then
 		return
 	end
 	dodgeReadyAt = time + Combat.Dodge.Cooldown
+	-- No attacking until the dodge (and its short recovery) is over
+	busyUntil = math.max(busyUntil, time + Combat.Dodge.Duration + Combat.Dodge.Recovery)
 
 	-- Dash where you're moving; standing still dashes backwards
 	local moving = humanoid.MoveDirection
@@ -186,11 +234,13 @@ function CombatController:dodge()
 	Debris:AddItem(mover, Combat.Dodge.Duration)
 	Debris:AddItem(attachment, Combat.Dodge.Duration)
 
-	CombatRequest:FireServer(Action.Dodge, direction)
+	-- Dodging drops your block; say so explicitly in case the dodge is refused
 	if blocking then
 		blocking = false
+		CombatRequest:FireServer(Action.BlockEnd)
 		Poser.release(character, "Block")
 	end
+	CombatRequest:FireServer(Action.Dodge, direction)
 	self.effects:predictDodge(character)
 end
 

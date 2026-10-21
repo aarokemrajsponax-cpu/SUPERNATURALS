@@ -39,6 +39,26 @@ Protocol.MatchEvent = {
 	Notice = "Notice", -- { text: string }
 }
 
+-- Client -> server, through Remotes.AdminRequest (owner only; checked on the server)
+Protocol.AdminAction = {
+	StartEvent = "StartEvent", -- (eventId)
+	StopEvent = "StopEvent",
+	PlayerAction = "PlayerAction", -- (userId | "All" | "Others", actionId)
+	SelfToggle = "SelfToggle", -- ("Fly" | "Immune" | "Invisible" | "Crown", on)
+	Announce = "Announce", -- (text)
+	SetTime = "SetTime", -- (timeOfDayId)
+	SetSeason = "SetSeason", -- (seasonId | "Auto")
+	EndMatches = "EndMatches",
+}
+
+-- Server -> clients, through Remotes.AdminEvent
+Protocol.AdminSignal = {
+	Meteor = "Meteor", -- { position: Vector3, impactAt: number, size: number }
+	Strike = "Strike", -- { position: Vector3, impactAt: number }
+	BlackHoleBlast = "BlackHoleBlast", -- { position: Vector3 }
+	Announce = "Announce", -- { text: string, from: string }
+}
+
 -- Attributes the server sets on fighter models (times use workspace:GetServerTimeNow())
 Protocol.Attribute = {
 	FighterId = "FighterId",
@@ -50,8 +70,25 @@ Protocol.Attribute = {
 	StunnedUntil = "StunnedUntil",
 	HeavyReadyAt = "HeavyReadyAt",
 	DodgeReadyAt = "DodgeReadyAt",
+	-- End of the current swing or dodge (no new attack or dodge before then)
+	BusyUntil = "BusyUntil",
 	ProtectedUntil = "ProtectedUntil",
 	MatchId = "MatchId",
+	-- On a character: frozen in ice by the owner or an event
+	Iced = "SNIced",
+	-- On Player objects (owner panel)
+	IsOwner = "SNIsOwner",
+	Crown = "SNCrown",
+	Aura = "SNAura",
+	CanFly = "SNCanFly",
+	Immune = "SNImmune",
+	Invisible = "SNInvisible",
+	-- On ReplicatedStorage
+	AdminEvent = "AdminEvent",
+	AdminEventStartedAt = "AdminEventStartedAt",
+	AdminEventEndsAt = "AdminEventEndsAt",
+	AdminEventCenter = "AdminEventCenter",
+	SeasonOverride = "SeasonOverride",
 }
 
 Protocol.Tag = {

@@ -59,11 +59,13 @@ end
 
 function CombatService:Start()
 	CombatRequest.OnServerEvent:Connect(function(player, action, payload)
-		if not self.antiExploit:allow(player, "Combat") then
-			return
-		end
 		if typeof(action) ~= "string" or Action[action] == nil then
 			self.antiExploit:flag(player, "unknown combat action")
+			return
+		end
+		-- Releasing block is harmless and must never be dropped, or the
+		-- player would stay stuck blocking
+		if action ~= Action.BlockEnd and not self.antiExploit:allow(player, "Combat") then
 			return
 		end
 		local fighter = self.characters:getByPlayer(player)

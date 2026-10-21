@@ -53,11 +53,14 @@ Poser.Poses = {
 	Dodge = { Torso = { -15, 0, 0 }, RightShoulder = { -30, 0, 10 }, LeftShoulder = { -30, 0, -10 } },
 }
 
--- Weak keys: entries disappear with the joints and characters they belong to
-local baseC0: { [Motor6D]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+-- The resting C0 of each joint and which poses are held are stored as (local)
+-- attributes on the instances themselves: Roblox can recycle the Lua object for
+-- an Instance, so tables keyed by Instances may forget them. Active tweens and
+-- tokens only need to live while a pose is playing (their closures keep them).
+local BASE_ATTRIBUTE = "SNBaseC0"
+local HOLD_PREFIX = "SNHold_"
 local tweens: { [Motor6D]: Tween } = setmetatable({}, { __mode = "k" }) :: any
 local tokens: { [Motor6D]: number } = setmetatable({}, { __mode = "k" }) :: any
-local holds: { [Model]: { [string]: boolean } } = setmetatable({}, { __mode = "k" }) :: any
 
 local function findMotor(character: Model, joint: string): Motor6D?
 	local spec = JOINTS[joint]
@@ -79,12 +82,12 @@ local function findMotor(character: Model, joint: string): Motor6D?
 end
 
 local function base(motor: Motor6D): CFrame
-	local original = baseC0[motor]
-	if not original then
+	local original = motor:GetAttribute(BASE_ATTRIBUTE)
+	if typeof(original) ~= "CFrame" then
 		original = motor.C0
-		baseC0[motor] = original
+		motor:SetAttribute(BASE_ATTRIBUTE, original)
 	end
-	return original
+	return original :: CFrame
 end
 
 local function posed(motor: Motor6D, angles: { number }): CFrame
@@ -136,15 +139,10 @@ function Poser.hold(character: Model?, poseName: string)
 	if not character then
 		return
 	end
-	local held = holds[character]
-	if not held then
-		held = {}
-		holds[character] = held
-	end
-	if held[poseName] then
+	if character:GetAttribute(HOLD_PREFIX .. poseName) then
 		return
 	end
-	held[poseName] = true
+	character:SetAttribute(HOLD_PREFIX .. poseName, true)
 	local pose = Poser.Poses[poseName]
 	for joint, angles in pose or {} do
 		local motor = findMotor(character, joint)
@@ -158,11 +156,10 @@ function Poser.release(character: Model?, poseName: string)
 	if not character then
 		return
 	end
-	local held = holds[character]
-	if not held or not held[poseName] then
+	if not character:GetAttribute(HOLD_PREFIX .. poseName) then
 		return
 	end
-	held[poseName] = nil
+	character:SetAttribute(HOLD_PREFIX .. poseName, nil)
 	local pose = Poser.Poses[poseName]
 	for joint in pose or {} do
 		local motor = findMotor(character, joint)

@@ -265,11 +265,16 @@ function EffectsController:_setShield(model: Model, on: boolean)
 		shield.Transparency = 0.2
 		shield.Parent = workspace.CurrentCamera
 		shields[model] = shield
-		Poser.hold(model, "Block")
+		-- The local player's own block pose follows their button (CombatController)
+		if not isLocal(model) then
+			Poser.hold(model, "Block")
+		end
 	elseif not on and existing then
 		existing:Destroy()
 		shields[model] = nil
-		Poser.release(model, "Block")
+		if not isLocal(model) then
+			Poser.release(model, "Block")
+		end
 	end
 end
 
@@ -358,6 +363,9 @@ end
 function EffectsController:_updateOverheads()
 	local time = now()
 	for model, overhead in overheads do
+		-- The owner's invisibility hides their name and bars too
+		local owner = Players:GetPlayerFromCharacter(model)
+		overhead.gui.Enabled = not (owner and owner:GetAttribute(Attribute.Invisible) == true)
 		local humanoid = model:FindFirstChildOfClass("Humanoid")
 		if humanoid then
 			local fraction = if humanoid.MaxHealth > 0 then humanoid.Health / humanoid.MaxHealth else 0

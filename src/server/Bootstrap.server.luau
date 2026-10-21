@@ -11,6 +11,8 @@ local ORDER = {
 	"CombatService",
 	"DummyService",
 	"MatchService",
+	"AdminEventService",
+	"OwnerService",
 }
 
 local services = {}

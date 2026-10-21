@@ -24,6 +24,9 @@ local KINDS = {
 
 local TRAINING_ORDER = { "PunchingBag", "Guard", "Sparring" }
 local SIGHT_RANGE = 30
+local RETRY_DELAY = 2
+-- Training dummies knocked further than this from their spot walk back to it
+local HOME_RANGE = 4
 
 export type Dummy = {
 	id: string,
@@ -98,6 +101,9 @@ end
 function DummyService:despawn(dummy: Dummy)
 	dummy.active = false
 	dummies[dummy.id] = nil
+	if dummy.fighter then
+		self.characters:unregister(dummy.fighter)
+	end
 	if dummy.model then
 		dummy.model:Destroy()
 		dummy.model = nil
@@ -106,6 +112,11 @@ function DummyService:despawn(dummy: Dummy)
 end
 
 function DummyService:_build(dummy: Dummy)
+	-- Retire the old body first, so nothing acts on it once it's gone
+	if dummy.fighter then
+		self.characters:unregister(dummy.fighter)
+		dummy.fighter = nil
+	end
 	if dummy.model then
 		dummy.model:Destroy()
 		dummy.model = nil
@@ -123,7 +134,12 @@ function DummyService:_build(dummy: Dummy)
 		return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15)
 	end)
 	if not ok then
-		warn("[Dummies] Couldn't create a dummy: " .. tostring(result))
+		warn("[Dummies] Couldn't create a dummy, retrying: " .. tostring(result))
+		task.delay(RETRY_DELAY, function()
+			if dummy.active and dummy.model == nil then
+				self:_build(dummy)
+			end
+		end)
 		return
 	end
 	if not dummy.active then
@@ -168,12 +184,14 @@ local function nearestPlayer(characters, fighter)
 	return best
 end
 
+local function hasKnockback(root: BasePart): boolean
+	return root:FindFirstChild("SNKnockback") ~= nil
+end
+
 function DummyService:_behave(dummy: Dummy, fighter)
 	local behavior = dummy.kind.behavior
-	if behavior == "Idle" then
-		return
-	end
 	local nextDecision = 0
+	local awaySince: number? = nil
 	while dummy.active and dummy.fighter == fighter and self.characters:isAlive(fighter) do
 		task.wait(0.2)
 		if not self.characters:isAlive(fighter) then
@@ -181,6 +199,26 @@ function DummyService:_behave(dummy: Dummy, fighter)
 		end
 		local time = workspace:GetServerTimeNow()
 		local state = fighter.state
+
+		-- Training dummies knocked away come back to their spot after a moment
+		if dummy.training then
+			local home = dummy.spawnAt()
+			local away = (fighter.root.Position - home.Position).Magnitude > HOME_RANGE
+			if away and not FighterState.isStunned(state, time) and not hasKnockback(fighter.root) then
+				awaySince = awaySince or time
+				if time - (awaySince :: number) > 1.5 then
+					fighter.root.AssemblyLinearVelocity = Vector3.zero
+					fighter.model:PivotTo(home)
+					awaySince = nil
+				end
+			else
+				awaySince = nil
+			end
+		end
+		if behavior == "Idle" then
+			continue
+		end
+
 		local target = nearestPlayer(self.characters, fighter)
 
 		if target and not FighterState.isStunned(state, time) then

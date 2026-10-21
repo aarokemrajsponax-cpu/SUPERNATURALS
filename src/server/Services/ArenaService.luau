@@ -309,6 +309,12 @@ function ArenaService:lobbySpawn(): CFrame
 	return CFrame.new(base.Position + Vector3.new(0, 4, 0) + jitter)
 end
 
+-- The middle of the lobby (the spawn point), used by admin events
+function ArenaService:lobbyCenter(): Vector3
+	local spawnLocation = workspace:FindFirstChildWhichIsA("SpawnLocation", true)
+	return if spawnLocation then spawnLocation.Position else Vector3.zero
+end
+
 function ArenaService:trainingSpawn(): CFrame
 	local center = MatchConfig.TrainingGround.Center
 	return CFrame.lookAt(center + Vector3.new(12, 4, 0), center + Vector3.new(0, 4, 0))

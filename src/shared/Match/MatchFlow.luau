@@ -81,7 +81,12 @@ function MatchFlow.tick(flow: Flow, now: number): { Event }
 	elseif flow.phase == "Active" then
 		timeUp(flow, events, now)
 	elseif flow.phase == "SuddenDeath" then
-		finish(flow, events, "Draw", Scoreboard.leaders(flow.board), true, now)
+		local leaders = Scoreboard.leaders(flow.board)
+		if #leaders == 1 then
+			finish(flow, events, "SuddenDeath", leaders, false, now)
+		else
+			finish(flow, events, "Draw", leaders, true, now)
+		end
 	elseif flow.phase == "Results" then
 		flow.phase = "Ended"
 		table.insert(events, { kind = "Ended" })
@@ -120,6 +125,12 @@ function MatchFlow.leave(flow: Flow, id: string, now: number): { Event }
 	local remaining = Scoreboard.remaining(flow.board)
 	if #remaining <= 1 then
 		finish(flow, events, "Forfeit", remaining, #remaining == 0, now)
+	elseif flow.phase == "SuddenDeath" then
+		-- A tied leader leaving can leave a single leader: they win
+		local leaders = Scoreboard.leaders(flow.board)
+		if #leaders == 1 then
+			finish(flow, events, "SuddenDeath", leaders, false, now)
+		end
 	end
 	return events
 end

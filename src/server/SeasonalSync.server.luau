@@ -114,6 +114,14 @@ end
 
 applySeason(Seasons.getCurrentId())
 
+-- The owner panel can switch seasons instantly
+ReplicatedStorage:GetAttributeChangedSignal("SeasonOverride"):Connect(function()
+	local id = Seasons.getCurrentId()
+	if id ~= currentId then
+		applySeason(id)
+	end
+end)
+
 while true do
 	task.wait(CHECK_INTERVAL)
 	local id = Seasons.getCurrentId()

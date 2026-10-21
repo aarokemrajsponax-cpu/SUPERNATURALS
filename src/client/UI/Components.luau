@@ -58,6 +58,8 @@ function Components.panel(props: { [string]: any }?): Frame
 		BackgroundColor3 = Colors.Panel,
 		BackgroundTransparency = 0.08,
 		BorderSizePixel = 0,
+		-- Catch clicks, so clicking a panel's background doesn't throw a punch
+		Active = true,
 	}
 	for key, value in (props or {}) :: { [string]: any } do
 		merged[key] = value

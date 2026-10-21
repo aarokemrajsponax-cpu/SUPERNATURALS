@@ -9,6 +9,8 @@ local ORDER = {
 	"CombatController",
 	"InputController",
 	"UIController",
+	"AdminEffectsController",
+	"OwnerController",
 }
 
 local controllers = {}
