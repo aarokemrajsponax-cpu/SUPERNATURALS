@@ -108,6 +108,7 @@ Protocol.BaseAction = {
 	Visit = "Visit", -- (userId)
 	Home = "Home",
 	Upgrade = "Upgrade", -- buy more furniture capacity
+	Buy = "Buy", -- (furnitureId | "Style:<kind>:<id>", count?) pays the listed price
 }
 
 -- Server -> clients, through Remotes.BaseEvent
