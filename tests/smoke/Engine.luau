@@ -636,7 +636,13 @@ roblox.implementMethod("Workspace", "Blockcast", function(_, cframe, _size, dire
 	end
 	return nil
 end)
-roblox.implementMethod("Workspace", "GetPartBoundsInBox", function()
+-- Tests can say what a box overlap finds (e.g. a wall at a teleport spot):
+-- Engine.partsInBox(cframe, size, params) returns a list of parts. Default: nothing.
+Engine.partsInBox = nil :: ((CFrame, Vector3, any) -> { any })?
+roblox.implementMethod("Workspace", "GetPartBoundsInBox", function(_, cframe, size, params)
+	if Engine.partsInBox then
+		return Engine.partsInBox(cframe, size, params)
+	end
 	return {}
 end)
 roblox.implementMethod("Workspace", "GetPartBoundsInRadius", function()

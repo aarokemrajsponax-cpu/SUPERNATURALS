@@ -12,7 +12,6 @@
 -- slashes in flight, a Ghost CPU, and every client effect.
 
 local process = require("@lune/process")
-local roblox = require("@lune/roblox") :: any
 
 local World = require("./smoke/World")
 
@@ -269,7 +268,9 @@ check("Instant Draw (ability): fast long cut, costs Spirit, cooldown; a miss is 
 	local hits = hitsSince(mark, a, b, "InstantDraw")
 	assert(#hits == 1 and near(hits[1].damage, 13), "one 13-damage cut")
 	assert(b.humanoid.Health < health, "Bob hurt")
-	assert(a.power.resource < 50, "Spirit spent")
+	-- 60, minus the cost, plus Spirit for landing it and a moment of regen
+	local spent = Powers.abilityFor("Ghost", "InstantDraw", 1).cost
+	assert(a.power.resource <= 60 - spent + GHOST.resource.gainOnHit + GHOST.resource.regen * 0.5, "Spirit spent: " .. a.power.resource)
 	assert(cooldownSet(a, "InstantDraw"), "cooldown published")
 	assert(a.model:GetAttribute(Attribute.Phase) == 1, "katana drawn")
 	assert(#fxSince(mark, "InstantDraw", a) == 1, "the cut is drawn")
@@ -293,7 +294,13 @@ check("Spectral Dash: a real dash with afterimages, no hit, cost and cooldown", 
 	local mark = game.mark()
 	request("AbilityRequest", alice, "SpectralDash", { direction = Vector3.new(0, 0, 1) })
 	task.wait(0.12)
-	local mover = a.root:FindFirstChild("SNDash")
+	-- The dash is an attachment plus a LinearVelocity, both called SNDash
+	local mover
+	for _, child in a.root:GetChildren() do
+		if child.Name == "SNDash" and child:IsA("LinearVelocity") then
+			mover = child
+		end
+	end
 	local def = Powers.abilityFor("Ghost", "SpectralDash", 1)
 	assert(mover and mover:IsA("LinearVelocity"), "dash mover")
 	assert((mover.VectorVelocity - Vector3.new(0, 0, def.speed)).Magnitude < 0.01, "dashes where aimed at full speed")
@@ -484,9 +491,11 @@ end)
 check("§38: a Ghost teleport destination is blocked (or has no ground): it fails safely and refunds", function()
 	local blocker = world.Instance.new("Part")
 	local function overlap(blocked: boolean)
-		roblox.implementMethod("Workspace", "GetPartBoundsInBox", function()
-			return if blocked then { blocker } else {}
-		end)
+		Engine.partsInBox = if blocked
+			then function()
+				return { blocker }
+			end
+			else nil
 	end
 	for _, case in { "blocked", "no ground" } do
 		local a = stage(20)
@@ -707,6 +716,8 @@ check("Spectral Severance at every degree: afterimage cuts, then a timed final s
 			cue = cuesFor(mark, bob, "Timing")[1]
 			return cue ~= nil
 		end, 1, "Bob's timing bar")
+		-- Checked now: the hits below charge the next ultimate a little
+		assert(a.power.ult < 5, `degree {degree}: the charge was spent`)
 		task.wait(math.max(0, cue.impactAt - now()) + 0.5)
 		Engine.syncPositions(world.workspace)
 		local passes, finals = 0, 0
@@ -722,7 +733,6 @@ check("Spectral Severance at every degree: afterimage cuts, then a timed final s
 		assert(#fxSince(mark, "SeverancePass", a) == def.passes, "every cut drawn")
 		assert(#fxSince(mark, "SeveranceStrike", a) == 1, "final strike drawn")
 		assert(flatDistance(a.root.Position, start) > 8, "he struck from behind Bob")
-		assert(a.power.ult < 5, "the charge was spent")
 		task.wait(1)
 	end
 end)
