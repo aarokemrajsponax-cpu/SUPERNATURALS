@@ -1,9 +1,11 @@
 -- Runs real game code against the stand-in engine (tests/smoke/Engine.luau):
 --   rojo build default.project.json -o build/game.rbxl
 --   lune run tests/smoke.luau build/game.rbxl
--- Covers: arenas, every holiday's decorations, every UI screen (including the
--- owner panel), every admin event's visuals, and the client's combat-event
--- handling. Any invalid property, wrong value type or runtime error fails.
+-- Covers: arenas, every holiday's decorations, the interface components, the
+-- Shell with every window (opened, every button pressed), toasts, confirms,
+-- modes and screen sizes, the HUD and match HUD, the owner panel, every admin
+-- event's visuals, and the client's combat-event handling. Any invalid
+-- property, wrong value type or runtime error fails.
 
 local process = require("@lune/process")
 
@@ -84,26 +86,496 @@ check("HUD builds and updates", function()
 		return 50
 	end)
 	hud.update()
+	assert(hud.abilityRow and hud.abilityRow:IsA("Frame"), "the HUD returns an empty ability row")
+	assert(hud.abilityRow:FindFirstChildOfClass("UIListLayout"), "the ability row lays buttons out in a row")
+	assert(hud.abilityRow.Size.X.Offset >= 6 * 64, "the ability row has room for six 64px buttons")
 end)
 
-check("fight menu builds, queues and shows the queue pill", function()
-	local Menu = world.require(world.find("StarterPlayer.StarterPlayerScripts.Client.UI.Menu"))
-	local queued
-	local menu = Menu.build(screen, {
-		queue = function(mode)
-			queued = mode
+local CLIENT = "StarterPlayer.StarterPlayerScripts.Client."
+local Vector2, UDim2 = roblox.Vector2, roblox.UDim2
+
+local function press(button)
+	Engine.signalOf(button, "Activated"):Fire()
+end
+
+local function findNamed(root, name: string)
+	for _, item in root:GetDescendants() do
+		if item.Name == name then
+			return item
+		end
+	end
+	return nil
+end
+
+local function findText(root, text: string)
+	for _, item in root:GetDescendants() do
+		if (item:IsA("TextLabel") or item:IsA("TextButton")) and item.Text == text then
+			return item
+		end
+	end
+	return nil
+end
+
+local function sentSince(start: number, remote: string, first: any?)
+	local found = {}
+	for index = start + 1, #Engine.sent do
+		local entry = Engine.sent[index]
+		if entry.remote == remote and (first == nil or entry.args[1] == first) then
+			table.insert(found, entry)
+		end
+	end
+	return found
+end
+
+-- Every non-scaled text must wrap, cut off with "…" or grow to fit, and every
+-- control a finger can press must be at least 44 tall
+local function auditLayout(root, label: string)
+	local loose, small = {}, {}
+	for _, item in root:GetDescendants() do
+		if (item:IsA("TextLabel") or item:IsA("TextButton")) and item.Text ~= "" and not item.TextScaled then
+			local fits = item.TextWrapped or item.TextTruncate ~= roblox.Enum.TextTruncate.None or item.AutomaticSize ~= roblox.Enum.AutomaticSize.None
+			-- Short fixed glyphs in fixed boxes (icons, +, ✕, key hints, digits) are sized for their box
+			if not fits and utf8.len(item.Text) > 3 then
+				table.insert(loose, item:GetFullName() .. ` "{item.Text}"`)
+			end
+		end
+		if item:IsA("GuiButton") and item.Selectable and item.Size.Y.Scale == 0 and item.Size.Y.Offset < 44 then
+			table.insert(small, item:GetFullName() .. " " .. tostring(item.Size.Y.Offset))
+		end
+	end
+	assert(#loose == 0, `{label}: text that can overflow its box:\n       ` .. table.concat(loose, "\n       "))
+	assert(#small == 0, `{label}: touch targets under 44px:\n       ` .. table.concat(small, "\n       "))
+end
+
+check("components: numbers, prices and every building block", function()
+	local Components = world.require(world.find(CLIENT .. "UI.Components"))
+	local Theme = world.require(world.find(CLIENT .. "UI.Theme"))
+	local f = Components.formatNumber
+	for input, expected in { [0] = "0", [999] = "999", [1000] = "1,000", [6666] = "6,666", [9999] = "9,999", [12000] = "12,000", [1234567] = "1,234,567", [-1500] = "-1,500", [12.6] = "13" } do
+		assert(f(input) == expected, `formatNumber({input}) = {f(input)}, expected {expected}`)
+	end
+	assert(f(0 / 0) == "0" and f(math.huge) == "0", "NaN and infinity show as 0")
+
+	local holder = world.Instance.new("Frame")
+	holder.Parent = screen
+	-- Robux prices from the owner: Corruption 6,666, Syntax 9,999, Admin 12,000
+	for robux, text in { [6666] = "R$ 6,666", [9999] = "R$ 9,999", [12000] = "R$ 12,000" } do
+		local price = Components.price(holder, { robux = robux })
+		assert(findText(price, text), "price shows " .. text)
+	end
+	local mixed = Components.price(holder, { money = 1500, gems = 40 })
+	assert(findText(mixed, "💵 1,500") and findText(mixed, "💎 40"), "money and gems prices")
+	assert(findText(Components.price(holder, {}), "FREE"), "an empty price is free")
+
+	for _, style in { "Micro", "Caption", "Body", "Label", "Heading", "Title", "Display" } do
+		local label = Components.text({ Text = style, Style = style, Parent = holder })
+		assert(label.TextSize == Theme.TextStyles[style].size, style .. " uses its fixed size")
+		assert(label.TextTruncate == roblox.Enum.TextTruncate.AtEnd, "single lines cut off with …")
+	end
+	local paragraph = Components.text({ Text = "A long paragraph", Wrap = true, Parent = holder })
+	assert(paragraph.TextWrapped and paragraph.AutomaticSize == roblox.Enum.AutomaticSize.Y, "paragraphs wrap and grow")
+	-- Older callers: TextScaled labels and buttons, legacy fonts upgraded to Builder Sans
+	local legacy = Components.label("Old", { Font = Theme.Fonts.Title, MaxTextSize = 20, Parent = holder })
+	assert(legacy.TextScaled and legacy.FontFace.Weight == roblox.Enum.FontWeight.ExtraBold, "legacy labels still scale, in Builder Sans")
+	local clicks = 0
+	for _, variant in { "Primary", "Secondary", "Ghost", "Danger", "Gold" } do
+		local button = Components.button(variant, { Variant = variant, Parent = holder }, function()
+			clicks += 1
+		end)
+		assert(button.Selectable and not button.TextScaled, variant .. " buttons are fixed-size and selectable")
+		Engine.signalOf(button, "MouseEnter"):Fire()
+		Engine.signalOf(button, "SelectionGained"):Fire()
+		Engine.signalOf(button, "InputBegan"):Fire({ UserInputType = roblox.Enum.UserInputType.MouseButton1, KeyCode = roblox.Enum.KeyCode.Unknown })
+		Engine.signalOf(button, "InputEnded"):Fire({ UserInputType = roblox.Enum.UserInputType.MouseButton1, KeyCode = roblox.Enum.KeyCode.Unknown })
+		Engine.signalOf(button, "MouseLeave"):Fire()
+		press(button)
+		Components.setDisabled(button, true)
+		Engine.signalOf(button, "Attribute:SNDisabled"):Fire()
+		press(button)
+		Components.setDisabled(button, false)
+		Engine.signalOf(button, "Attribute:SNDisabled"):Fire()
+	end
+	assert(clicks == 5, `disabled buttons ignore clicks ({clicks} clicks)`)
+	local old = Components.button("Legacy", { Accent = Theme.Colors.Danger, Parent = holder })
+	assert(old.TextScaled and old:FindFirstChildOfClass("UITextSizeConstraint"), "legacy buttons still scale")
+
+	local tile = Components.iconTile("⚔️", 40, Theme.Colors.Purple)
+	assert(tile.Size.X.Offset == 40, "icon tiles are fixed size")
+	local frame, body, parts = Components.window({ Title = "Test", Icon = "🧪", Parent = holder })
+	assert(frame and body and parts.close and parts.title.Text == "TEST", "window chrome")
+	local picked
+	local cardFrame, card = Components.card({ Icon = "🎯", Title = "Card", Body = "Body", Badge = "NEW", Parent = holder, onClick = function()
+		picked = true
+	end })
+	press(cardFrame)
+	card.setSelected(true)
+	card.setDisabled(true)
+	picked = false
+	press(cardFrame)
+	assert(card.isSelected() and card.isDisabled() and picked == false, "cards select and disable")
+	local chosen = {}
+	local tabs = Components.tabs(holder, { { id = "a", label = "One", icon = "1️⃣" }, { id = "b", label = "Two" } }, function(id)
+		table.insert(chosen, id)
+	end)
+	press(findNamed(tabs.frame, "Tab_b"))
+	assert(tabs.current() == "b" and chosen[1] == "a" and chosen[2] == "b", "tabs select")
+	local scroll = Components.scroll({ Padding = 8, Parent = holder })
+	Components.list(scroll, 8)
+	Components.grid(holder, Vector2.new(100, 60), 8)
+	local _, setProgress = Components.progress({ Label = "XP", Value = "0 / 100", Parent = holder }, Theme.Colors.Gold)
+	setProgress(0.5, "50 / 100")
+	local toggled
+	local toggleRow, setToggle = Components.toggle("Shake", true, function(value)
+		toggled = value
+	end, { Description = "Shake the camera", Parent = holder })
+	press(toggleRow)
+	assert(toggled == false, "toggles flip")
+	setToggle(true)
+	local slid
+	local slider = Components.slider("Volume", 0, 1, 0.05, 0.5, function(value)
+		slid = value
+	end, { Format = function(v)
+		return `{math.floor(v * 100 + 0.5)}%`
+	end, Parent = holder })
+	press(findNamed(slider, "Plus"))
+	assert(slid == 0.55, `slider + steps up (got {slid})`)
+	press(findNamed(slider, "Minus"))
+	press(findNamed(slider, "Minus"))
+	assert(slid == 0.45, `slider − steps down (got {slid})`)
+	assert(findText(slider, "45%"), "slider shows its value")
+	Components.badge("OWNED", Theme.Colors.Success).Parent = holder
+	Components.divider({ Parent = holder })
+	task.wait(0.1)
+	holder:Destroy()
+end)
+
+check("interface: shell, play and settings windows, toasts, confirms, modes, screen sizes", function()
+	local errorsBefore = #Engine.errors
+	local Input = world.require(world.find(CLIENT .. "Controllers.InputController"))
+	local deviceKind = "keyboard"
+	local fakeInput = {
+		Bindings = Input.Bindings,
+		device = function()
+			return deviceKind
 		end,
-		leaveQueue = function() end,
-		travel = function() end,
+	}
+	local UIController = world.require(world.find(CLIENT .. "Controllers.UIController"))
+	UIController:Init({
+		InputController = fakeInput,
+		EffectsController = {
+			currentGuard = function()
+				return 50
+			end,
+		},
 	})
-	menu.setQueue({ mode = "Duel", displayName = "Duel", queued = 1, needed = 2, max = 2 })
-	menu.update()
-	menu.setQueue({ mode = "FreeForAll", displayName = "Free-for-All", queued = 3, needed = 3, max = 4, startsAt = 1010 })
-	menu.update()
-	menu.setQueue(nil)
-	menu.setAllowed(false)
-	menu.setAllowed(true)
-	local _ = queued
+	UIController:Start()
+	local Shell = world.require(world.find(CLIENT .. "UI.Shell"))
+	local Settings = world.require(world.find(CLIENT .. "Settings"))
+	local gui = world.localPlayer.PlayerGui:FindFirstChild("SNInterface")
+	assert(gui, "the interface ScreenGui exists")
+	local scales = 0
+	for _, child in gui:GetChildren() do
+		if child:IsA("UIScale") then
+			scales += 1
+		end
+	end
+	assert(scales == 1, `one UIScale for the whole interface (found {scales})`)
+	local uiScale = gui:FindFirstChildOfClass("UIScale")
+	assert(math.abs(uiScale.Scale - 1) < 1e-6, "1280x720 is scale 1")
+	assert(findNamed(gui, "Nav_Play") and findNamed(gui, "Nav_Settings"), "dock has Play and Settings")
+	assert(UIController.hud and UIController.hud.abilityRow, "other controllers can reach the HUD's ability row")
+
+	-- Profile: wallet, power, the not-saving banner and server toasts
+	local dataEvent = world.find("ReplicatedStorage.Remotes.DataEvent")
+	local function fireData(kind, data)
+		Engine.signalOf(dataEvent, "OnClientEvent"):Fire(kind, data)
+	end
+	fireData("Profile", {
+		currencies = { money = 12000, gems = 6666 },
+		selected = { power = "StrongDude", degree = 1 },
+		settings = { cameraShake = true, uiScale = 1 },
+	})
+	local wallet = findNamed(gui, "Wallet")
+	assert(findText(wallet, "12,000") and findText(wallet, "6,666"), "wallet shows money and gems with separators")
+	assert(findText(gui, "⚡ Strong Dude  ·  Degree 1"), "player card shows the selected power")
+	fireData("Profile", { currencies = { money = 12500, gems = 6666 }, selected = { power = "StrongDude", degree = 2 } })
+	Engine.step(game, 60, 0.05)
+	assert(findText(wallet, "12,500"), "wallet counts up to the new balance")
+	fireData("Persistence", { saving = false })
+	assert(findNamed(gui, "SavingBanner").Visible, "banner shows when progress isn't saved")
+	assert(findText(gui, "Progress isn't being saved right now (Studio without API access)"), "banner text")
+	fireData("Persistence", { saving = true })
+	assert(not findNamed(gui, "SavingBanner").Visible, "banner hides when saving works")
+	fireData("Toast", { text = "Welcome to SUPERNATURALS!", kind = "success" })
+	assert(findText(gui, "Welcome to SUPERNATURALS!"), "server toasts appear")
+
+	-- Play window
+	local start = #Engine.sent
+	press(findNamed(gui, "Nav_Play"))
+	assert(Shell.isOpen("Play") and Shell.isOpen(), "dock opens Play")
+	local play = findNamed(gui, "Window_Play")
+	assert(play and play.Visible, "Play window is visible")
+	task.wait(0.05)
+	for _, id in { "FreeForAll", "Practice", "Training", "Duel" } do
+		press(findNamed(play, "Mode_" .. id))
+	end
+	assert(findText(play, "DUEL") and findText(play, "3:00") and findText(play, "Sudden death (1:00)"), "details show the Duel rules from the config")
+	assert(findNamed(play, "MatchOptions"), "a slot is reserved for arena and CPU options")
+	press(findNamed(play, "Action"))
+	assert(#sentSince(start, "MatchRequest", "Queue") == 1 and sentSince(start, "MatchRequest", "Queue")[1].args[2] == "Duel", "Find a duel queues for Duel")
+	assert(not Shell.isOpen(), "queueing closes the window")
+
+	-- Queue pill: shows, counts, cancels
+	local matchEvent = world.find("ReplicatedStorage.Remotes.MatchEvent")
+	local function fireMatch(kind, data)
+		Engine.signalOf(matchEvent, "OnClientEvent"):Fire(kind, data)
+	end
+	fireMatch("Queue", { mode = "Duel", displayName = "Duel", queued = 1, needed = 2, max = 2 })
+	local pill = findNamed(gui, "QueuePill")
+	assert(pill.Visible, "queue pill shows")
+	Engine.step(game, 10, 0.05)
+	assert(findText(pill, "1/2 fighters"), "queue pill shows the count")
+	fireMatch("Queue", { mode = "FreeForAll", displayName = "Free-for-All", queued = 3, needed = 3, max = 4, startsAt = 1010 })
+	Engine.step(game, 4, 0.05)
+	task.wait(1.1)
+	start = #Engine.sent
+	press(findNamed(pill, "Cancel"))
+	assert(#sentSince(start, "MatchRequest", "LeaveQueue") == 1, "Cancel leaves the queue")
+	-- While queued for Duel the Play window offers Cancel search instead
+	fireMatch("Queue", { mode = "Duel", displayName = "Duel", queued = 1, needed = 2, max = 2 })
+	Shell.open("Play", { mode = "Duel" })
+	assert(findNamed(play, "CancelSearch").Visible and not findNamed(play, "Action").Visible, "searching shows Cancel search")
+	fireMatch("Queue", nil)
+	assert(findNamed(play, "Action").Visible, "Cancel search goes away when the queue ends")
+	task.wait(0.7)
+	press(findNamed(play, "Mode_Training"))
+	start = #Engine.sent
+	press(findNamed(play, "Action"))
+	local travel = sentSince(start, "MatchRequest", "Travel")
+	assert(#travel == 1 and travel[1].args[2] == "Training", "Go to training travels there")
+	task.wait(0.7)
+	Shell.open("Play")
+	start = #Engine.sent
+	press(findNamed(play, "Spawn"))
+	travel = sentSince(start, "MatchRequest", "Travel")
+	assert(#travel == 1 and travel[1].args[2] == "Lobby", "Back to spawn travels to the lobby")
+	task.wait(0.2)
+	assert(pill.Visible == false, "pill hides after the queue ends")
+
+	-- Settings window: every toggle and slider writes through Settings
+	Shell.open("Settings")
+	local settings = findNamed(gui, "Window_Settings")
+	assert(Shell.isOpen("Settings") and settings, "Settings opens")
+	for _, key in { "cameraShake", "reducedEffects", "intenseEffects", "damageNumbers" } do
+		local before = Settings.get(key)
+		press(findNamed(settings, "Toggle_" .. key))
+		assert(Settings.get(key) == not before, key .. " toggles")
+	end
+	press(findNamed(findNamed(settings, "Slider_musicVolume"), "Minus"))
+	assert(math.abs(Settings.get("musicVolume") - 0.45) < 1e-6, "music volume steps down")
+	press(findNamed(findNamed(settings, "Slider_sfxVolume"), "Plus"))
+	assert(math.abs(Settings.get("sfxVolume") - 0.85) < 1e-6, "sound volume steps up")
+	press(findNamed(findNamed(settings, "Slider_cameraSensitivity"), "Plus"))
+	assert(math.abs(Settings.get("cameraSensitivity") - 1.1) < 1e-6, "camera sensitivity is stored")
+	press(findNamed(findNamed(settings, "Slider_uiScale"), "Plus"))
+	assert(math.abs(Settings.get("uiScale") - 1.05) < 1e-6, "interface size steps up")
+	assert(math.abs(uiScale.Scale - 1.05) < 1e-6, `interface size rescales everything ({uiScale.Scale})`)
+	Settings.set("uiScale", 1)
+	-- A value arriving from elsewhere shows in the open window
+	Settings.set("musicVolume", 0.2)
+	assert(findText(findNamed(settings, "Slider_musicVolume"), "20%"), "settings window follows Settings.changed")
+	auditLayout(settings, "Settings window")
+	auditLayout(play, "Play window")
+	press(findNamed(settings, "Close"))
+	assert(not Shell.isOpen(), "✕ closes the window")
+
+	-- Lazily built extra windows, update ticks, a window that fails to build
+	local ticks, opened, closed = 0, nil, false
+	Shell.registerWindow("Probe", {
+		title = "Probe",
+		icon = "🧪",
+		order = 50,
+		nav = false,
+		size = Vector2.new(500, 300),
+		build = function(body, api)
+			assert(api.close and api.toast and api.confirm and api.open, "windows get the api")
+			return {
+				onOpen = function(args)
+					opened = args
+				end,
+				onClose = function()
+					closed = true
+				end,
+				update = function()
+					ticks += 1
+				end,
+			}
+		end,
+	})
+	assert(not findNamed(gui, "Window_Probe"), "windows build lazily")
+	assert(not findNamed(gui, "Nav_Probe"), "nav = false keeps it out of the dock")
+	Shell.open("Probe", { from = "test" })
+	Engine.step(game, 10, 0.05)
+	assert(opened and opened.from == "test" and ticks > 0, "onOpen gets args and update ticks")
+	Shell.open("Play")
+	assert(closed and Shell.isOpen("Play") and not Shell.isOpen("Probe"), "opening another window closes the first")
+	Shell.toggle("Play")
+	assert(not Shell.isOpen(), "toggle closes")
+	Shell.registerWindow("Broken", { title = "Broken", icon = "💥", order = 60, nav = false, build = function()
+		error("intentional test failure")
+	end })
+	Shell.open("Broken")
+	assert(not Shell.isOpen(), "a window that fails to build doesn't open")
+
+	-- Nav badges
+	Shell.setNavBadge("Play", "!")
+	local badge = findNamed(findNamed(gui, "Nav_Play"), "Badge")
+	assert(badge.Visible and findText(badge, "!"), "nav badge shows")
+	Shell.setNavBadge("Play", nil)
+	assert(not badge.Visible, "nav badge clears")
+
+	-- Toasts: every kind, only the newest few stay
+	for _, kind in { "info", "success", "error", "reward", "bogus" } do
+		Shell.toast("Toast " .. kind, kind)
+	end
+	local toastCount = 0
+	for _, child in findNamed(gui, "Stack"):GetChildren() do
+		if child:IsA("Frame") then
+			toastCount += 1
+		end
+	end
+	assert(toastCount <= 4, `at most four toasts at once ({toastCount})`)
+
+	-- Confirm: price shown first, confirm and cancel both work
+	local result
+	Shell.confirm({ title = "Unlock Admin Powers?", body = "Opens the Roblox purchase prompt.", price = { robux = 12000 }, onConfirm = function()
+		result = "yes"
+	end, onCancel = function()
+		result = "no"
+	end })
+	local modal = findNamed(gui, "ShellModal")
+	assert(findText(modal, "R$ 12,000"), "confirm shows the Robux price")
+	auditLayout(modal, "Confirm dialog")
+	press(findNamed(modal, "ConfirmDim"):FindFirstChild("Dialog"):FindFirstChild("Buttons"):FindFirstChild("Confirm"))
+	assert(result == "yes", "Buy confirms")
+	Shell.confirm({ title = "Kick everyone?", danger = true, onConfirm = function()
+		result = "kicked"
+	end, onCancel = function()
+		result = "kept"
+	end })
+	task.wait(0.05)
+	local dialogs = {}
+	for _, child in modal:GetChildren() do
+		if child.Name == "ConfirmDim" then
+			table.insert(dialogs, child)
+		end
+	end
+	press(dialogs[#dialogs]:FindFirstChild("Dialog"):FindFirstChild("Buttons"):FindFirstChild("Cancel"))
+	assert(result == "kept", "Cancel cancels")
+	Shell.confirm({ title = "Replace me", price = { gems = 50 }, onConfirm = function() end, onCancel = function()
+		result = "replaced"
+	end })
+	Shell.confirm({ title = "Newer", onConfirm = function() end })
+	assert(result == "replaced", "a new confirm cancels the old one")
+	Shell.setMode("Match")
+	assert(result == "replaced", "entering a match cancels the open confirm")
+
+	-- Modes
+	assert(not findNamed(gui, "Dock").Visible and findNamed(gui, "SmallBar").Visible, "Match hides the dock, small top bar")
+	Shell.open("Play")
+	assert(not Shell.isOpen("Play"), "no lobby windows during a match")
+	Shell.open("Settings")
+	assert(Shell.isOpen("Settings"), "settings still open from the match top bar")
+	Shell.close()
+	Shell.setMode("Cinematic")
+	assert(gui.Enabled == false, "Cinematic hides everything")
+	Shell.setMode("Editor")
+	assert(gui.Enabled and not findNamed(gui, "Dock").Visible and findNamed(gui, "Wallet").Visible, "Editor hides the dock")
+	Shell.setMode("Spectate")
+	Shell.setMode("Lobby")
+	assert(findNamed(gui, "Dock").Visible and findNamed(gui, "PlayerCard").Visible, "Lobby shows the dock and top bar")
+
+	-- Screen sizes: phone (compact dock), small tablet, 4K, and back
+	local camera = world.camera
+	for _, size in { Vector2.new(844, 390), Vector2.new(1024, 768), Vector2.new(3840, 2160), Vector2.new(1280, 720) } do
+		camera.ViewportSize = size
+		Engine.signalOf(camera, "Property:ViewportSize"):Fire()
+		local expected = math.clamp(math.min(size.X / 1280, size.Y / 720), 0.62, 1.25)
+		assert(math.abs(uiScale.Scale - expected) < 1e-6, `scale at {size.X}x{size.Y} is {uiScale.Scale}, expected {expected}`)
+		Shell.open("Play")
+		local window = findNamed(gui, "Window_Play")
+		local usableHeight = (size.Y - 58) / uiScale.Scale
+		assert(window.Size.Y.Offset <= usableHeight, `the window fits the screen at {size.X}x{size.Y}`)
+		if size.X == 844 then
+			assert(findNamed(findNamed(gui, "Nav_Play"), "Label").Visible == false, "phones get an icons-only dock")
+		end
+		Shell.close()
+	end
+
+	-- Gamepad: opening a window selects its first control
+	deviceKind = "gamepad"
+	Shell.open("Settings")
+	local selected = world.game:GetService("GuiService").SelectedObject
+	assert(selected and selected:IsDescendantOf(findNamed(gui, "Window_Settings")), "gamepad selection starts inside the window")
+	deviceKind = "keyboard"
+	Shell.close()
+
+	-- The match flow through the real event handlers
+	fireMatch("Notice", { text = "All arenas are busy. Try again in a moment." })
+	assert(findText(gui, "All arenas are busy. Try again in a moment."), "lobby notices become toasts")
+	local snapshot = {
+		id = "m",
+		mode = "Duel",
+		modeName = "Duel",
+		arena = "Proving Grounds",
+		phase = "Countdown",
+		phaseEndsAt = 1005,
+		participants = {
+			{ id = "Player:1", name = "Tester", score = 0, knockouts = 0, left = false, npc = false },
+			{ id = "Player:2", name = "AVeryLongDisplayNameThatMustBeCut", score = 0, knockouts = 0, left = false, npc = false },
+		},
+	}
+	fireMatch("State", snapshot)
+	assert(Shell.getMode() == "Match", "a match switches the shell to Match mode")
+	Engine.step(game, 5, 0.05)
+	local active = table.clone(snapshot)
+	active.phase = "Active"
+	active.phaseEndsAt = 1180
+	fireMatch("State", active)
+	fireMatch("Knockout", { victim = "AVeryLongDisplayNameThatMustBeCut", credited = "Tester" })
+	fireMatch("Notice", { text = "SUDDEN DEATH! Next knockout wins." })
+	assert(findNamed(gui, "Notice").Visible, "in-match notices show in the middle")
+	Engine.step(game, 5, 0.05)
+	fireMatch("Results", {
+		reason = "TimeUp",
+		draw = false,
+		winners = { "Tester" },
+		winnerIds = { "Player:1" },
+		ranking = {
+			{ id = "Player:1", name = "Tester", score = 1, knockouts = 1, deaths = 0, left = false },
+			{ id = "Player:2", name = "AVeryLongDisplayNameThatMustBeCut", score = -1, knockouts = 0, deaths = 1, left = true },
+		},
+		returnsAt = 1200,
+	})
+	Engine.step(game, 5, 0.05)
+	assert(findText(gui, "VICTORY") and findText(gui, "🏆  Winner: Tester"), "results banner")
+	auditLayout(findNamed(gui, "Results"), "Results")
+	auditLayout(findNamed(gui, "MatchTop"), "Match top bar")
+	start = #Engine.sent
+	press(findNamed(findNamed(gui, "Results"), "Back"))
+	assert(#sentSince(start, "MatchRequest", "ReturnToLobby") == 1, "Back to lobby asks the server")
+	fireMatch("Ended", nil)
+	assert(Shell.getMode() == "Lobby" and findNamed(gui, "Dock").Visible, "the end of a match brings the lobby back")
+
+	-- Whole-interface layout audit, then nothing may have errored in scheduled code
+	task.wait(0.3)
+	Engine.step(game, 5, 0.05)
+	auditLayout(findNamed(gui, "ShellChrome"), "Top bar and dock")
+	auditLayout(findNamed(gui, "Hud"), "HUD")
+	local newErrors = #Engine.errors - errorsBefore
+	-- The intentionally broken window's error is caught by the Shell, not scheduled code
+	assert(newErrors == 0, `{newErrors} errors in scheduled code:\n` .. table.concat(Engine.errors, "\n", errorsBefore + 1))
+	print(`     interface: {count(gui, "TextButton")} buttons, {count(gui, "TextLabel")} labels`)
 end)
 
 check("match HUD: countdown, fight, knockouts, results, clear", function()
@@ -147,11 +619,6 @@ check("match HUD: countdown, fight, knockouts, results, clear", function()
 	})
 	hud.update()
 	hud.clear()
-end)
-
-check("settings panel builds", function()
-	local SettingsPanel = world.require(world.find("StarterPlayer.StarterPlayerScripts.Client.UI.SettingsPanel"))
-	SettingsPanel.build(screen)
 end)
 
 check("owner panel builds, opens, and every tab renders", function()

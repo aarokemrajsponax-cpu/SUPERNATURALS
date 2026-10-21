@@ -8,6 +8,7 @@
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local roblox = require("@lune/roblox") :: any
+local serde = require("@lune/serde")
 local task = require("@lune/task")
 
 local Engine = {}
@@ -340,6 +341,234 @@ function Engine.character(name: string)
 end
 roblox.implementMethod("Player", "Kick", function() end)
 
+-- Round-trip time to the player's client, in seconds (tests may change it)
+Engine.networkPing = 0.05
+roblox.implementMethod("Player", "GetNetworkPing", function()
+	return Engine.networkPing
+end)
+
+-- game:BindToClose callbacks; Engine.close() runs them like a server shutting down
+Engine.closeCallbacks = {}
+Engine.jobId = "smoke-test-server"
+roblox.implementMethod("DataModel", "BindToClose", function(_, callback)
+	table.insert(Engine.closeCallbacks, callback)
+end)
+function Engine.close(timeout: number?)
+	local pending = #Engine.closeCallbacks
+	for _, callback in Engine.closeCallbacks do
+		task.spawn(function()
+			guarded(callback)()
+			pending -= 1
+		end)
+	end
+	local started = os.clock()
+	while pending > 0 and os.clock() - started < (timeout or 30) do
+		task.wait(0.05)
+	end
+	return pending == 0
+end
+
+-- DataStores ------------------------------------------------------------------------------
+-- Saved values are kept as JSON text, so anything a real DataStore refuses
+-- (sparse or mixed tables, NaN, functions, Instances, cycles) errors here too.
+-- Switches for tests:
+--   Engine.dataStores.unavailable = "message"   every call errors (Studio without API access)
+--   Engine.dataStores.failures.UpdateAsync = 3   the next 3 UpdateAsync calls error
+--   Engine.dataStores.budget = 0                what GetRequestBudgetForRequestType answers
+--   Engine.dataStores.latency = 0.05            each call yields this long first
+--   Engine.dataStores.calls                     every call made: { method, store, key }
+Engine.dataStores = {
+	saved = {} :: { [string]: { [string]: string } },
+	failures = {} :: { [string]: number },
+	unavailable = nil :: string?,
+	budget = 100,
+	latency = 0,
+	calls = {},
+}
+local stores = Engine.dataStores
+
+local function checkStorable(value, path: string, seen)
+	local kind = type(value)
+	if kind == "string" or kind == "boolean" then
+		return
+	elseif kind == "number" then
+		if value ~= value or value == math.huge or value == -math.huge then
+			error(`104: Cannot store NaN or infinity in data store ({path})`, 0)
+		end
+		return
+	elseif kind ~= "table" then
+		error(`104: Cannot store {typeof(value)} in data store ({path})`, 0)
+	end
+	if seen[value] then
+		error(`104: Cannot store a table that contains itself ({path})`, 0)
+	end
+	seen[value] = true
+	local count, stringKeys = 0, 0
+	for key, item in value do
+		count += 1
+		if type(key) == "string" then
+			stringKeys += 1
+		elseif type(key) ~= "number" then
+			error(`104: Cannot store a table with {typeof(key)} keys in data store ({path})`, 0)
+		end
+		checkStorable(item, path .. "." .. tostring(key), seen)
+	end
+	if stringKeys > 0 and stringKeys < count then
+		error(`104: Cannot store Dictionary with mixed keys in data store ({path})`, 0)
+	elseif stringKeys == 0 then
+		for index = 1, count do
+			if value[index] == nil then
+				error(`104: Cannot store Array with holes in data store ({path})`, 0)
+			end
+		end
+	end
+	seen[value] = nil
+end
+
+local function encodeStored(value): string?
+	if value == nil then
+		return nil
+	end
+	checkStorable(value, "value", {})
+	return serde.encode("json", value)
+end
+
+local function decodeStored(text: string?)
+	if text == nil then
+		return nil
+	end
+	return serde.decode("json", text)
+end
+
+local function beginCall(method: string, storeName: string, key: string?)
+	table.insert(stores.calls, { method = method, store = storeName, key = key })
+	if stores.latency > 0 then
+		task.wait(stores.latency)
+	end
+	if stores.unavailable then
+		error(stores.unavailable, 0)
+	end
+	local pending = stores.failures[method]
+	if pending and pending > 0 then
+		stores.failures[method] = pending - 1
+		error(`502: injected {method} failure`, 0)
+	end
+end
+
+local function fakeDataStore(name: string)
+	stores.saved[name] = stores.saved[name] or {}
+	local store = {}
+	local function keyInfo()
+		return { Version = tostring(os.clock()), CreatedTime = 0, UpdatedTime = 0 }
+	end
+	function store.GetAsync(_, key)
+		beginCall("GetAsync", name, key)
+		return decodeStored(stores.saved[name][key]), keyInfo()
+	end
+	function store.SetAsync(_, key, value)
+		beginCall("SetAsync", name, key)
+		stores.saved[name][key] = encodeStored(value)
+		return tostring(os.clock())
+	end
+	function store.RemoveAsync(_, key)
+		beginCall("RemoveAsync", name, key)
+		local old = decodeStored(stores.saved[name][key])
+		stores.saved[name][key] = nil
+		return old, keyInfo()
+	end
+	function store.UpdateAsync(_, key, transform)
+		beginCall("UpdateAsync", name, key)
+		local value = transform(decodeStored(stores.saved[name][key]), keyInfo())
+		if value == nil then
+			-- Returning nil cancels the write
+			return nil, nil
+		end
+		stores.saved[name][key] = encodeStored(value)
+		return decodeStored(stores.saved[name][key]), keyInfo()
+	end
+	return store
+end
+
+local function fakeDataStoreService()
+	local service = {}
+	local opened = {}
+	function service.GetDataStore(_, name, scope)
+		if stores.unavailable then
+			error(stores.unavailable, 0)
+		end
+		local fullName = if scope then name .. "/" .. scope else name
+		opened[fullName] = opened[fullName] or fakeDataStore(fullName)
+		return opened[fullName]
+	end
+	function service.GetRequestBudgetForRequestType()
+		return stores.budget
+	end
+	return service
+end
+
+-- What a store holds under a key (decoded), or writes a value there directly,
+-- the way another server would
+function Engine.readStore(storeName: string, key: string)
+	return decodeStored((stores.saved[storeName] or {})[key])
+end
+function Engine.writeStore(storeName: string, key: string, value)
+	stores.saved[storeName] = stores.saved[storeName] or {}
+	stores.saved[storeName][key] = encodeStored(value)
+end
+
+-- Marketplace -----------------------------------------------------------------------------
+-- Switches for tests:
+--   Engine.marketplace.owned[userId][passId] = true   passes a player owns
+--   Engine.marketplace.ownershipFailures = 2          the next 2 ownership checks error
+--   Engine.marketplace.prices[id] = robux             what GetProductInfo reports
+--   Engine.marketplace.prompts                        every purchase window opened
+Engine.marketplace = {
+	owned = {} :: { [number]: { [number]: boolean } },
+	ownershipFailures = 0,
+	prices = {} :: { [number]: number },
+	prompts = {},
+}
+local market = Engine.marketplace
+
+local function fakeMarketplaceService()
+	local service = { ProcessReceipt = nil }
+	service.PromptGamePassPurchaseFinished = Signal.new()
+	service.PromptProductPurchaseFinished = Signal.new()
+	service.PromptPurchaseFinished = Signal.new()
+	function service.UserOwnsGamePassAsync(_, userId, passId)
+		if market.ownershipFailures > 0 then
+			market.ownershipFailures -= 1
+			error("HTTP 500 (injected ownership check failure)", 0)
+		end
+		local owned = market.owned[userId]
+		return owned ~= nil and owned[passId] == true
+	end
+	function service.PromptGamePassPurchase(_, player, passId)
+		table.insert(market.prompts, { kind = "GamePass", player = player, id = passId })
+	end
+	function service.PromptProductPurchase(_, player, productId)
+		table.insert(market.prompts, { kind = "Product", player = player, id = productId })
+	end
+	function service.GetProductInfo(_, id)
+		return { PriceInRobux = market.prices[id], Name = "Item " .. tostring(id), IsForSale = market.prices[id] ~= nil }
+	end
+	return service
+end
+
+-- Completes a pass purchase the way Roblox does: ownership first, then the server event
+function Engine.buyPass(player, passId: number)
+	market.owned[player.UserId] = market.owned[player.UserId] or {}
+	market.owned[player.UserId][passId] = true
+	Engine.services.MarketplaceService.PromptGamePassPurchaseFinished:Fire(player, passId, true)
+end
+
+-- Delivers a developer product receipt the way Roblox does; returns the decision
+function Engine.deliverReceipt(receipt)
+	local callback = Engine.services.MarketplaceService.ProcessReceipt
+	assert(callback, "nothing set MarketplaceService.ProcessReceipt")
+	return callback(receipt)
+end
+
 local renderSteps = {}
 roblox.implementMethod("RunService", "BindToRenderStep", function(_, name, _priority, callback)
 	renderSteps[name] = callback
@@ -361,6 +590,12 @@ roblox.implementMethod("ContextActionService", "BindAction", function() end)
 roblox.implementMethod("ContextActionService", "UnbindAction", function() end)
 roblox.implementMethod("ContextActionService", "SetTitle", function() end)
 roblox.implementMethod("ContextActionService", "SetPosition", function() end)
+-- Gamepad selection events and the top bar inset (used by the UI shell)
+event("GuiObject", "SelectionGained")
+event("GuiObject", "SelectionLost")
+roblox.implementMethod("GuiService", "GetGuiInset", function()
+	return roblox.Vector2.new(0, 58), roblox.Vector2.new(0, 0)
+end)
 roblox.implementMethod("UserInputService", "GetLastInputType", function()
 	return roblox.Enum.UserInputType.Keyboard
 end)
@@ -473,6 +708,8 @@ function Engine.load(placePath: string)
 	local fakeServices = {
 		Players = fakePlayers(localPlayer),
 		CollectionService = fakeCollectionService(),
+		DataStoreService = fakeDataStoreService(),
+		MarketplaceService = fakeMarketplaceService(),
 	}
 	Engine.services = fakeServices
 	-- `game` for game code: the real place, with the stand-in services swapped in
@@ -486,6 +723,8 @@ function Engine.load(placePath: string)
 				return 0
 			elseif key == "CreatorType" then
 				return roblox.Enum.CreatorType.User
+			elseif key == "JobId" then
+				return Engine.jobId
 			end
 			local value = game[key]
 			if type(value) == "function" then
