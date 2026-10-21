@@ -16,6 +16,8 @@ local Hud = require(script.Parent.Parent.UI.Hud)
 local PlayWindow = require(script.Parent.Parent.UI.PlayWindow)
 local SettingsWindow = require(script.Parent.Parent.UI.SettingsWindow)
 local MatchHud = require(script.Parent.Parent.UI.MatchHud)
+local AbilityBar = require(script.Parent.Parent.UI.AbilityBar)
+local PowersWindow = require(script.Parent.Parent.UI.PowersWindow)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local MatchRequest = Remotes:WaitForChild("MatchRequest") :: RemoteEvent
@@ -34,6 +36,7 @@ local NOTICE_SECONDS = 2.5
 function UIController:Init(controllers)
 	self.input = controllers.InputController
 	self.effects = controllers.EffectsController
+	self.abilities = controllers.AbilityController
 end
 
 function UIController:Start()
@@ -47,9 +50,11 @@ function UIController:Start()
 	-- The Shell owns the single UIScale that fits everything to the screen
 	Shell.init(gui, { input = self.input })
 	local play = PlayWindow.register()
+	PowersWindow.register()
 	SettingsWindow.register()
 
 	local hud = Hud.build(gui, self.input.Bindings, self.input.device, self.effects.currentGuard)
+	local abilityBar = AbilityBar.build(hud.abilityRow, self.abilities, self.input.device)
 	local matchHud = MatchHud.build(gui, function()
 		MatchRequest:FireServer(Protocol.MatchAction.ReturnToLobby)
 	end)
@@ -141,6 +146,7 @@ function UIController:Start()
 		end
 		elapsed = 0
 		hud.update()
+		abilityBar.update()
 		play.update()
 		if inMatch then
 			matchHud.update()

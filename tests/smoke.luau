@@ -260,8 +260,11 @@ check("interface: shell, play and settings windows, toasts, confirms, modes, scr
 		end,
 	}
 	local UIController = world.require(world.find(CLIENT .. "Controllers.UIController"))
+	local Abilities = world.require(world.find(CLIENT .. "Controllers.AbilityController"))
+	Abilities:Init({ PowerFxController = { predict = function() end }, InputController = fakeInput })
 	UIController:Init({
 		InputController = fakeInput,
+		AbilityController = Abilities,
 		EffectsController = {
 			currentGuard = function()
 				return 50
@@ -576,6 +579,139 @@ check("interface: shell, play and settings windows, toasts, confirms, modes, scr
 	-- The intentionally broken window's error is caught by the Shell, not scheduled code
 	assert(newErrors == 0, `{newErrors} errors in scheduled code:\n` .. table.concat(Engine.errors, "\n", errorsBefore + 1))
 	print(`     interface: {count(gui, "TextButton")} buttons, {count(gui, "TextLabel")} labels`)
+end)
+
+check("powers window, ability bar and defense prompts", function()
+	local errorsBefore = #Engine.errors
+	local Shell = world.require(world.find(CLIENT .. "UI.Shell"))
+	local gui = world.localPlayer.PlayerGui:FindFirstChild("SNInterface")
+	local dataEvent = world.find("ReplicatedStorage.Remotes.DataEvent")
+	Engine.signalOf(dataEvent, "OnClientEvent"):Fire("Profile", {
+		currencies = { money = 5000, gems = 120 },
+		selected = { power = "StrongDude", degree = 1 },
+		powers = { StrongDude = { xp = 500, abilities = { Heave = true } } },
+		loadouts = {},
+		passes = {},
+		settings = {},
+	})
+	Shell.open("Powers")
+	assert(Shell.isOpen("Powers"), "the Powers window opens")
+	local window = findNamed(gui, "PowerList")
+	assert(window, "the power list exists")
+	-- Every power card, every degree, every equip button, then save and use
+	local start = #Engine.sent
+	local cardsPressed = 0
+	for _, card in window:GetChildren() do
+		if card:IsA("TextButton") then
+			press(card)
+			cardsPressed += 1
+			-- Each degree tab (the panel rebuilds after every press, so look again each time)
+			for degree = 1, 3 do
+				local detail = findNamed(gui, "PowerDetail")
+				for _, button in detail:GetDescendants() do
+					if button:IsA("TextButton") and string.find(button.Text, `{degree}  ·`, 1, true) then
+						press(button)
+						break
+					end
+				end
+				auditLayout(findNamed(gui, "PowerDetail"), "Powers detail")
+			end
+			auditLayout(findNamed(gui, "PowerActions"), "Powers actions")
+		end
+	end
+	assert(cardsPressed >= 1, "power cards exist")
+	-- Back to Strong Dude: equip an owned extra ability, save, use
+	for _, card in window:GetChildren() do
+		if card:IsA("TextButton") and findText(card, "Strong Dude") then
+			press(card)
+		end
+	end
+	local detail = findNamed(gui, "PowerDetail")
+	local removeButton = nil
+	for _, button in detail:GetDescendants() do
+		if button:IsA("TextButton") and button.Text == "REMOVE" then
+			removeButton = button
+			break
+		end
+	end
+	assert(removeButton, "equipped abilities can be removed")
+	press(removeButton)
+	detail = findNamed(gui, "PowerDetail")
+	local equip = nil
+	for _, button in detail:GetDescendants() do
+		if button:IsA("TextButton") and button.Text == "EQUIP" then
+			equip = button
+			break
+		end
+	end
+	assert(equip, "owned abilities can be equipped")
+	press(equip)
+	press(findText(gui, "SAVE LOADOUT"))
+	local saved = sentSince(start, "PowerRequest", "SetLoadout")
+	assert(#saved >= 1, "saving sends the loadout")
+	press(findText(gui, "USE THIS POWER") or findText(gui, "✓  IN USE"))
+	auditLayout(findNamed(gui, "PowerList"), "Power list")
+	Shell.close()
+
+	-- Ability bar from the character's attributes
+	local character = world.localPlayer.Character
+	if not character then
+		character = Engine.character("Tester")
+		character.Parent = world.workspace
+		world.localPlayer.Character = character
+	end
+	character:SetAttribute("SNPower", "StrongDude")
+	character:SetAttribute("SNDegree", 1)
+	character:SetAttribute("SNLoadout", "Groundbreaker,TitanGrip,MeteorCharge")
+	character:SetAttribute("SNRes", 12)
+	character:SetAttribute("SNResMax", 100)
+	character:SetAttribute("SNUlt", 100)
+	character:SetAttribute("SNCD_TitanGrip", world.workspace:GetServerTimeNow() + 5)
+	Engine.step(game, 4, 0.05)
+	task.wait(0.1)
+	Engine.step(game, 4, 0.05)
+	assert(findNamed(gui, "Ability_Groundbreaker") and findNamed(gui, "Ability_WorldBreaker"), "ability buttons and the ultimate")
+	assert(findText(gui, "READY"), "a full ultimate says READY")
+	assert(findText(gui, "GRIT  12/100"), "the resource meter")
+	auditLayout(findNamed(gui, "AbilityBar"), "Ability bar")
+
+	-- Defense prompts: each kind shows, takes a press, and shows a result
+	local Defense = world.require(world.find(CLIENT .. "Controllers.DefenseController"))
+	Defense:Init({ InputController = { device = function()
+		return "keyboard"
+	end } })
+	Defense:Start()
+	local defenseEvent = world.find("ReplicatedStorage.Remotes.DefenseEvent")
+	local now = world.workspace:GetServerTimeNow()
+	local cues = {
+		{ id = "p1", kind = "Prompt", opensAt = now, closesAt = now + 0.6, impactAt = now + 0.6, label = "Groundbreaker" },
+		{ id = "t1", kind = "Timing", opensAt = now, closesAt = now + 1, impactAt = now + 0.9, perfectWindow = 0.07, goodWindow = 0.17, label = "World Breaker" },
+		{ id = "m1", kind = "Mash", opensAt = now, closesAt = now + 1.4, impactAt = now + 1.4, presses = 6, label = "Titan Grip" },
+		{ id = "r1", kind = "Redirect", opensAt = now, closesAt = now + 0.6, impactAt = now + 0.6, label = "Slash Wave" },
+	}
+	for _, cue in cues do
+		Engine.signalOf(defenseEvent, "OnClientEvent"):Fire("Cue", cue)
+	end
+	Engine.step(game, 3, 0.05)
+	local prompts = world.localPlayer.PlayerGui:FindFirstChild("SNDefense")
+	assert(prompts and findNamed(prompts, "Timing") and findNamed(prompts, "Mash"), "prompt cards show")
+	auditLayout(prompts, "Defense prompts")
+	start = #Engine.sent
+	press(findNamed(prompts, "Mash"))
+	press(findNamed(prompts, "Mash"))
+	press(findNamed(prompts, "Timing"))
+	press(findNamed(prompts, "Redirect"))
+	assert(#sentSince(start, "DefenseInput") == 4, "presses go to the server")
+	assert(findText(prompts, "2 / 6"), "mash progress counts presses")
+	Engine.signalOf(defenseEvent, "OnClientEvent"):Fire("Result", { id = "t1", kind = "Timing", result = "Perfect" })
+	Engine.signalOf(defenseEvent, "OnClientEvent"):Fire("Result", { id = "m1", kind = "Mash", result = "Escaped" })
+	Engine.signalOf(defenseEvent, "OnClientEvent"):Fire("Clear", { id = "r1" })
+	Engine.signalOf(defenseEvent, "OnClientEvent"):Fire("Result", { id = "p1", kind = "Prompt", result = "Failed" })
+	Engine.step(game, 3, 0.05)
+	assert(findText(prompts, "PERFECT!") and findText(prompts, "BROKE FREE!"), "results show")
+	task.wait(0.8)
+	Engine.step(game, 3, 0.05)
+	assert(#Engine.errors == errorsBefore, "no errors:\n" .. table.concat(Engine.errors, "\n", errorsBefore + 1))
 end)
 
 check("match HUD: countdown, fight, knockouts, results, clear", function()

@@ -588,6 +588,7 @@ roblox.implementMethod("RunService", "IsClient", function()
 end)
 
 roblox.implementMethod("ContextActionService", "BindAction", function() end)
+roblox.implementMethod("ContextActionService", "BindActionAtPriority", function() end)
 roblox.implementMethod("ContextActionService", "UnbindAction", function() end)
 roblox.implementMethod("ContextActionService", "SetTitle", function() end)
 roblox.implementMethod("ContextActionService", "SetPosition", function() end)

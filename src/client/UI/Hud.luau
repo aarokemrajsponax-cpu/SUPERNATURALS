@@ -10,6 +10,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Combat = require(ReplicatedStorage.Shared.Config.Combat)
+local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
@@ -209,8 +210,12 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 	end
 
 	local cooldowns = {
-		SNHeavy = { attribute = Attribute.HeavyReadyAt, length = Combat.Heavy.Cooldown },
-		SNDodge = { attribute = Attribute.DodgeReadyAt, length = Combat.Dodge.Cooldown },
+		SNHeavy = { attribute = Attribute.HeavyReadyAt, length = function(profile)
+			return profile.Heavy.Cooldown
+		end },
+		SNDodge = { attribute = Attribute.DodgeReadyAt, length = function(profile)
+			return profile.Dodge.Cooldown
+		end },
 	}
 
 	local function update()
@@ -228,16 +233,23 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		healthCaption.TextColor3 = if low then Colors.HealthLow else Colors.TextMuted
 		vitalsStroke.Color = if low then Colors.HealthLow else Colors.Stroke
 		vitalsStroke.Transparency = if low then 0.3 else 0.75
-		setGuard(currentGuard(character) / Combat.Block.MaxGuard)
+		local maxGuard = character:GetAttribute(Attribute.MaxGuard) or Combat.Block.MaxGuard
+		setGuard(currentGuard(character) / math.max(1, maxGuard))
 
 		local kind = device()
 		row.Visible = kind ~= "touch"
 		local time = workspace:GetServerTimeNow()
+		local powerId = character:GetAttribute(Attribute.Power)
+		local profile = Powers.combatProfile(
+			if typeof(powerId) == "string" then powerId else nil,
+			character:GetAttribute(Attribute.Degree),
+			character:GetAttribute(Attribute.Form)
+		)
 		for name, chip in chips do
 			chip.key.Text = if kind == "gamepad" then chip.binding.padText else chip.binding.keyText
 			local spec = cooldowns[name]
 			local remaining = if spec then (character:GetAttribute(spec.attribute) or 0) - time else 0
-			local share = math.clamp(remaining / (if spec then spec.length else 1), 0, 1)
+			local share = math.clamp(remaining / (if spec then math.max(0.1, spec.length(profile)) else 1), 0, 1)
 			chip.cooldown.Size = UDim2.fromScale(share, 1)
 			chip.timer.Visible = remaining > 0.05
 			if remaining > 0.05 then
