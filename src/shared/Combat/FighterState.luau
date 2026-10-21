@@ -347,6 +347,11 @@ function FighterState.startDodge(state: State, config, now: number): (boolean, s
 	return true, nil
 end
 
+-- Spawn protection ends the moment the protected fighter attacks or dodges
+function FighterState.dropProtection(state: State, now: number)
+	state.protectedUntil = math.min(state.protectedUntil, now)
+end
+
 -- Stun interrupts whatever the fighter was doing
 function FighterState.applyStun(state: State, duration: number, now: number)
 	if duration <= 0 then

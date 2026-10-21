@@ -267,6 +267,11 @@ function OwnerService:_fighterAction(owner: Player, ownerFighter, fighter, actio
 			end
 		end)
 	elseif actionId == "Bring" then
+		-- Pulling someone out of a running arena would count as falling out of it
+		if self.services.MatchService:getMatchOf(fighter) ~= nil then
+			self:_notify(owner, `{fighter.displayName} is in a match, so they weren't brought.`)
+			return
+		end
 		if ownerFighter and fighter ~= ownerFighter and self.characters:isAlive(ownerFighter) then
 			-- Spread several players in a semicircle in front of the owner
 			local spread = if count > 1 then (index / count - 0.5) * math.pi else 0

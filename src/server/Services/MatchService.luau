@@ -31,6 +31,8 @@ type Participant = {
 	dummy: any?,
 	-- Set when the player went back to the lobby early from the results screen
 	returned: boolean,
+	-- Where this participant was last placed (held there during the countdown)
+	spawn: CFrame?,
 }
 
 type Match = {
@@ -79,8 +81,11 @@ function MatchService:Start()
 
 	self.characters:setSpawnResolver(function(player)
 		local match = matchOfFighter[playerId(player)]
-		if match and match.flow.phase ~= "Ended" and not match.byId[playerId(player)].returned then
-			return self:_spawnFor(match, playerId(player))
+		local participant = match and match.byId[playerId(player)]
+		if match and participant and match.flow.phase ~= "Ended" and not participant.returned then
+			local destination = self:_spawnFor(match, playerId(player))
+			participant.spawn = destination
+			return destination
 		end
 		return nil
 	end)
@@ -331,7 +336,8 @@ function MatchService:_startMatch(modeName: string, players: { Player }): boolea
 		if participant.player then
 			local fighter = self.characters:getByPlayer(participant.player)
 			if fighter and self.characters:isAlive(fighter) then
-				self.characters:teleport(fighter, arena.spawns[(index - 1) % #arena.spawns + 1])
+				participant.spawn = arena.spawns[(index - 1) % #arena.spawns + 1]
+				self.characters:teleport(fighter, participant.spawn :: CFrame)
 				self.characters:restore(fighter)
 				self.characters:setFrozen(fighter, true)
 			end
@@ -385,6 +391,9 @@ function MatchService:_update()
 	local time = now()
 	for _, match in matches do
 		self:_handle(match, MatchFlow.tick(match.flow, time))
+		if matches[match.id] and match.flow.phase == "Countdown" then
+			self:_holdAtSpawns(match, time)
+		end
 		if matches[match.id] and MatchFlow.isFighting(match.flow) then
 			-- Falling out of the arena is a knockout (credited to whoever hit you last).
 			-- Skipped right after a respawn or teleport, while positions settle.
@@ -401,6 +410,27 @@ function MatchService:_update()
 				then
 					fighter.humanoid.Health = 0
 				end
+			end
+		end
+	end
+end
+
+-- During the countdown everyone stays on their spawn. The freeze is applied on
+-- each player's own client, so the server also puts back anyone who wanders off.
+local HOLD_RANGE = 4
+
+function MatchService:_holdAtSpawns(match: Match, time: number)
+	for _, participant in match.participants do
+		local spawn = participant.spawn
+		if participant.player and spawn and not participant.returned then
+			local fighter = self.characters:getById(participant.id)
+			if
+				fighter
+				and self.characters:isAlive(fighter)
+				and time - fighter.teleportedAt > 0.5
+				and (fighter.root.Position - spawn.Position).Magnitude > HOLD_RANGE
+			then
+				self.characters:teleport(fighter, spawn)
 			end
 		end
 	end

@@ -59,13 +59,14 @@ end
 
 function CombatService:Start()
 	CombatRequest.OnServerEvent:Connect(function(player, action, payload)
-		if typeof(action) ~= "string" or Action[action] == nil then
-			self.antiExploit:flag(player, "unknown combat action")
+		-- Releasing block has its own budget, so a burst of attacks can never
+		-- use it up and leave the player stuck blocking
+		local channel = if action == Action.BlockEnd then "BlockRelease" else "Combat"
+		if not self.antiExploit:allow(player, channel) then
 			return
 		end
-		-- Releasing block is harmless and must never be dropped, or the
-		-- player would stay stuck blocking
-		if action ~= Action.BlockEnd and not self.antiExploit:allow(player, "Combat") then
+		if typeof(action) ~= "string" or Action[action] == nil then
+			self.antiExploit:flag(player, "unknown combat action")
 			return
 		end
 		local fighter = self.characters:getByPlayer(player)
@@ -95,6 +96,7 @@ function CombatService:perform(fighter, action: string, payload: any?): (boolean
 		if not attack then
 			return false, reason
 		end
+		FighterState.dropProtection(state, time)
 		self:_runAttack(fighter, attack)
 		return true, nil
 	elseif action == Action.Heavy then
@@ -102,6 +104,7 @@ function CombatService:perform(fighter, action: string, payload: any?): (boolean
 		if not attack then
 			return false, reason
 		end
+		FighterState.dropProtection(state, time)
 		self:_runAttack(fighter, attack)
 		return true, nil
 	elseif action == Action.BlockStart then
@@ -111,7 +114,9 @@ function CombatService:perform(fighter, action: string, payload: any?): (boolean
 		return ok, reason
 	elseif action == Action.BlockEnd then
 		local ok = FighterState.endBlock(state, Combat, time)
-		self.characters:refresh(fighter)
+		if ok then
+			self.characters:refresh(fighter)
+		end
 		return ok, nil
 	elseif action == Action.Dodge then
 		return self:_dodge(fighter, payload)
@@ -124,6 +129,7 @@ function CombatService:_dodge(fighter, payload: any?): (boolean, string?)
 	if not ok then
 		return false, reason
 	end
+	FighterState.dropProtection(fighter.state, now())
 	local direction = self.antiExploit.direction(payload)
 		or Hitbox.flatDirection(-fighter.root.CFrame.LookVector)
 		or Vector3.new(0, 0, 1)
@@ -142,6 +148,8 @@ function CombatService:_runAttack(fighter, attack)
 	local token = attack.token
 	local alreadyHit: { [string]: boolean } = {}
 	local landed = false
+	-- Where the swing started: an attacker can only drift so far during it
+	local origin = fighter.root.Position
 
 	self.characters:refresh(fighter)
 	CombatEvent:FireAllClients(Event.Attack, {
@@ -166,12 +174,12 @@ function CombatService:_runAttack(fighter, attack)
 		if not stillGoing() then
 			return
 		end
-		landed = self:_sweep(fighter, attack, alreadyHit) or landed
+		landed = self:_sweep(fighter, attack, alreadyHit, origin) or landed
 		after(attack.activeEnd, function()
 			if not stillGoing() then
 				return
 			end
-			landed = self:_sweep(fighter, attack, alreadyHit) or landed
+			landed = self:_sweep(fighter, attack, alreadyHit, origin) or landed
 			FighterState.endActive(state, Combat, token, landed)
 			self.characters:refresh(fighter)
 			-- endActive may have lengthened recovery (a missed heavy)
@@ -200,10 +208,22 @@ function CombatService:_hasLineOfSight(attacker, target): boolean
 	return result == nil
 end
 
+-- Movement allowed during a swing beyond walking at attack speed (covers network delay)
+local DRIFT_SLACK = 4
+
 -- Hits every valid target inside the attack's reach; returns whether any connected
-function CombatService:_sweep(attacker, attack, alreadyHit: { [string]: boolean }): boolean
+function CombatService:_sweep(attacker, attack, alreadyHit: { [string]: boolean }, startedAt: Vector3): boolean
 	local matchService = self.services.MatchService
 	local origin = attacker.root.Position
+	-- Characters move on their own client, so check the attacker didn't jump
+	-- (teleport) somewhere mid-swing to land an impossible hit
+	local allowed = Combat.Movement.AttackingSpeed * (now() - attack.startedAt) + DRIFT_SLACK
+	if (origin - startedAt).Magnitude > allowed then
+		if attacker.player then
+			self.antiExploit:flag(attacker.player, "moved too far during an attack")
+		end
+		return false
+	end
 	local look = attacker.root.CFrame.LookVector
 	local reach = reachOf(attack.def)
 	local landed = false

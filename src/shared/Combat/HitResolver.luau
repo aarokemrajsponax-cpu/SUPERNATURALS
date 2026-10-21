@@ -46,7 +46,8 @@ function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now
 	end
 
 	local block = config.Block
-	local guarding = FighterState.isBlocking(state)
+	local guarding = attack.Blockable ~= false
+		and FighterState.isBlocking(state)
 		and Hitbox.isInFront(defender.position, defender.look, attacker.position, block.FrontArc)
 
 	if guarding then

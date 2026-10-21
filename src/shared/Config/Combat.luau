@@ -30,6 +30,12 @@ Combat.Movement = {
 	BlockingSpeed = 6,
 }
 
+-- Every attack can also set:
+--   Blockable = false   (goes through blocks)
+--   Parryable = false   (can't be parried)
+--   Cost = n            (resource it uses; powers add resources in Milestone 2)
+-- Unset means blockable, parryable and free.
+
 -- Requests arriving this close to the end of a swing are queued instead of dropped
 Combat.InputBuffer = 0.15
 

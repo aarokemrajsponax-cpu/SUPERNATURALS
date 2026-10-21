@@ -46,6 +46,15 @@ return function(t)
 		t.equal(FighterState.isBlocking(d.state), true, "still blocking")
 	end)
 
+	t.test("unblockable attacks go through a front block", function()
+		local a, d = sides(0)
+		FighterState.startBlock(d.state, 0)
+		local unblockable = table.clone(light)
+		unblockable.Blockable = false
+		local result = HitResolver.resolve(unblockable, Config, a, d, 2)
+		t.equal(result.result, "Hit", "lands through the block")
+	end)
+
 	t.test("blocking doesn't stop attacks from behind", function()
 		local a, d = sides(0)
 		d.look = Vector3.new(0, 0, -1) -- facing away from the attacker
