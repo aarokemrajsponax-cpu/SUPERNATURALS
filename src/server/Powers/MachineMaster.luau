@@ -29,8 +29,10 @@ MachineMaster.abilities = abilities
 
 -- Most a shot can aim up or down (degrees)
 local MAX_PITCH = math.rad(30)
--- Heat lost per second, and the step it's published in (fewer attribute updates)
+-- Heat lost per second, how long the barrel stays hot after the last shot
+-- before it starts cooling, and the step it's published in (fewer attribute updates)
 local COOL_RATE = 0.35
+local COOL_DELAY = 0.5
 local HEAT_STEP = 0.05
 -- Shields look this many frames ahead for projectiles about to cross them
 local SHIELD_LOOKAHEAD = 2.5
@@ -126,15 +128,28 @@ local function publishHeat(fighter, data)
 	end
 end
 
+-- A cast that outlives a reset (match end, respawn) holds the old life's
+-- data; it mustn't heat the new barrel or stop the new reservoir refilling
+local function stillCurrent(ctx): boolean
+	local runtime = ctx.runtime
+	return runtime ~= nil and ctx.fighter.power == runtime and runtime.data == ctx.data
+end
+
 local function heat(ctx, amount: number)
+	if not stillCurrent(ctx) then
+		return
+	end
 	local data = ctx.data
 	data.heat = math.clamp((data.heat or 0) + amount, 0, 1)
+	data.heatedAt = now()
 	publishHeat(ctx.fighter, data)
 end
 
 -- Marks soul fire as flowing for a moment (the reservoir doesn't refill meanwhile)
 local function burning(ctx, seconds: number)
-	ctx.data.burningUntil = now() + seconds
+	if stillCurrent(ctx) then
+		ctx.data.burningUntil = now() + seconds
+	end
 end
 
 -- Takes up to `amount` fuel; returns how much there was to take
@@ -154,7 +169,7 @@ function MachineMaster.tick(fighter, runtime, dt: number)
 		runtime.resource = math.max(0, runtime.resource - resourceDef.regen * dt)
 	end
 	local current = data.heat or 0
-	if current > 0 then
+	if current > 0 and now() - (data.heatedAt or 0) >= COOL_DELAY then
 		data.heat = math.max(0, current - COOL_RATE * dt)
 		publishHeat(fighter, data)
 	end
@@ -312,7 +327,8 @@ local function buildPanel(model: Model, frame: CFrame, width: number, height: nu
 		local piece = frame * CFrame.new(index * segment * 0.97, 0.2, math.abs(index) * 0.35) * CFrame.Angles(0, yaw, 0)
 		shieldPart(model, "Panel", piece, Vector3.new(segment + 0.1, height - 0.6, 0.25), CYAN, Enum.Material.ForceField, 0.15)
 	end
-	shieldPart(model, "Emitter", frame * CFrame.new(0, -height / 2 + 0.25, 0.2), Vector3.new(width, 0.5, 0.8), GUNMETAL, Enum.Material.Metal, 0)
+	-- The emitter bar is the model's pivot (anything asking where the shield is gets its base)
+	model.PrimaryPart = shieldPart(model, "Emitter", frame * CFrame.new(0, -height / 2 + 0.25, 0.2), Vector3.new(width, 0.5, 0.8), GUNMETAL, Enum.Material.Metal, 0)
 	shieldPart(model, "EmitterGlow", frame * CFrame.new(0, -height / 2 + 0.52, 0.2), Vector3.new(width - 0.4, 0.08, 0.3), CYAN, Enum.Material.Neon, 0)
 	for _, side in { -1, 1 } do
 		shieldPart(model, "Post", frame * CFrame.new(side * (width / 2 + 0.1), 0, 0.5), Vector3.new(0.35, height, 0.5), GUNMETAL, Enum.Material.Metal, 0)
@@ -330,6 +346,7 @@ local function buildDome(model: Model, center: Vector3, radius: number)
 	dome.Shape = Enum.PartType.Ball
 	local base = shieldPart(model, "Projector", CFrame.new(center + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.4, 2.4, 2.4), GUNMETAL, Enum.Material.Metal, 0)
 	base.Shape = Enum.PartType.Cylinder
+	model.PrimaryPart = base
 	local ring = shieldPart(model, "ProjectorRing", CFrame.new(center + Vector3.new(0, 0.45, 0)) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.1, 1.6, 1.6), CYAN, Enum.Material.Neon, 0)
 	ring.Shape = Enum.PartType.Cylinder
 	local light = Instance.new("PointLight")
@@ -345,6 +362,7 @@ local function buildDevice(model: Model, at: Vector3, trigger: number)
 	local base = shieldPart(model, "Base", CFrame.new(at + Vector3.new(0, 0.25, 0)) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.5, 1.8, 1.8), GUNMETAL, Enum.Material.Metal, 0)
 	base.Shape = Enum.PartType.Cylinder
 	base.CanCollide = true
+	model.PrimaryPart = base
 	local core = shieldPart(model, "Core", CFrame.new(at + Vector3.new(0, 0.7, 0)), Vector3.one * 0.9, SOUL, Enum.Material.Neon, 0)
 	core.Shape = Enum.PartType.Ball
 	core.CanCollide = true
@@ -587,6 +605,7 @@ function abilities.MissileVolley(ctx)
 		end
 		local from = fromBody(ctx, MISSILE_POD)
 		local side = index - (def.missiles + 1) / 2
+		ctx:fx("MissileLaunch", { position = from, index = index })
 		local direction
 		if target then
 			-- Up and out of the pod, then the homing brings them round
@@ -713,6 +732,7 @@ function abilities.PressurizedBurst(ctx)
 	ctx:fx("Burst", { origin = origin, direction = direction, range = def.range, arc = def.arc })
 	-- The blast burns away a few small projectiles inside its cone (not everything)
 	local burned = 0
+	local burnedAt: { Vector3 } = {}
 	local cosine = math.cos(math.rad(def.arc / 2))
 	local nearby = ProjectileService:nearby(origin, def.range + 2, function(projectile)
 		return enemyProjectile(ctx, projectile) and shootable(projectile)
@@ -721,8 +741,12 @@ function abilities.PressurizedBurst(ctx)
 		local flat = Hitbox.flatDirection(projectile.position - origin)
 		if burned < def.burnsAway and (flat == nil or flat:Dot(direction) >= cosine) then
 			burned += 1
+			table.insert(burnedAt, projectile.position)
 			ProjectileService:finish(projectile, "Intercepted", projectile.position)
 		end
+	end
+	if #burnedAt > 0 then
+		ctx:fx("BurnAway", { positions = burnedAt })
 	end
 	for _, target in ctx:inArc(def.range, def.arc) do
 		ctx:hit(target, nil, { direction = direction })
@@ -843,6 +867,9 @@ function abilities.SoulforgeDevice(ctx)
 	local core = at + Vector3.new(0, 0.8, 0)
 	task.spawn(function()
 		task.wait(def.armTime)
+		if running and construct.alive then
+			ctx:fx("DeviceArmed", { position = at, trigger = def.trigger })
+		end
 		while running and construct.alive do
 			if #ctx:inSphere(at, def.trigger) > 0 then
 				-- Beep, then burst: everyone close gets a dodge/block prompt

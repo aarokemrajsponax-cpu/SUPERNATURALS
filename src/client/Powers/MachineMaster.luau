@@ -31,7 +31,6 @@ local SMOKE = rgb(150, 160, 175)
 local FIRE_TEXTURE = "rbxasset://textures/particles/fire_main.dds"
 local SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
 local GEAR = "SNMachineGear"
-local UP = Vector3.new(0, 1, 0)
 local ROLL = CFrame.Angles(0, 0, math.rad(90))
 local FORWARD = CFrame.Angles(0, math.rad(90), 0)
 
@@ -57,6 +56,23 @@ Poser.register("MMStream", {
 })
 Poser.register("MMBurst", { RightShoulder = { 95, 0, -15 }, LeftShoulder = { 95, 0, 15 }, Torso = { -14, 0, 0 }, Neck = { -10, 0, 0 } })
 Poser.register("MMInferno", { RightShoulder = { 140, 0, -35 }, LeftShoulder = { 140, 0, 35 }, Torso = { -16, 0, 0 }, Neck = { -20, 0, 0 } })
+-- Anticipation and follow-through keys. The blaster is heavy: he sets his feet
+-- before big shots, the kick rocks his shoulders back, and he settles after.
+Poser.register("MMSetFeet", { RightShoulder = { 80, 0, 0 }, LeftShoulder = { 70, 0, 40 }, LeftElbow = { 45, 0, 0 }, Torso = { 8, 15, 0 }, RightHip = { 12, 0, 6 }, LeftHip = { -14, 0, -6 } })
+Poser.register("MMKick", { RightShoulder = { 115, 0, 5 }, LeftShoulder = { 85, 0, 30 }, Torso = { -10, 18, 0 }, Neck = { -8, 0, 0 } })
+Poser.register("MMRailKick", { RightShoulder = { 120, 0, 10 }, LeftShoulder = { 100, 0, 35 }, LeftElbow = { 25, 0, 0 }, Torso = { -18, 22, 0 }, Neck = { -12, -10, 0 }, RightHip = { -8, 0, 0 }, LeftHip = { 10, 0, 0 } })
+Poser.register("MMSettle", { RightShoulder = { 60, 0, 0 }, LeftShoulder = { 35, 0, 20 }, Torso = { 4, 10, 0 } })
+Poser.register("MMCoil", { RightShoulder = { 30, 0, -20 }, LeftShoulder = { 30, 0, 20 }, RightElbow = { 70, 0, 0 }, LeftElbow = { 70, 0, 0 }, Torso = { 22, 0, 0 }, RightHip = { 25, 0, 0 }, LeftHip = { -15, 0, 0 } })
+Poser.register("MMFling", { RightShoulder = { 60, 0, -70 }, LeftShoulder = { 60, 0, 70 }, Torso = { -10, 0, 0 }, Neck = { -12, 0, 0 } })
+Poser.register("MMBurstLoad", { RightShoulder = { 70, 0, -5 }, LeftShoulder = { 70, 0, 5 }, RightElbow = { 55, 0, 0 }, LeftElbow = { 55, 0, 0 }, Torso = { 18, 0, 0 }, RightHip = { 20, 0, 5 }, LeftHip = { -20, 0, -5 } })
+Poser.register("MMBurstRecoil", { RightShoulder = { 110, 0, -20 }, LeftShoulder = { 110, 0, 20 }, Torso = { -24, 0, 0 }, Neck = { -14, 0, 0 }, RightHip = { -15, 0, 0 }, LeftHip = { 18, 0, 0 } })
+Poser.register("MMPlant", { RightShoulder = { 100, 0, 10 }, LeftShoulder = { 30, 0, 20 }, Torso = { 12, -8, 0 }, RightHip = { 10, 0, 0 } })
+Poser.register("MMRise", { RightShoulder = { 25, 0, 10 }, LeftShoulder = { 20, 0, -10 }, Torso = { 6, 0, 0 } })
+Poser.register("MMSlam", { RightShoulder = { 70, 0, -25 }, LeftShoulder = { 70, 0, 25 }, Torso = { 26, 0, 0 }, Neck = { 15, 0, 0 }, RightHip = { 30, 0, 0 }, LeftHip = { -20, 0, 0 } })
+-- The upper body swings with the soul-fire sweep (the streams' angle, scaled down:
+-- the hips stay planted and the nozzles carry the rest)
+Poser.register("MMSweepLeft", { RightShoulder = { 80, 0, 10 }, LeftShoulder = { 80, 0, 0 }, Torso = { 8, 34, 0 }, Neck = { 0, -12, 0 }, RightHip = { 10, 0, 8 }, LeftHip = { -10, 0, -8 } })
+Poser.register("MMSweepRight", { RightShoulder = { 80, 0, 0 }, LeftShoulder = { 80, 0, -10 }, Torso = { 8, -34, 0 }, Neck = { 0, 12, 0 }, RightHip = { 10, 0, 8 }, LeftHip = { -10, 0, -8 } })
 
 local function num(value: any, default: number): number
 	return if typeof(value) == "number" and value == value then value else default
@@ -81,14 +97,18 @@ end
 
 -- Gear positions ----------------------------------------------------------------------
 
+-- Effects outlive characters (a wind-up still running when he dies or
+-- respawns), so everything here checks the model is still in the world
 local function gearPiece(kit, name: string): BasePart?
-	local gear = kit.model and kit.model:FindFirstChild(GEAR)
-	local piece = gear and gear:FindFirstChild(name, true)
+	local model = kit.model
+	local gear = model and model.Parent and model:FindFirstChild(GEAR)
+	local piece = gear and gear.Parent and gear:FindFirstChild(name, true)
 	return if piece and piece:IsA("BasePart") then piece else nil
 end
 
 local function fromRoot(kit, offset: Vector3): Vector3
-	return if kit.root then (kit.root.CFrame * CFrame.new(offset)).Position else Vector3.zero
+	local root = kit.root
+	return if root and root.Parent then (root.CFrame * CFrame.new(offset)).Position else Vector3.zero
 end
 
 local function muzzlePosition(kit): Vector3
@@ -113,8 +133,32 @@ end
 -- Small shared looks ---------------------------------------------------------------------
 
 local function pose(kit, name: string, inTime: number, hold: number, outTime: number)
-	if kit.model then
-		kit.Poser.play(kit.model, name, inTime, hold, outTime)
+	local model = kit.model
+	if model and model.Parent then
+		kit.Poser.play(model, name, inTime, hold, outTime)
+	end
+end
+
+-- Plays poses one after another: { pose, startsAt, inTime, hold, outTime } each.
+-- A later key takes over the joints it shares with the one before; the others
+-- ease back on their own, so the body moves in overlapping waves, not as one block.
+local function sequence(kit, keys: { { any } })
+	for _, key in keys do
+		if key[2] <= 0 then
+			pose(kit, key[1], key[3], key[4], key[5])
+		else
+			task.delay(key[2], pose, kit, key[1], key[3], key[4], key[5])
+		end
+	end
+end
+
+-- The torso follows a sweep of soul fire: `swings` is a list of { at, side, time }
+-- (side 1 = his left, -1 = his right), each easing into that side over `time`
+local function sway(kit, swings: { { number } }, outTime: number)
+	for index, swing in swings do
+		local name = if swing[2] > 0 then "MMSweepLeft" else "MMSweepRight"
+		local hold = if index == #swings then 0.05 else 0.5
+		task.delay(swing[1], pose, kit, name, swing[3], hold, outTime)
 	end
 end
 
@@ -151,6 +195,42 @@ local function steam(kit, position: Vector3, count: number)
 	})
 end
 
+local SPARK_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
+local function key(time: number, value: number)
+	return NumberSequenceKeypoint.new(time, value)
+end
+
+-- Dissipation: slow blue embers that drift up, flicker and die out
+local function embers(kit, position: Vector3, spread: number, count: number)
+	kit.Vfx.burst(position, {
+		colors = ColorSequence.new(SOUL_CORE, SOUL),
+		texture = SPARK_TEXTURE,
+		size = NumberSequence.new({ key(0, 0.22), key(0.6, 0.14), key(1, 0) }),
+		transparency = NumberSequence.new({ key(0, 0), key(0.5, 0.25), key(1, 1) }),
+		speed = NumberRange.new(spread * 0.4, spread * 1.1),
+		lifetime = NumberRange.new(0.9, 1.9),
+		acceleration = Vector3.new(0, 2.5, 0),
+		drag = 2.5,
+		count = count,
+	})
+end
+
+-- Dissipation: a soft grey-blue haze that spreads, rises and thins out slowly
+local function haze(kit, position: Vector3, size: number, count: number)
+	kit.Vfx.burst(position, {
+		color = SMOKE,
+		lightEmission = 0,
+		texture = SMOKE_TEXTURE,
+		size = NumberSequence.new({ key(0, size * 0.5), key(1, size * 1.7) }),
+		transparency = NumberSequence.new({ key(0, 0.55), key(0.4, 0.7), key(1, 1) }),
+		speed = NumberRange.new(size * 0.6, size * 1.4),
+		lifetime = NumberRange.new(1.2, 2.2),
+		acceleration = Vector3.new(0, 1.2, 0),
+		drag = 2,
+		count = count,
+	})
+end
+
 -- A short-lived patch of blue flame on the floor
 local function surfaceFlame(kit, position: Vector3, size: number)
 	local patch = kit.Vfx.part({
@@ -179,26 +259,42 @@ local function explosion(kit, position: Vector3, radius: number, color: Color3, 
 	Vfx.shockwave(position, color, 1, radius * 2.2, 0.35)
 	Vfx.groundRing(Vector3.new(position.X, position.Y - 0.4, position.Z), color, 1, radius * 2.4, 0.4)
 	soulBurst(kit, position, radius, if big then 30 else 14)
-	Vfx.glow(position, color, radius * 4, 3, 0.4)
+	Vfx.glow(position, color, radius * 4, 3, 0.18)
+	-- Fast in, slow out: embers and haze hang around after the flash
+	embers(kit, position, radius, if big then 18 else 8)
+	haze(kit, position, radius * 0.6, if big then 8 else 4)
 	Vfx.sound("HeavyHit", position)
 	kit.shake(if big then 2.6 else 1.2, if big then 0.4 else 0.25, position)
 end
 
--- A soul-fire stream from a nozzle: glowing blobs growing toward its reach and
--- a jet of flame particles. update(from, look) each frame; destroy() at the end.
-local function newStream(kit, length: number, width: number)
+-- A soul-fire stream from a nozzle: one continuous tongue of flame (overlapping
+-- tapered sections, a hot pale core near the nozzle that cools to deep blue and
+-- thins out toward its reach) plus a jet of flame particles.
+-- update(from, look) each frame; destroy() at the end.
+local function newStream(kit, length: number, width: number, lit: boolean)
 	local Vfx = kit.Vfx
-	local blobs: { BasePart } = {}
-	local count = if Vfx.reduced() then 3 else 5
+	local sections: { { part: BasePart, share: number, size: number, piece: number } } = {}
+	local count = if Vfx.reduced() then 3 else 4
+	local piece = length * 0.95 / count
 	for index = 1, count do
 		local share = index / count
-		table.insert(blobs, Vfx.part({
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * (0.6 + share * width),
-			Color = SOUL_CORE:Lerp(SOUL, share),
-			Transparency = 0.15 + 0.45 * share,
-		}))
+		local size = 0.35 + share * width
+		table.insert(sections, {
+			part = Vfx.part({
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(piece * 1.45, size, size),
+				Color = SOUL_CORE:Lerp(SOUL, share),
+				Transparency = 0.3 + 0.55 * share,
+			}),
+			share = share,
+			size = size,
+			piece = piece,
+		})
 	end
+	-- The white-hot core of the first half
+	local core = Vfx.part({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(length * 0.45, 0.25, 0.25), Color = WHITE, Transparency = 0.25 })
+	-- A soft rounded flame front where the stream breaks up
+	local front = Vfx.part({ Shape = Enum.PartType.Ball, Size = Vector3.one * (0.35 + width), Color = SOUL, Transparency = 0.75 })
 	local carrier = Vfx.part({ Transparency = 1, Size = Vector3.one * 0.2 })
 	local jet = Instance.new("ParticleEmitter")
 	jet.Texture = FIRE_TEXTURE
@@ -215,25 +311,34 @@ local function newStream(kit, length: number, width: number)
 	jet.Acceleration = Vector3.new(0, 4, 0)
 	jet.Rate = if Vfx.reduced() then 15 else 45
 	jet.Parent = carrier
-	local light = Instance.new("PointLight")
-	light.Color = SOUL
-	light.Range = length
-	light.Brightness = 2
-	light.Shadows = false
-	light.Parent = carrier
+	if lit then
+		local light = Instance.new("PointLight")
+		light.Color = SOUL
+		light.Range = length
+		light.Brightness = 1.6
+		light.Shadows = false
+		light.Parent = carrier
+	end
 	return {
 		update = function(from: Vector3, look: Vector3)
 			carrier.CFrame = CFrame.lookAt(from, from + look)
-			for index, blob in blobs do
-				local share = index / #blobs
-				blob.Size = Vector3.one * (0.6 + share * width) * (0.9 + math.random() * 0.2)
-				blob.CFrame = CFrame.new(from + look * (length * share * 0.95))
+			for _, section in sections do
+				-- Each section ends at its share of the reach and overlaps the one before
+				local mid = from + look * (length * 0.95 * section.share - section.piece * 0.5)
+				local flicker = 0.92 + math.random() * 0.16
+				section.part.Size = Vector3.new(section.piece * 1.45, section.size * flicker, section.size * flicker)
+				section.part.CFrame = CFrame.lookAt(mid, mid + look) * FORWARD
 			end
+			local coreMid = from + look * (length * 0.225)
+			core.CFrame = CFrame.lookAt(coreMid, coreMid + look) * FORWARD
+			front.CFrame = CFrame.new(from + look * length * 0.97)
 		end,
 		destroy = function()
-			for _, blob in blobs do
-				blob:Destroy()
+			for _, section in sections do
+				section.part:Destroy()
 			end
+			core:Destroy()
+			front:Destroy()
 			carrier:Destroy()
 		end,
 	}
@@ -253,8 +358,9 @@ local function runStreams(kit, count: number, width: number, angleAt: (number) -
 	local range = num(data.range, 16)
 	local duration = num(data.duration, 2)
 	local streams = {}
-	for _ = 1, count do
-		table.insert(streams, newStream(kit, range, width))
+	-- Two lights are enough to throw the cold glow on the floor, however many streams
+	for index = 1, count do
+		table.insert(streams, newStream(kit, range, width, index <= 2))
 	end
 	local running = true
 	kit.keep(function()
@@ -286,7 +392,11 @@ end
 local windups = {}
 
 function windups.BlasterShot(kit)
-	pose(kit, "Aim", 0.03, 0.12, 0.15)
+	local startup = num(kit.data.startup, 0.06)
+	sequence(kit, {
+		{ "Aim", 0, 0.03, startup, 0.15 },
+		{ "MMKick", startup, 0.03, 0.04, 0.2 },
+	})
 end
 
 function windups.ChargedShot(kit)
@@ -295,14 +405,19 @@ function windups.ChargedShot(kit)
 		return
 	end
 	local startup = num(kit.data.startup, 0.45)
-	pose(kit, "Aim", 0.08, startup + 0.1, 0.2)
+	-- Feet set while it charges, a hard kick on release, then he settles
+	sequence(kit, {
+		{ "MMSetFeet", 0, 0.1, startup, 0.2 },
+		{ "MMKick", startup, 0.04, 0.1, 0.3 },
+		{ "MMSettle", startup + 0.16, 0.12, 0.08, 0.35 },
+	})
 	kit.Vfx.telegraph(root, CYAN, startup)
 	-- Energy gathers at the barrel
 	local orb = kit.Vfx.part({ Shape = Enum.PartType.Ball, Size = Vector3.one * 0.3, CFrame = CFrame.new(muzzlePosition(kit)), Color = ICE, Transparency = 0.1 })
 	kit.Vfx.fade(orb, startup, { Size = Vector3.one * 1.6 })
 	task.spawn(function()
 		local started = os.clock()
-		while orb.Parent and os.clock() - started < startup do
+		while orb.Parent and root.Parent and os.clock() - started < startup do
 			orb.CFrame = CFrame.new(muzzlePosition(kit))
 			task.wait()
 		end
@@ -311,7 +426,7 @@ function windups.ChargedShot(kit)
 end
 
 function windups.ScatterBlast(kit)
-	pose(kit, "Aim", 0.06, num(kit.data.startup, 0.2) + 0.1, 0.2)
+	pose(kit, "MMSetFeet", 0.06, num(kit.data.startup, 0.2) + 0.05, 0.2)
 	kit.Vfx.sparks(muzzlePosition(kit), CYAN, 6, 8)
 	kit.Vfx.sound("Block", muzzlePosition(kit))
 end
@@ -321,7 +436,12 @@ function windups.ShockPulse(kit)
 	if not root then
 		return
 	end
-	pose(kit, "MMBurst", 0.05, 0.15, 0.2)
+	-- Coils in, then flings his arms out as the charge lets go
+	local startup = num(kit.data.startup, 0.12)
+	sequence(kit, {
+		{ "MMCoil", 0, 0.06, startup, 0.15 },
+		{ "MMFling", startup, 0.04, 0.12, 0.3 },
+	})
 	for _ = 1, if kit.Vfx.reduced() then 1 else 3 do
 		local side = Vector3.new(math.random() - 0.5, math.random() - 0.3, math.random() - 0.5).Unit * 2.5
 		kit.Vfx.lightning(root.Position, root.Position + side, ICE, 4, 0.12)
@@ -329,7 +449,11 @@ function windups.ShockPulse(kit)
 end
 
 function windups.DeflectorShield(kit)
-	pose(kit, "MMBrace", 0.06, 0.4, 0.2)
+	local startup = num(kit.data.startup, 0.12)
+	sequence(kit, {
+		{ "MMBrace", 0, 0.06, startup, 0.2 },
+		{ "MMPlant", startup, 0.06, 0.25, 0.3 },
+	})
 end
 
 function windups.Intercept(kit)
@@ -338,11 +462,11 @@ function windups.Intercept(kit)
 end
 
 function windups.RailShot(kit)
-	pose(kit, "MMRail", 0.1, num(kit.data.startup, 0.7) + 0.1, 0.25)
+	pose(kit, "MMRail", 0.12, num(kit.data.startup, 0.7) + 0.05, 0.25)
 end
 
 function windups.MissileVolley(kit)
-	pose(kit, "Aim", 0.06, 0.5, 0.2)
+	pose(kit, "MMSetFeet", 0.08, num(kit.data.startup, 0.3) + 0.4, 0.25)
 	local pod = gearPiece(kit, "SNPod")
 	if pod then
 		kit.Vfx.glow(pod, CYAN, 8, 2, num(kit.data.startup, 0.3) + 0.3)
@@ -350,7 +474,11 @@ function windups.MissileVolley(kit)
 end
 
 function windups.BarrierProjector(kit)
-	pose(kit, "CastBoth", 0.08, 0.35, 0.2)
+	local startup = num(kit.data.startup, 0.3)
+	sequence(kit, {
+		{ "MMCoil", 0, 0.08, startup, 0.15 },
+		{ "CastBoth", startup, 0.05, 0.3, 0.3 },
+	})
 	kit.Vfx.groundRing(feet(kit) + Vector3.new(0, 0.1, 0), CYAN, 1, 6, num(kit.data.startup, 0.3))
 end
 
@@ -359,15 +487,20 @@ function windups.SweepingStreams(kit)
 end
 
 function windups.PressurizedBurst(kit)
-	pose(kit, "MMBurst", 0.05, 0.25, 0.25)
-	for _, position in sources(kit, if kit.degree >= 3 then 2 else 1) do
+	-- Loads up low and forward; the Burst effect plays the release and recoil
+	pose(kit, "MMBurstLoad", 0.05, num(kit.data.startup, 0.15) + 0.05, 0.2)
+	for _, position in sources(kit, if kit.degree >= 3 then 4 else 1) do
 		kit.Vfx.orb(position, SOUL_CORE, 0.3, 1, num(kit.data.startup, 0.15))
 	end
 end
 
 function windups.SoulFireballs(kit)
 	local startup = num(kit.data.startup, 0.4)
-	pose(kit, "Spread", 0.1, startup + 0.2, 0.2)
+	-- Hunches as the cell pressurises, then opens up to let the nozzles fire
+	sequence(kit, {
+		{ "MMCoil", 0, 0.1, startup * 0.5, 0.2 },
+		{ "Spread", startup * 0.6, 0.12, startup * 0.4 + 0.35, 0.3 },
+	})
 	-- Each nozzle compresses its fire into a ball
 	for _, position in sources(kit, 4) do
 		local orb = kit.Vfx.part({ Shape = Enum.PartType.Ball, Size = Vector3.one * 0.3, CFrame = CFrame.new(position), Color = SOUL_CORE, Transparency = 0.15 })
@@ -379,7 +512,12 @@ function windups.SoulFireballs(kit)
 end
 
 function windups.SoulforgeDevice(kit)
-	pose(kit, "Kneel", 0.08, 0.3, 0.2)
+	local startup = num(kit.data.startup, 0.3)
+	sequence(kit, {
+		{ "Kneel", 0, 0.1, startup, 0.2 },
+		{ "MMPlant", startup, 0.06, 0.08, 0.2 },
+		{ "MMRise", startup + 0.16, 0.15, 0.05, 0.3 },
+	})
 end
 
 function windups.BlueInferno(kit)
@@ -405,7 +543,10 @@ function fx.ScatterFire(kit)
 	if not origin or not direction then
 		return
 	end
-	pose(kit, "Recoil", 0.03, 0.12, 0.25)
+	sequence(kit, {
+		{ "MMKick", 0, 0.03, 0.08, 0.25 },
+		{ "MMSettle", 0.12, 0.12, 0.06, 0.3 },
+	})
 	local spread = num(kit.data.spread, 36)
 	kit.Vfx.cone(CFrame.lookAt(origin, origin + direction), 4, spread + 10, ICE, 0.12)
 	muzzleFlash(kit, origin, 2.2)
@@ -427,7 +568,12 @@ function fx.ShockPulse(kit)
 		local reach = Vector3.new(math.cos(angle), (math.random() - 0.5) * 0.4, math.sin(angle)) * radius
 		kit.Vfx.lightning(position, position + reach, ICE, 5, 0.15)
 	end
-	kit.Vfx.glow(position, CYAN, radius * 3, 3, 0.25)
+	kit.Vfx.glow(position, CYAN, radius * 3, 3, 0.15)
+	-- Static that hangs around and fizzles out
+	task.delay(0.12, function()
+		kit.Vfx.sparks(position, ICE, if kit.Vfx.reduced() then 3 else 8, 4)
+		haze(kit, Vector3.new(position.X, position.Y - 2.4, position.Z), 1, 4)
+	end)
 	kit.Vfx.sound("Parry", position)
 	kit.shake(1.2, 0.2, position)
 end
@@ -490,7 +636,7 @@ function fx.InterceptShot(kit)
 	if not from or not to then
 		return
 	end
-	pose(kit, "Aim", 0.02, 0.12, 0.2)
+	pose(kit, "MMKick", 0.02, 0.08, 0.25)
 	kit.Vfx.beam(from, to, WHITE, 0.16, 0.15)
 	kit.Vfx.beam(from, to, CYAN, 0.45, 0.25, Enum.Material.ForceField)
 	kit.Vfx.sparks(to, ICE, 16, 24)
@@ -552,7 +698,10 @@ function fx.RailFire(kit)
 	local length = num(kit.data.length, 70)
 	local width = num(kit.data.width, 3)
 	local finish = origin + direction * length
-	pose(kit, "Recoil", 0.03, 0.2, 0.3)
+	sequence(kit, {
+		{ "MMRailKick", 0, 0.03, 0.14, 0.3 },
+		{ "MMSettle", 0.2, 0.18, 0.1, 0.4 },
+	})
 	kit.Vfx.beam(origin, finish, WHITE, width * 0.3, 0.25)
 	kit.Vfx.beam(origin, finish, CYAN, width * 0.9, 0.4, Enum.Material.ForceField)
 	local step = if kit.Vfx.reduced() then 12 else 6
@@ -562,6 +711,12 @@ function fx.RailFire(kit)
 	end
 	kit.Vfx.shockwave(origin, ICE, 1, 4, 0.2)
 	kit.Vfx.sparks(finish, ICE, 18, 26)
+	-- The air it burned through stays hazy for a moment
+	local puffs = if kit.Vfx.reduced() then 2 else 5
+	for index = 1, puffs do
+		haze(kit, origin + direction * (length * index / (puffs + 1)), 0.7, 2)
+	end
+	steam(kit, origin, 4)
 	kit.Vfx.sound("GuardBreak", origin)
 	kit.shake(1.5, 0.25, origin)
 end
@@ -577,7 +732,7 @@ function fx.StreamsIgnite(kit)
 	-- The whole area the flames will sweep, drawn on the floor first
 	local base = feet(kit) + Vector3.new(0, 0.12, 0)
 	kit.Vfx.cone(CFrame.lookAt(base, base + flat(direction)), range, num(kit.data.sweep, 155), SOUL, duration + 0.5)
-	for _, position in sources(kit, if kit.degree >= 3 then 2 else 1) do
+	for _, position in sources(kit, if kit.degree >= 3 then 4 else 1) do
 		kit.Vfx.orb(position, SOUL_CORE, 0.4, 1.4, duration)
 	end
 	kit.Vfx.telegraph(kit.root, SOUL, duration)
@@ -586,9 +741,20 @@ end
 function fx.Streams(kit)
 	local sweep = num(kit.data.sweep, 120)
 	local period = math.max(0.2, num(kit.data.period, 1.6))
-	pose(kit, "MMStream", 0.1, num(kit.data.duration, 2.4), 0.25)
+	local duration = num(kit.data.duration, 2.4)
+	pose(kit, "MMStream", 0.1, duration, 0.25)
+	-- The swing peaks on his left a quarter period in, then alternates every half
+	local swings = { { 0, 1, period / 4 } }
+	local at, side = period / 4, -1
+	while at < duration - 0.1 and #swings < 12 do
+		table.insert(swings, { at, side, math.min(period / 2, duration - at) })
+		at += period / 2
+		side = -side
+	end
+	sway(kit, swings, 0.3)
 	-- Same swing as the server: side, back, other side, back, once per period
-	runStreams(kit, if kit.degree >= 3 then 2 else 1, 3.2, function(elapsed)
+	-- All four nozzles pour into one wide band of flame
+	runStreams(kit, if kit.degree >= 3 then 4 else 1, if kit.degree >= 3 then 1.8 else 3, function(elapsed)
 		return math.rad(sweep / 2) * math.sin(2 * math.pi * elapsed / period)
 	end)
 	if kit.root then
@@ -617,9 +783,16 @@ function fx.Burst(kit)
 	end
 	local range = num(kit.data.range, 9)
 	local arc = num(kit.data.arc, 70)
-	pose(kit, "MMBurst", 0.03, 0.2, 0.3)
+	-- The release, then the recoil rocks him back on his heels
+	sequence(kit, {
+		{ "MMBurst", 0, 0.03, 0.05, 0.2 },
+		{ "MMBurstRecoil", 0.06, 0.06, 0.14, 0.4 },
+	})
 	local base = origin - Vector3.new(0, 1.5, 0)
 	local frame = CFrame.lookAt(base, base + flat(direction))
+	for _, nozzle in sources(kit, if kit.degree >= 3 then 4 else 1) do
+		kit.Vfx.orb(nozzle, SOUL_CORE, 0.5, 1.6, 0.12)
+	end
 	kit.Vfx.cone(frame, range, arc, SOUL_CORE, 0.25)
 	kit.Vfx.cone(frame + Vector3.new(0, 0.6, 0), range * 0.8, arc * 0.7, WHITE, 0.15)
 	kit.Vfx.shockwave(origin + direction * 3, SOUL, 1, range * 1.2, 0.3)
@@ -632,8 +805,46 @@ function fx.Burst(kit)
 		lifetime = NumberRange.new(0.2, 0.35),
 		count = 24,
 	})
+	-- Dissipation: the cone's embers and haze hang in the air; his boots skid
+	embers(kit, origin + direction * range * 0.5, range * 0.3, 10)
+	haze(kit, origin + direction * range * 0.4, 1.4, 5)
+	if kit.root then
+		haze(kit, feet(kit) + Vector3.new(0, 0.3, 0), 0.8, 4)
+	end
 	kit.Vfx.sound("HeavyHit", origin)
 	kit.shake(1.6, 0.25, origin)
+end
+
+-- Small enemy shots the burst burned out of the air
+function fx.BurnAway(kit)
+	local positions = kit.data.positions
+	if typeof(positions) ~= "table" then
+		return
+	end
+	for index, position in positions do
+		if index > 6 then
+			break
+		end
+		if typeof(position) == "Vector3" then
+			kit.Vfx.orb(position, SOUL_CORE, 0.4, 1.6, 0.15)
+			embers(kit, position, 2, 4)
+			haze(kit, position, 0.6, 2)
+		end
+	end
+end
+
+-- A missile leaves the shoulder pod: hatch flash, a puff of exhaust, a shrug
+function fx.MissileLaunch(kit)
+	local position = vector(kit.data.position)
+	if not position then
+		return
+	end
+	kit.Vfx.orb(position, ICE, 0.3, 1.2, 0.1)
+	steam(kit, position, 2)
+	if num(kit.data.index, 1) == 1 then
+		pose(kit, "MMKick", 0.03, 0.06, 0.25)
+	end
+	kit.Vfx.sound("Dodge", position)
 end
 
 function fx.DevicePlaced(kit)
@@ -642,13 +853,23 @@ function fx.DevicePlaced(kit)
 		return
 	end
 	local trigger = num(kit.data.trigger, 6)
+	-- Lands with a clunk, sparks and a little dust; it isn't live yet
 	kit.Vfx.sparks(position + Vector3.new(0, 0.5, 0), CYAN, 10, 10)
+	haze(kit, position + Vector3.new(0, 0.2, 0), 0.6, 3)
+	kit.Vfx.groundRing(position + Vector3.new(0, 0.1, 0), SMOKE, 0.5, math.min(trigger, 3), 0.3)
 	kit.Vfx.sound("Block", position)
-	-- A pulse across its trigger area when it arms
-	task.delay(num(kit.data.armTime, 0.8), function()
-		kit.Vfx.groundRing(position + Vector3.new(0, 0.1, 0), SOUL, 1, trigger * 2, 0.4)
-		kit.Vfx.glow(position + Vector3.new(0, 1, 0), SOUL, 8, 2, 0.3)
-	end)
+end
+
+-- Armed: a pulse sweeps out across the area that sets it off
+function fx.DeviceArmed(kit)
+	local position = vector(kit.data.position)
+	if not position then
+		return
+	end
+	local trigger = num(kit.data.trigger, 6)
+	kit.Vfx.groundRing(position + Vector3.new(0, 0.1, 0), SOUL, 1, trigger * 2, 0.4)
+	kit.Vfx.glow(position + Vector3.new(0, 1, 0), SOUL, 8, 2, 0.2)
+	kit.Vfx.sound("Block", position)
 end
 
 function fx.DeviceTrigger(kit)
@@ -740,8 +961,9 @@ function fx.InfernoSweep(kit)
 	local sweep = num(kit.data.sweep, 150)
 	local sweepTime = math.max(0.2, num(kit.data.sweepTime, 1.5))
 	pose(kit, "MMStream", 0.1, sweepTime, 0.2)
+	sway(kit, { { 0, 1, 0.15 }, { 0.15, -1, sweepTime - 0.15 } }, 0.3)
 	-- One pass from left to right, like the server
-	runStreams(kit, if kit.degree >= 3 then 4 else 1, 4.5, function(elapsed)
+	runStreams(kit, if kit.degree >= 3 then 4 else 1, if kit.degree >= 3 then 2.6 else 4.5, function(elapsed)
 		return math.rad(sweep / 2 - sweep * math.clamp(elapsed / sweepTime, 0, 1))
 	end)
 	if kit.root then
@@ -758,6 +980,7 @@ function fx.InfernoCharge(kit)
 	local duration = num(kit.data.duration, 0.7)
 	-- Soul fire compresses into the blast point; a ring shows exactly how far it reaches
 	local core = position + Vector3.new(0, 1.5, 0)
+	pose(kit, "MMInferno", 0.15, duration, 0.1)
 	local orb = kit.Vfx.part({ Shape = Enum.PartType.Ball, Size = Vector3.one * radius * 2, CFrame = CFrame.new(core), Color = SOUL, Material = Enum.Material.ForceField, Transparency = 0.6 })
 	kit.Vfx.fade(orb, duration, { Size = Vector3.one * 1.5, Transparency = 0.1 })
 	kit.Vfx.groundRing(position + Vector3.new(0, 0.15, 0), SOUL_CORE, radius * 2, radius * 2, duration)
@@ -774,6 +997,11 @@ function fx.InfernoBlast(kit)
 	end
 	local radius = num(kit.data.radius, 8)
 	local core = position + Vector3.new(0, 1.5, 0)
+	-- Brings both arms down with the blast, then straightens up spent
+	sequence(kit, {
+		{ "MMSlam", 0, 0.05, 0.25, 0.3 },
+		{ "MMSettle", 0.32, 0.25, 0.2, 0.5 },
+	})
 	explosion(kit, core, radius, SOUL, true)
 	kit.Vfx.orb(core, WHITE, 2, radius * 1.2, 0.25)
 	kit.Vfx.cracks(position, radius * 0.8, SOUL, if kit.Vfx.reduced() then 5 else 10, 2.5)
@@ -817,6 +1045,7 @@ local function trail(kit, part: BasePart, color: Color3, width: number, lifetime
 	streak.LightEmission = 1
 	streak.Lifetime = if kit.Vfx.reduced() then lifetime * 0.5 else lifetime
 	streak.Transparency = NumberSequence.new(0.1, 1)
+	streak.WidthScale = NumberSequence.new({ key(0, 1), key(1, 0.15) })
 	streak.Parent = part
 end
 
@@ -895,7 +1124,6 @@ function Machine.projectiles.HeavyBolt(kit)
 			if first then
 				first = false
 				muzzleFlash(kit, position, 2.4)
-				pose(kit, "Recoil", 0.03, 0.15, 0.25)
 				kit.Vfx.sound("HeavySwing", position)
 			end
 		end,
@@ -909,7 +1137,8 @@ function Machine.projectiles.HeavyBolt(kit)
 			local splash = num(kit.data.splash, 3.5)
 			kit.Vfx.shockwave(position, CYAN, 1, splash * 2.2, 0.3)
 			kit.Vfx.sparks(position, ICE, 20, 28)
-			kit.Vfx.glow(position, CYAN, splash * 4, 3, 0.3)
+			kit.Vfx.glow(position, CYAN, splash * 4, 3, 0.15)
+			haze(kit, position, splash * 0.4, 4)
 			kit.Vfx.sound("HeavyHit", position)
 			kit.shake(1, 0.2, position)
 		end,
@@ -979,6 +1208,7 @@ function Machine.projectiles.Fireball(kit)
 	flames.SpreadAngle = Vector2.new(180, 180)
 	flames.Rate = if kit.Vfx.reduced() then 10 else 30
 	flames.Parent = core
+	trail(kit, core, SOUL, radius * 1.2, 0.18)
 	pointLight(core, SOUL, 14, 2.5)
 	local first = true
 	return {

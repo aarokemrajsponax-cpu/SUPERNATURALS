@@ -272,12 +272,22 @@ check("every effect and projectile the server sends has a client drawing", funct
 		assert(client.fx[name], "no client effect for " .. name)
 	end
 	assert(total >= 30, "found the effects: " .. total)
-	local visuals = 0
+	-- ...and no drawing waits for an effect the server never sends
+	for name in client.fx do
+		assert(names[name], "the server never sends " .. name)
+	end
+	local visuals = {}
 	for visual in string.gmatch(server, 'visual = "(%w+)"') do
-		visuals += 1
+		visuals[visual] = true
 		assert(client.projectiles[visual], "no projectile drawing for " .. visual)
 	end
-	assert(visuals >= 6, "found the projectiles: " .. visuals)
+	-- Bolt, Pellet, HeavyBolt, Missile, Fireball: each drawn, each fired
+	for visual in client.projectiles do
+		assert(visuals[visual], "the server never fires a " .. visual)
+	end
+	for _, visual in { "Bolt", "Pellet", "HeavyBolt", "Missile", "Fireball" } do
+		assert(visuals[visual], "fires " .. visual)
+	end
 	for abilityId in MM.abilities do
 		assert(client.predict[abilityId], "instant wind-up for " .. abilityId)
 	end
@@ -540,7 +550,8 @@ check("Rail Shot: a prompt and a laser sight, then a piercing beam along the loc
 	assert(#hits == 1 and near(hits[1].damage, def.damage), "beam hit")
 	assert(b.humanoid.Health < health, "Bob hurt")
 	assert(#fxSince(mark, "RailFire", a) == 1, "beam drawn")
-	assert(a.power.resource < 100 - def.cost + 4, "fuel spent")
+	-- About a second has passed since he paid: allow for that much refilling
+	assert(a.power.resource < 100 - def.cost + MM.resource.regen * 1.2, "fuel spent: " .. a.power.resource)
 	assert((a.model:GetAttribute(Attribute.Phase) or 0) > 0, "the barrel glows with heat")
 	-- Stepping off the line during the charge dodges it
 	task.wait(0.6)
@@ -724,8 +735,14 @@ check("Pressurized Burst: staggers, recoils him back, burns away a few small pro
 	local hits = hitsSince(mark, a, b, "PressurizedBurst")
 	assert(#hits == 1 and near(hits[1].damage, def.damage), "burst hit")
 	assert(FighterState.isStunned(b.state, now()), "Bob staggered")
-	local mover = a.root:FindFirstChild("SNDash")
-	assert(mover and mover:IsA("LinearVelocity"), "recoil")
+	-- The recoil is an attachment plus a LinearVelocity, both called SNDash
+	local mover
+	for _, child in a.root:GetChildren() do
+		if child.Name == "SNDash" and child:IsA("LinearVelocity") then
+			mover = child
+		end
+	end
+	assert(mover, "recoil")
 	assert(mover.VectorVelocity:Dot(look) < -def.recoil + 1, "pushed backwards")
 	local burned = 0
 	for _, projectile in smalls do
@@ -1037,7 +1054,8 @@ check("§38: a match ending with missiles, fireballs, shields and mines out leav
 	local a, b = stage(40)
 	request("AbilityRequest", alice, "SoulforgeDevice", { direction = Vector3.new(1, 0, 0), point = a.root.Position + Vector3.new(6, 0, 0) })
 	request("AbilityRequest", bob, "BarrierProjector", {})
-	task.wait(0.5)
+	-- Both casts (0.65 s each) are over before the next ones
+	task.wait(0.75)
 	request("AbilityRequest", bob, "MissileVolley", { direction = Vector3.new(0, 0, 1) })
 	request("AbilityRequest", alice, "SoulFireballs", { direction = Vector3.new(0, 0, 1) })
 	local mark = game.mark()
@@ -1201,7 +1219,10 @@ check("Machine Master's visuals run: every effect, projectile, wind-up and the g
 				Streams = { startedAt = now(), direction = Vector3.new(1, 0, 0), range = 16, arc = 35, sweep = 120, period = 1.6, duration = 0.3 },
 				StreamsEnd = { reason = "Fuel" },
 				Burst = { origin = Vector3.new(0, 3, 0), direction = Vector3.new(1, 0, 0), range = 9, arc = 70 },
+				BurnAway = { positions = { Vector3.new(3, 3, 0), Vector3.new(4, 3, 1), "junk" } },
+				MissileLaunch = { position = Vector3.new(-1, 5, 0), index = 1 },
 				DevicePlaced = { position = Vector3.new(6, 0, 0), armTime = 0.1, trigger = 6 },
+				DeviceArmed = { position = Vector3.new(6, 0, 0), trigger = 6 },
 				DeviceTrigger = { position = Vector3.new(6, 0, 0), radius = 8, fuse = 0.3 },
 				DevicePulse = { position = Vector3.new(6, 0, 0), radius = 8 },
 				DeviceEnd = { position = Vector3.new(6, 0, 0), reason = "Broken" },

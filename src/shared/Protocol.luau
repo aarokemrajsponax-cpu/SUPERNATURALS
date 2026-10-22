@@ -30,15 +30,19 @@ Protocol.CombatEvent = {
 	-- move: Jab, Cross, Hook, FinisherKick, Heavy, ChargedHeavy, Launcher, RushStrike,
 	-- ShoulderCharge, AirKick, Slam, Sweep, Grab, PropThrow; charge 0..1 (charged heavies)
 	Attack = "Attack", -- { attacker: Model, kind: string, step: number, startup: number, active: number, recovery: number, move: string, charge: number? }
-	-- tags: { counter, punish, riposte, wallSplat, knockdown, launch, airborne, otg } (absent = false)
+	-- tags: { counter, punish, riposte, wallSplat, knockdown, launch, airborne, otg } (absent = false).
+	-- result "Clash" (damage 0) is sent each way alongside a Clash event.
 	Hit = "Hit", -- { attacker: Model, victim: Model, result: string, damage: number, position: Vector3, heavy: boolean, finisher: boolean, move: string?, tags: {}, direction: Vector3 }
 	-- style: "Side" | "Back" | "Forward"; speed and duration are what the dodge moves at
 	Dodge = "Dodge", -- { fighter: Model, direction: Vector3, style: string, speed: number, duration: number, invulnerable: number }
 	Rejected = "Rejected", -- { action: string, reason: string } (only to the requesting player)
 	Clash = "Clash", -- { a: Model, b: Model, position: Vector3 }
+	-- Hold: direction is where the throw will go. Whiff without a victim = the grab
+	-- missed; Whiff with a victim = the hold broke before the throw (holder hit or gone)
 	Grab = "Grab", -- { attacker: Model, victim: Model?, phase: "Hold" | "Throw" | "Tech" | "Whiff", direction: Vector3? }
 	-- motion: Charge, Feint, Knockdown, GetUp, TechRoll, Breakfall, Taunt, TauntDone, Winded,
 	-- Recovered, PickUp, Drop, PerfectDodge, DodgeCancel, SprintStart, SprintEnd
+	-- (PerfectDodge also has attacker: Model; PickUp and Drop have prop: string)
 	Motion = "Motion", -- { fighter: Model, motion: string, direction: Vector3?, duration: number? }
 }
 

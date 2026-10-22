@@ -470,7 +470,8 @@ function DefenseService:intercept(attacker, target, hit, opts)
 			self:_drop(target, cue)
 			local state = target.state
 			local config = target.combat
-			local dodgedAt = if time < state.invulnerableUntil then state.invulnerableUntil - config.Dodge.Invulnerable else nil
+			-- Directional dodges have different invulnerable times, so use when the dodge began
+			local dodgedAt = if time < state.invulnerableUntil and state.dodgeStartedAt then state.dodgeStartedAt else nil
 			local blockedAt = state.blockingSince
 			local allowance = DEFENSE.LatencyCap
 			if DefenseMath.inPromptWindow(dodgedAt, cue.opensAt, cue.closesAt, allowance) then

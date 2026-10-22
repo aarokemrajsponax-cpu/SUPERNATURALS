@@ -236,8 +236,19 @@ local function fakeCollectionService()
 	function service.HasTag(_, instance, tag)
 		return table.find(tags[tag] or {}, instance) ~= nil
 	end
+	-- Like Roblox, destroyed instances drop out of their tags
 	function service.GetTagged(_, tag)
-		return table.clone(tags[tag] or {})
+		local alive = {}
+		for _, instance in tags[tag] or {} do
+			local ok, parent = pcall(function()
+				return instance.Parent
+			end)
+			if ok and parent ~= nil then
+				table.insert(alive, instance)
+			end
+		end
+		tags[tag] = alive
+		return table.clone(alive)
 	end
 	function service.GetInstanceAddedSignal(_, tag)
 		return signalOf(service, "Tag:" .. tag)
@@ -607,8 +618,14 @@ end)
 roblox.implementMethod("UserInputService", "IsGamepadButtonDown", function()
 	return false
 end)
-roblox.implementMethod("HttpService", "GenerateGUID", function()
-	return "00000000-0000-0000-0000-000000000000"
+-- Unique like Roblox's (constructs, matches and defense cues are keyed by these
+-- ids; a constant made a second construct overwrite the first: Machine Master's
+-- two pulse mines)
+local guidCount = 0
+roblox.implementMethod("HttpService", "GenerateGUID", function(_, wrapInBraces)
+	guidCount += 1
+	local guid = string.format("%08X-0000-4000-8000-%012X", guidCount, guidCount)
+	return if wrapInBraces == false then guid else "{" .. guid .. "}"
 end)
 
 local startClock = os.clock()

@@ -132,7 +132,8 @@ local function motion(fighter, name: string, extra: { [string]: any }?)
 	CombatEvent:FireAllClients(Event.Motion, data)
 end
 
--- Puts a hidden arena prop back where it lives
+-- Puts a hidden arena prop back where it lives (an arena torn down meanwhile
+-- takes its props with it: nothing to do)
 local function returnProp(prop: BasePart)
 	if not prop.Parent then
 		return
@@ -750,6 +751,8 @@ end
 -- Two strikes met: nobody is hurt, both are pushed apart and briefly stunned
 function CombatService:_clash(a, b)
 	local time = now()
+	-- (what each was swinging, before the stun cancels it)
+	local swings = { [a] = a.state.attack, [b] = b.state.attack }
 	FighterState.applyStun(a.state, a.combat.Clash.Stun, time)
 	FighterState.applyStun(b.state, b.combat.Clash.Stun, time)
 	local away = Hitbox.flatDirection(b.root.Position - a.root.Position) or flatLook(a)
@@ -762,6 +765,23 @@ function CombatService:_clash(a, b)
 		b = b.model,
 		position = (a.root.Position + b.root.Position) / 2,
 	})
+	-- Like a parry or a dodge, the exchange is also reported as a (harmless) Hit
+	-- each way, so anything counting exchanges sees it; clients draw the Clash
+	for _, pair in { { a, b }, { b, a } } do
+		local attacker, victim = pair[1], pair[2]
+		local swing = swings[attacker]
+		CombatEvent:FireAllClients(Event.Hit, {
+			attacker = attacker.model,
+			victim = victim.model,
+			result = "Clash",
+			damage = 0,
+			position = victim.root.Position,
+			kind = if swing then swing.kind else "Light",
+			move = if swing then swing.move else nil,
+			tags = {},
+			direction = Hitbox.flatDirection(victim.root.Position - attacker.root.Position) or flatLook(attacker),
+		})
+	end
 end
 
 -- Hits every valid target inside the attack's reach; returns whether any connected
@@ -775,9 +795,9 @@ function CombatService:_sweep(attacker, attack, alreadyHit: { [string]: boolean 
 	-- reaches their client a moment late), and pushes or teleports are excused.
 	local drift = origin - startedAt
 	local sideways = Vector3.new(drift.X, 0, drift.Z).Magnitude
-	local walkSpeed = math.max(attacker.combat.Movement.WalkSpeed, attacker.combat.Sprint.Speed)
-		* attacker.moveBoost
-		* math.max(1, attacker.statusSpeed)
+	-- (A sprinting fighter carries a sprint's speed into the swing)
+	local baseSpeed = if attacker.state.sprintHeld then attacker.combat.Sprint.Speed else attacker.combat.Movement.WalkSpeed
+	local walkSpeed = baseSpeed * attacker.moveBoost * math.max(1, attacker.statusSpeed)
 	local allowed = walkSpeed * (time - attack.startedAt) + DRIFT_SLACK
 	if sideways > allowed and not self:movedLegitimately(attacker, attack.startedAt) then
 		if attacker.player then
@@ -916,8 +936,9 @@ function CombatService:applyHit(attacker, target, hit, opts: HitOptions)
 	})
 	local tags = outcome.tags
 
-	-- Dodged just as it would land: a perfect dodge leaves the attacker open
-	if outcome.result == "Invulnerable" and melee and attacker ~= target and FighterState.claimPerfectDodge(target.state, target.combat, time) then
+	-- Dodged a basic strike just as it would land: a perfect dodge leaves the
+	-- attacker open (abilities have their own perfect defenses in DefenseService)
+	if outcome.result == "Invulnerable" and opts.basic and attacker ~= target and FighterState.claimPerfectDodge(target.state, target.combat, time) then
 		FighterState.applyStun(attacker.state, target.combat.Dodge.PerfectPunish, time)
 		self.characters:refresh(attacker)
 		motion(target, "PerfectDodge", { attacker = attacker.model, duration = target.combat.Dodge.PerfectPunish })
@@ -1305,13 +1326,20 @@ end
 function CombatService:_findProp(fighter): BasePart?
 	local reach = fighter.combat.Carry.Reach
 	local best, bestDistance = nil, reach
+	local origin = fighter.root.Position
 	for _, prop in CollectionService:GetTagged(Protocol.Tag.Throwable) do
-		if prop:IsA("BasePart") and prop:IsDescendantOf(workspace) and not prop:GetAttribute("Held") then
-			local weight = prop:GetAttribute("Weight")
-			local distance = (prop.Position - fighter.root.Position).Magnitude
-			if typeof(weight) == "number" and weight <= 1 and distance <= bestDistance then
-				best, bestDistance = prop, distance
+		-- (pcall: a prop being torn down mid-check is simply skipped)
+		local ok, distance = pcall(function()
+			if prop:IsA("BasePart") and prop:IsDescendantOf(workspace) and not prop:GetAttribute("Held") then
+				local weight = prop:GetAttribute("Weight")
+				if typeof(weight) == "number" and weight <= 1 then
+					return (prop.Position - origin).Magnitude
+				end
 			end
+			return nil
+		end)
+		if ok and distance and distance <= bestDistance then
+			best, bestDistance = prop, distance
 		end
 	end
 	return best
@@ -1375,12 +1403,31 @@ function CombatService:_dropProp(fighter, how: string): boolean
 		end
 		return name ~= nil
 	end
-	if entry.copy then
-		entry.copy:Destroy()
+	local copy = entry.copy
+	if copy then
+		pcall(copy.Destroy, copy)
 	end
 	local prop = entry.prop
+	local ok, err = pcall(self._placeProp, self, fighter, prop, how)
+	if not ok then
+		warn("[Combat] couldn't put a prop back: " .. tostring(err))
+	end
+	if self.characters:getById(fighter.id) == fighter then
+		self.characters:refresh(fighter)
+		if how == "Drop" then
+			motion(fighter, "Drop", { prop = name })
+		end
+	end
+	return true
+end
+
+-- Where a released prop goes: thrown ones come home later, dropped ones are
+-- set down in front of the fighter, anything else goes home now
+function CombatService:_placeProp(fighter, prop: BasePart, how: string)
 	if how == "Throw" then
-		task.delay(fighter.combat.Carry.ReturnDelay, returnProp, prop)
+		task.delay(fighter.combat.Carry.ReturnDelay, function()
+			pcall(returnProp, prop)
+		end)
 	elseif how == "Drop" and prop.Parent and fighter.root.Parent then
 		local home = prop:GetAttribute("HomeCFrame")
 		local base = fighter.root.Position
@@ -1398,13 +1445,6 @@ function CombatService:_dropProp(fighter, how: string): boolean
 	else
 		returnProp(prop)
 	end
-	if self.characters:getById(fighter.id) == fighter then
-		self.characters:refresh(fighter)
-		if how == "Drop" then
-			motion(fighter, "Drop", { prop = prop.Name })
-		end
-	end
-	return true
 end
 
 -- Light while carrying: throw the prop where the fighter aims (an aim payload's

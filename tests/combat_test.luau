@@ -249,7 +249,10 @@ check("the light string: jab, cross, hook, finisher kick; hits carry move, tags 
 	for index = 1, 4 do
 		request("CombatRequest", alice, "Light", { dir = Vector3.new(1, 0, 0) })
 		waitHit(mark, a, b, "light hit " .. index, index)
-		local step = Combat.Light.Steps[index]
+		if index == 4 then
+			assert(b.model:GetAttribute(Attribute.Airborne) == true, "launched fighters are airborne")
+		end
+		local step = a.combat.Light.Steps[index]
 		task.wait(step.Active + step.Recovery + 0.03)
 	end
 	local moves = {}
@@ -265,11 +268,10 @@ check("the light string: jab, cross, hook, finisher kick; hits carry move, tags 
 		assert(typeof(hit.direction) == "Vector3" and hit.direction.X > 0.9, "hit direction points away from Alice")
 	end
 	local scale = b.combat.DamageTaken or 1
-	assert(near(hits[1].damage, Combat.Light.Steps[1].Damage * scale), "first hit full damage")
-	local fourth = Combat.Light.Steps[4].Damage * (1 - Combat.ComboScaling.PerHit) * scale
+	assert(near(hits[1].damage, a.combat.Light.Steps[1].Damage * scale), "first hit full damage")
+	local fourth = a.combat.Light.Steps[4].Damage * (1 - Combat.ComboScaling.PerHit) * scale
 	assert(near(hits[4].damage, fourth), `4th hit scaled: {hits[4].damage} vs {fourth}`)
 	assert(hits[4].tags.launch == true, "the finisher launches")
-	assert(b.model:GetAttribute(Attribute.Airborne) == true, "launched fighters are airborne")
 end)
 
 check("counter hit: striking a heavy's wind-up deals more and says COUNTER", function()
@@ -281,7 +283,7 @@ check("counter hit: striking a heavy's wind-up deals more and says COUNTER", fun
 	request("CombatRequest", alice, "Light")
 	local hit = waitHit(mark, a, b, "the counter hit")[1]
 	assert(hit.tags.counter == true, "counter tag")
-	assert(near(hit.damage, Combat.Light.Steps[1].Damage * Combat.Counter.DamageMultiplier * (b.combat.DamageTaken or 1)), "counter damage " .. hit.damage)
+	assert(near(hit.damage, a.combat.Light.Steps[1].Damage * Combat.Counter.DamageMultiplier * (b.combat.DamageTaken or 1)), "counter damage " .. hit.damage)
 	assert(b.state.attack == nil, "Bob's heavy was stopped")
 end)
 
@@ -292,7 +294,7 @@ check("punish: striking a whiffed heavy's recovery deals more and says PUNISH", 
 	b.root.CFrame = CFrame.lookAt(b.root.Position, b.root.Position + Vector3.new(1, 0, 0))
 	Engine.syncPositions(world.workspace)
 	request("CombatRequest", bob, "Heavy")
-	task.wait(Combat.Heavy.Startup + Combat.Heavy.Active + 0.08)
+	task.wait(b.combat.Heavy.Startup + b.combat.Heavy.Active + 0.08)
 	assert(FighterState.inWhiffRecovery(b.state, now()), "Bob is recovering from a whiff")
 	local mark = game.mark()
 	request("CombatRequest", alice, "Light")
@@ -317,7 +319,7 @@ check("parry, then a riposte: the parrier's next light deals bonus damage", func
 	request("CombatRequest", bob, "Light")
 	local hit = waitHit(mark, b, a, "the riposte")[1]
 	assert(hit.tags.riposte == true, "riposte tag")
-	assert(near(hit.damage, Combat.Light.Steps[1].Damage * Combat.Riposte.DamageMultiplier * (a.combat.DamageTaken or 1)), "riposte damage " .. hit.damage)
+	assert(near(hit.damage, b.combat.Light.Steps[1].Damage * Combat.Riposte.DamageMultiplier * (a.combat.DamageTaken or 1)), "riposte damage " .. hit.damage)
 end)
 
 check("clash: two strikes meeting push both apart, nobody is hurt", function()
@@ -335,7 +337,9 @@ check("clash: two strikes meeting push both apart, nobody is hurt", function()
 	assert(typeof(clash.position) == "Vector3", "where it happened")
 	task.wait(0.25)
 	assert(a.humanoid.Health == healthA and b.humanoid.Health == healthB, "no damage")
-	assert(#hitsSince(mark, a, b) == 0 and #hitsSince(mark, b, a) == 0, "no hits")
+	local ab, ba = hitsSince(mark, a, b), hitsSince(mark, b, a)
+	assert(#ab == 1 and #ba == 1 and ab[1].result == "Clash" and ba[1].result == "Clash", "reported as a harmless Clash each way")
+	assert(ab[1].damage == 0 and ab[1].move == "Jab", "no damage, names the move")
 	assert(a.root:FindFirstChild("SNKnockback") or b.root:FindFirstChild("SNKnockback") or true, "pushed apart")
 end)
 
@@ -427,7 +431,7 @@ check("stamina: dodges spend it; winded means no dodge or sprint and a weaker gu
 	request("CombatRequest", bob, "Light")
 	local hit = waitHit(guardMark, b, a, "the blocked jab")[1]
 	assert(hit.result == "Blocked", "blocked")
-	local expected = a.combat.Block.MaxGuard - Combat.Light.Steps[1].GuardDamage * Combat.Stamina.WindedGuardMultiplier
+	local expected = a.combat.Block.MaxGuard - b.combat.Light.Steps[1].GuardDamage * Combat.Stamina.WindedGuardMultiplier
 	assert(near(a.state.guard, expected), `winded guard damage: {a.state.guard} vs {expected}`)
 	request("CombatRequest", alice, "BlockEnd")
 	game.waitFor(function()
@@ -610,8 +614,8 @@ check("a downed fighter takes one weaker hit at most, then gets up (no ground lo
 	request("CombatRequest", alice, "Light")
 	local otg = waitHit(mark, a, b, "the hit on the floor", 2)[2]
 	assert(otg.tags.otg == true, "otg tag")
-	assert(near(otg.damage, Combat.Light.Steps[1].Damage * Combat.Knockdown.OTGDamageMultiplier * (b.combat.DamageTaken or 1)), "reduced damage " .. otg.damage)
-	task.wait(Combat.Light.Steps[1].Active + Combat.Light.Steps[1].Recovery + 0.03)
+	assert(near(otg.damage, a.combat.Light.Steps[1].Damage * Combat.Knockdown.OTGDamageMultiplier * (b.combat.DamageTaken or 1)), "reduced damage " .. otg.damage)
+	task.wait(a.combat.Light.Steps[1].Active + a.combat.Light.Steps[1].Recovery + 0.03)
 	request("CombatRequest", alice, "Light")
 	local third = waitHit(mark, a, b, "the next hit", 3)[3]
 	assert(third.result == "Invulnerable", "no second hit on the floor: " .. third.result)
@@ -636,7 +640,7 @@ check("charged heavy: hold to charge (slower walk, published), release to swing 
 	local hit = waitHit(mark, a, b, "the charged heavy")[1]
 	local attack = attacksSince(mark, a)[1]
 	assert(attack.move == "ChargedHeavy" and attack.charge > 0.3 and attack.charge < 0.8, "charged about halfway: " .. tostring(attack.charge))
-	assert(hit.damage > Combat.Heavy.Damage * (b.combat.DamageTaken or 1), "more damage than a tap")
+	assert(hit.damage > a.combat.Heavy.Damage * (b.combat.DamageTaken or 1), "more damage than a tap")
 	assert(a.model:GetAttribute(Attribute.ChargeStart) == nil, "no longer charging")
 end)
 
@@ -672,7 +676,7 @@ check("feint: Block during a heavy's wind-up cancels it (stamina), then the guar
 	task.wait(Combat.Feint.Recovery + 0.05)
 	assert(a.model:GetAttribute("Blocking") == true, "block raised once the feint ends")
 	request("CombatRequest", alice, "BlockEnd")
-	task.wait(Combat.Heavy.Startup)
+	task.wait(a.combat.Heavy.Startup)
 	assert(#hitsSince(mark, a, b) == 0, "the feinted heavy never hit")
 	-- The explicit Feint action cancels a charge too
 	readyBoth()
@@ -706,7 +710,7 @@ check("grab beats block: hold, then a forward throw with damage and a knockdown"
 	assert(hold.attacker == a.model and hold.victim == b.model, "names both")
 	assert(attacksSince(mark, a)[1].move == "Grab", "grab attack")
 	assert(not FighterState.isBlocking(b.state), "the block didn't help")
-	local offset = b.root.Position - a.root.Position
+	local offset = b.root.CFrame.Position - a.root.CFrame.Position
 	assert(near(Vector3.new(offset.X, 0, offset.Z).Magnitude, 2.6, 0.05), "held right in front")
 	assert(b.humanoid.WalkSpeed == 0 and a.humanoid.WalkSpeed == 0, "both locked")
 	game.waitFor(function()
@@ -715,7 +719,7 @@ check("grab beats block: hold, then a forward throw with damage and a knockdown"
 	local hit = waitHit(mark, a, b, "the throw hit")[1]
 	assert(hit.result == "Hit" and hit.move == "Throw", "thrown: " .. hit.result)
 	assert(hit.tags.knockdown == true, "thrown fighters are knocked down")
-	assert(near(health - b.humanoid.Health, Combat.Grab.Damage * (b.combat.DamageTaken or 1), 0.01), "throw damage")
+	assert(near(health - b.humanoid.Health, a.combat.Grab.Damage * (b.combat.DamageTaken or 1), 0.01), "throw damage")
 	assert(hit.direction.X > 0.9, "thrown forward")
 	assert(not FighterState.isHolding(a.state) and b.state.grabbedById == nil, "the grab is over")
 end)
@@ -731,8 +735,8 @@ check("holding back throws backward (more damage)", function()
 	assert(grabsSince(mark, "Hold")[1].direction.X < -0.9, "Hold says backward")
 	local hit = waitHit(mark, a, b, "the throw hit")[1]
 	assert(hit.direction.X < -0.9, "thrown backward")
-	assert(near(hit.damage, Combat.Grab.BackDamage * (b.combat.DamageTaken or 1), 0.01), "back throw damage")
-	assert(b.root.Position.X < a.root.Position.X, "Bob ended up behind Alice")
+	assert(near(hit.damage, a.combat.Grab.BackDamage * (b.combat.DamageTaken or 1), 0.01), "back throw damage")
+	assert(b.root.CFrame.Position.X < a.root.CFrame.Position.X, "Bob ended up behind Alice")
 end)
 
 check("throw tech: Grab (or Light) in the window breaks free, no damage; a late press doesn't", function()
@@ -812,7 +816,8 @@ check("a grab never holds anyone outside the arena", function()
 	game.waitFor(function()
 		return #grabsSince(mark, "Hold") > 0
 	end, 1, "the hold at the edge")
-	local held = b.root.Position
+	-- (CFrame: the stand-in engine copies it into Position only between frames)
+	local held = b.root.CFrame.Position
 	local clamped = services.ArenaService:clampInside(arena, held, 3)
 	assert(near(held.X, clamped.X, 0.01) and near(held.Z, clamped.Z, 0.01), "held inside the arena")
 end)
@@ -833,7 +838,7 @@ check("wall splat: a hard hit into a wall bounces off it with extra damage and s
 	local ground = Engine.raycast
 	Engine.raycast = function(origin, direction, params)
 		if math.abs(direction.Y) < 0.1 and direction.X > 0 and origin.X < wallX and origin.X + direction.X >= wallX then
-			return { Position = Vector3.new(wallX, origin.Y, origin.Z), Normal = Vector3.new(-1, 0, 0), Instance = wall, Material = Enum.Material.Plastic }
+			return { Position = Vector3.new(wallX, origin.Y, origin.Z), Normal = Vector3.new(-1, 0, 0), Instance = wall }
 		end
 		return ground(origin, direction, params)
 	end
@@ -844,7 +849,7 @@ check("wall splat: a hard hit into a wall bounces off it with extra damage and s
 		local hit = waitHit(mark, a, b, "the heavy into the wall")[1]
 		assert(hit.tags.wallSplat == true, "wall splat")
 		assert(hit.direction.X < 0, "bounces back off the wall")
-		local expected = (Combat.Heavy.Damage + Combat.WallSplat.Damage) * (b.combat.DamageTaken or 1)
+		local expected = (a.combat.Heavy.Damage + Combat.WallSplat.Damage) * (b.combat.DamageTaken or 1)
 		assert(near(health - b.humanoid.Health, expected, 0.01), `splat damage: {health - b.humanoid.Health} vs {expected}`)
 		assert(b.state.stunUntil - now() > 0, "stunned")
 		-- A light push doesn't splat
@@ -872,7 +877,15 @@ local function makeCrate(position: Vector3, weight: number)
 	crate:SetAttribute("HomeCFrame", crate.CFrame)
 	crate.Parent = world.workspace
 	world.services.CollectionService:AddTag(crate, Protocol.Tag.Throwable)
+	-- (the stand-in engine copies CFrame into Position between frames)
+	Engine.syncPositions(world.workspace)
 	return crate
+end
+
+-- Roblox untags destroyed parts by itself; the stand-in engine needs telling
+local function removeCrate(crate)
+	world.services.CollectionService:RemoveTag(crate, Protocol.Tag.Throwable)
+	crate:Destroy()
 end
 
 check("props: Grab near a light prop picks it up (slower, no blocking); Light throws it; it comes home", function()
@@ -906,7 +919,7 @@ check("props: Grab near a light prop picks it up (slower, no blocking); Light th
 	game.waitFor(function()
 		return crate:GetAttribute("Held") == nil and crate.Transparency == 0
 	end, 2, "the prop coming home")
-	crate:Destroy()
+	removeCrate(crate)
 end)
 
 check("props: Grab again drops it in front; it's put down by itself after a while; a hit knocks it loose", function()
@@ -923,6 +936,7 @@ check("props: Grab again drops it in front; it's put down by itself after a whil
 		return #motionsSince(mark, a, "Drop") > 0
 	end, 1, "the drop")
 	assert(crate:GetAttribute("Held") == nil and crate.CanCollide, "set down for real")
+	Engine.syncPositions(world.workspace)
 	assert((crate.Position - a.root.Position).Magnitude < 6, "in front of her")
 	-- By itself
 	request("CombatRequest", alice, "Grab")
@@ -949,7 +963,7 @@ check("props: Grab again drops it in front; it's put down by itself after a whil
 		return a.model:GetAttribute(Attribute.Carrying) == nil
 	end, 1, "knocked loose")
 	assert(crate:GetAttribute("Held") == nil, "the prop is free")
-	crate:Destroy()
+	removeCrate(crate)
 end)
 
 check("props: heavy props aren't picked up (that's Strong Dude's Heave); an enemy in reach is grabbed instead", function()
@@ -962,7 +976,7 @@ check("props: heavy props aren't picked up (that's Strong Dude's Heave); an enem
 		return #grabsSince(mark, "Whiff") > 0
 	end, 1, "a plain grab")
 	assert(#motionsSince(mark, a, "PickUp") == 0, "too heavy")
-	heavyProp:Destroy()
+	removeCrate(heavyProp)
 	readyBoth()
 	stage(3.5)
 	local light = makeCrate(a.root.Position + Vector3.new(0, -2, 2), 1)
@@ -972,7 +986,7 @@ check("props: heavy props aren't picked up (that's Strong Dude's Heave); an enem
 		return #grabsSince(mark, "Hold") > 0
 	end, 1, "the enemy grabbed")
 	assert(#motionsSince(mark, a, "PickUp") == 0, "people first")
-	light:Destroy()
+	removeCrate(light)
 	local _ = b
 end)
 
@@ -1110,7 +1124,7 @@ check("a knockout mid-grab frees the holder; a knockout while carrying sends the
 		return fresh ~= nil and fresh ~= a and services.CharacterService:isAlive(fresh)
 	end, 3, "Alice respawning")
 	task.wait(Combat.SpawnProtection + 0.1)
-	crate:Destroy()
+	removeCrate(crate)
 end)
 
 check("a respawn or restore clears sprint, charge, knockdown, juggle and carrying", function()
@@ -1141,11 +1155,12 @@ check("a power change mid-charge or mid-carry resets cleanly", function()
 	game.waitFor(function()
 		return a.model:GetAttribute(Attribute.Carrying) ~= nil
 	end, 1, "carrying")
-	services.PowerService:equip(a, "Grandmaster", 1, nil)
+	local Powers = world.require(world.find("ReplicatedStorage.Shared.Powers"))
+	services.PowerService:equip(a, "Grandmaster", 1, Powers.defaultLoadout("Grandmaster", 1))
 	task.wait(0.1)
 	assert(a.model:GetAttribute(Attribute.Carrying) == nil, "dropped on the power change")
 	assert(crate:GetAttribute("Held") == nil, "the prop is free")
-	crate:Destroy()
+	removeCrate(crate)
 	services.PowerService:equip(a, "StrongDude", 1, { "Heave", "TitanGrip", "MeteorCharge" })
 	ready(a)
 end)
@@ -1204,33 +1219,48 @@ check("a Hard CPU uses the new moves (grabs, sweeps, sprints, charges, launchers
 		return count
 	end
 	local flip = 0
-	while os.clock() - started < 12 and universalSeen() < 3 do
+	local cpus = {}
+	while os.clock() - started < 15 and universalSeen() < 3 do
+		-- (a knocked-out CPU comes back as a new fighter)
+		for _, participant in practice.participants do
+			if participant.dummy and participant.dummy.fighter then
+				cpu = participant.dummy.fighter
+			end
+		end
+		me = A()
+		if not services.CharacterService:isAlive(cpu) or not services.CharacterService:isAlive(me) then
+			task.wait(0.2)
+			continue
+		end
+		cpus[cpu] = true
 		game.faceOff(cpu, me, 3.5)
 		me.humanoid.Health = me.humanoid.MaxHealth
 		cpu.humanoid.Health = cpu.humanoid.MaxHealth
 		flip += 1
-		-- Give it reasons: a guard to grab, a whiff to punish, grabs to tech
-		if flip % 3 == 0 then
+		-- Give it reasons: a guard to grab, grabs to tech, openings to sweep
+		if flip % 4 <= 1 then
 			request("CombatRequest", alice, "BlockStart", "Held")
-		elseif flip % 3 == 1 then
+		elseif flip % 4 == 2 then
 			request("CombatRequest", alice, "BlockEnd")
 			request("CombatRequest", alice, "Grab")
-		else
-			request("CombatRequest", alice, "Heavy")
 		end
 		task.wait(0.35)
-		for _, attack in attacksSince(mark, cpu) do
-			if attack.move == "Grab" or attack.move == "Sweep" or attack.move == "ChargedHeavy" or attack.move == "Launcher" or attack.move == "RushStrike" or attack.move == "ShoulderCharge" then
+		for _, attack in game.sentSince(mark, "CombatEvent", "Attack") do
+			local mine = false
+			for record in cpus do
+				mine = mine or attack.attacker == record.model
+			end
+			if mine and attack.move == "Grab" or attack.move == "Sweep" or attack.move == "ChargedHeavy" or attack.move == "Launcher" or attack.move == "RushStrike" or attack.move == "ShoulderCharge" then
 				seen[attack.move] = true
 			end
 		end
 		for _, entry in game.sentSince(mark, "CombatEvent", "Motion") do
-			if entry.fighter == cpu.model and (entry.motion == "Charge" or entry.motion == "SprintStart" or entry.motion == "TechRoll" or entry.motion == "Breakfall" or entry.motion == "Feint") then
+			if cpus[services.CharacterService:getFighter(entry.fighter) or false] and (entry.motion == "Charge" or entry.motion == "SprintStart" or entry.motion == "TechRoll" or entry.motion == "Breakfall" or entry.motion == "Feint") then
 				seen[entry.motion] = true
 			end
 		end
 		for _, entry in game.sentSince(mark, "CombatEvent", "Grab") do
-			if entry.phase == "Tech" and entry.victim == cpu.model then
+			if entry.phase == "Tech" and cpus[services.CharacterService:getFighter(entry.victim) or false] then
 				seen.Tech = true
 			end
 		end

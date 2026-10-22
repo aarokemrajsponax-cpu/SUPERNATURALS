@@ -50,7 +50,7 @@ return {
 		-- A lighter guard than most...
 		Block = { MaxGuard = 80 },
 		-- ...but a quicker, slightly longer dodge
-		Dodge = { Cooldown = 1.1, Invulnerable = 0.24 },
+		Dodge = { Cooldown = 0.3, Invulnerable = 0.24 },
 	},
 
 	degrees = {
@@ -69,7 +69,7 @@ return {
 			default = { "InstantDraw", "ShadowStep", "SlashWave", "SlashFlurry", "FollowThrough" },
 			ultimate = "SpectralSeverance",
 			unlock = { mastery = 3, money = 1500 },
-			stats = { Dodge = { Cooldown = 1.0 } },
+			stats = { Dodge = { Cooldown = 0.28 } },
 		},
 		{
 			name = "Spectral Executioner",
@@ -80,7 +80,7 @@ return {
 			unlock = { mastery = 8, money = 6000 },
 			stats = {
 				Movement = { WalkSpeed = 19 },
-				Dodge = { Cooldown = 0.9 },
+				Dodge = { Cooldown = 0.25 },
 				-- Faster chains at the apex
 				Light = {
 					ChainCooldown = 0.45,

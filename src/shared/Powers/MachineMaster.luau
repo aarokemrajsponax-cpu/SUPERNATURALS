@@ -185,7 +185,7 @@ return {
 		ShockPulse = {
 			name = "Shock Pulse",
 			icon = "⚡",
-			description = "An electric burst that blasts away anyone right next to you. Your answer to melee: stay out of its small radius.",
+			description = "An electric burst that knocks back anyone right next to you: your answer to melee. Its radius is small, so a step back avoids it.",
 			kind = "Area",
 			minDegree = 1,
 			cooldown = 7,
@@ -367,7 +367,7 @@ return {
 		PressurizedBurst = {
 			name = "Pressurized Burst",
 			icon = "💨",
-			description = "A concentrated close-range blast that staggers and kicks you back. Burns away small projectiles in front. Blockable.",
+			description = "A point-blank blast of soul fire that staggers and burns away a few small shots. The recoil throws you back. It can be blocked.",
 			kind = "Area",
 			minDegree = 3,
 			cooldown = 8,
@@ -457,7 +457,7 @@ return {
 		BlueInferno = {
 			name = "Blue Inferno",
 			icon = "💠",
-			description = "ULTIMATE. Ignites the fuel system, sweeps soul fire across the front, then a huge blast. Needs fuel. Time the bar to negate it.",
+			description = "ULTIMATE. Ignites the fuel cell, sweeps soul fire across a wide fan, then sets off a huge blast. Needs 40 fuel. Perfect timing on the blast negates it.",
 			kind = "Ultimate",
 			minDegree = 1,
 			cooldown = 2,
@@ -468,13 +468,15 @@ return {
 			recovery = 0.8,
 			moveSpeed = 0,
 			armor = 2,
-			-- The sweep: a fan in front, one pass left to right
+			-- The sweep: a fan in front, one pass left to right. The flames are
+			-- `arc` wide, so the pass takes about half a second to cross someone
+			-- standing in it: two or three hits, never just one
 			range = 20,
 			sweep = 150,
-			arc = 40,
+			arc = 50,
 			sweepTime = 1.5,
-			tick = 0.15,
-			hitEvery = 0.3,
+			tick = 0.1,
+			hitEvery = 0.2,
 			sweepHit = { damage = 2.5, hitstun = 0.2, knockback = 10, guardDamage = 8 },
 			-- The blast: where it lands (studs ahead, at most), its size and its charge-up
 			blastDistance = 12,

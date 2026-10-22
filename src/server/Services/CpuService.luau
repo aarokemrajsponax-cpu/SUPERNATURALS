@@ -19,8 +19,10 @@ local Action = Protocol.CombatAction
 
 local CpuService = {}
 
--- Chances are per decision. Easy stays beatable: slow, and it rarely techs,
--- parries or punishes; Hard reads you.
+-- Chances are per decision: reactions (techs, parries, punishes, grabbing a
+-- blocker) per situation, free choices (sweeps, launchers, sprints, taunts)
+-- per second. Easy stays beatable: slow, and it rarely techs, parries or
+-- punishes; Hard reads you.
 CpuService.Difficulties = {
 	Easy = {
 		label = "Easy", reaction = 0.55, blockChance = 0.2, dodgeChance = 0.1, abilityRate = 0.2, timingError = 0.22, mashRate = 5, think = 0.3, promptChance = 0.3,
@@ -171,6 +173,10 @@ function CpuService:_defend(fighter, brain, target, attack, distance: number)
 		if not self.characters:isAlive(fighter) or not FighterState.isCurrent(target.state, attack.token) then
 			return
 		end
+		-- Mid-swing it's committed (Block now would feint its own heavy)
+		if FighterState.isAttacking(fighter.state, now()) then
+			return
+		end
 		local away = Hitbox.flatDirection(fighter.root.Position - target.root.Position) or Vector3.new(1, 0, 0)
 		local side = Vector3.new(-away.Z, 0, away.X) * brain.strafe
 		local roll = math.random()
@@ -234,6 +240,10 @@ function CpuService:_universal(fighter, brain, target, distance: number, time: n
 	local them = target.state
 	local aim = aimAt(fighter, target)
 	local toward = Hitbox.flatDirection(target.root.Position - fighter.root.Position) or fighter.root.CFrame.LookVector
+	-- Free choices are rolled every think, so their chances are per second
+	local function perSecond(chance: number): boolean
+		return math.random() < chance * difficulty.think
+	end
 
 	-- Sprint in from afar; strike out of the run or stop when close
 	if FighterState.isSprinting(state, time) then
@@ -250,12 +260,12 @@ function CpuService:_universal(fighter, brain, target, distance: number, time: n
 		elseif FighterState.staminaAt(state, config, time) < 25 then
 			combat:perform(fighter, Action.SprintEnd)
 		end
-	elseif distance > 14 and FighterState.staminaAt(state, config, time) > 45 and math.random() < difficulty.sprintChance * 0.5 then
+	elseif distance > 14 and FighterState.staminaAt(state, config, time) > 45 and perSecond(difficulty.sprintChance * 2) then
 		combat:perform(fighter, Action.SprintStart)
 	end
 
 	-- Taunt from a safe distance while they're on the floor
-	if FighterState.isDowned(them, time) and distance > 10 and math.random() < difficulty.tauntChance then
+	if FighterState.isDowned(them, time) and distance > 10 and perSecond(difficulty.tauntChance * 4) then
 		return combat:perform(fighter, Action.Taunt)
 	end
 	if distance > MELEE_RANGE + 1 then
@@ -274,10 +284,10 @@ function CpuService:_universal(fighter, brain, target, distance: number, time: n
 	if FighterState.isBlocking(them) and distance <= config.Grab.Range + 0.5 and math.random() < difficulty.grabChance then
 		return combat:perform(fighter, Action.Grab, { dir = if math.random() < 0.3 then -toward else toward })
 	end
-	if distance <= config.Sweep.Range and math.random() < difficulty.sweepChance then
+	if distance <= config.Sweep.Range and perSecond(difficulty.sweepChance) then
 		return combat:perform(fighter, Action.Sweep)
 	end
-	if math.random() < difficulty.launcherChance then
+	if perSecond(difficulty.launcherChance) then
 		return combat:perform(fighter, Action.Heavy, { dir = -toward })
 	end
 	return false
