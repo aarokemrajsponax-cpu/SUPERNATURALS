@@ -1,6 +1,7 @@
 -- The ability bar above the health bar: one button per equipped ability (key
 -- hint, cost, cooldown sweep with seconds left), the ultimate with its charge
--- filling up, and the power's resource meter. Buttons are tappable on touch
+-- filling up, and the power's resource meter (plus a power's extra meters,
+-- like The Grandmaster's Focus and Perfect Form). Buttons are tappable on touch
 -- and show a short explanation when a press can't work ("Not enough Grit").
 
 local Players = game:GetService("Players")
@@ -84,6 +85,45 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 		BackgroundColor3 = Colors.Cyan,
 		Parent = track,
 	}, { Components.corner(Theme.PillCorner) })
+
+	-- Extra meters some powers expose as attributes, either side of the resource
+	-- meter (The Grandmaster: Focus on the left, Perfect Form on the right)
+	local EXTRA_WIDTH = 130
+	local function miniMeter(name: string, side: number, color: Color3)
+		local frame = make("Frame", {
+			Name = name,
+			AnchorPoint = Vector2.new(if side < 0 then 1 else 0, 1),
+			Position = UDim2.new(0.5, side * (150 + Space.S), 1, 0),
+			Size = UDim2.new(0, EXTRA_WIDTH, 0, 18),
+			BackgroundTransparency = 1,
+			Visible = false,
+			Parent = holder,
+		})
+		local label = Components.text({
+			Style = "Micro",
+			Color = Colors.TextDim,
+			Size = UDim2.new(0, 62, 1, 0),
+			Parent = frame,
+		})
+		local miniTrack = make("Frame", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			Size = UDim2.new(1, -68, 0, 6),
+			BackgroundColor3 = Colors.Ink,
+			BackgroundTransparency = 0.2,
+			Parent = frame,
+		}, { Components.corner(Theme.PillCorner) })
+		local miniFill = make("Frame", {
+			Size = UDim2.fromScale(0, 1),
+			BackgroundColor3 = color,
+			Parent = miniTrack,
+		}, { Components.corner(Theme.PillCorner) })
+		return frame, label, miniFill
+	end
+	local extraMeters = {
+		{ attribute = Attribute.Focus, title = "FOCUS", parts = table.pack(miniMeter("Focus", -1, Color3.fromRGB(150, 210, 190))) },
+		{ attribute = Attribute.PerfectForm, title = "FORM", parts = table.pack(miniMeter("PerfectForm", 1, Color3.fromRGB(250, 232, 186))) },
+	}
 
 	-- A short message above the bar when a press doesn't work
 	local message = Components.text({
@@ -277,6 +317,15 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 			resourceLabel.Text = `{string.upper(resourceDef.name)}  {math.floor(resource)}/{resourceMax}`
 			fill.BackgroundColor3 = resourceDef.color or Colors.Cyan
 			fill.Size = UDim2.fromScale(math.clamp(resource / math.max(1, resourceMax), 0, 1), 1)
+		end
+		for _, extra in extraMeters do
+			local value = character:GetAttribute(extra.attribute)
+			local frame, label, extraFill = extra.parts[1], extra.parts[2], extra.parts[3]
+			frame.Visible = typeof(value) == "number"
+			if typeof(value) == "number" then
+				label.Text = `{extra.title}  {math.floor(value)}`
+				extraFill.Size = UDim2.fromScale(math.clamp(value / 100, 0, 1), 1)
+			end
 		end
 
 		local time = serverNow()

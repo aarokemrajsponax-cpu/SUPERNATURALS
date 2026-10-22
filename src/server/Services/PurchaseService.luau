@@ -114,7 +114,8 @@ function PurchaseService:_checkPrices()
 		end
 	end
 	for key, pass in Monetization.Passes do
-		if validId(pass.id) then
+		-- Passes without a listed price (cosmetics priced in Studio) show Roblox's live price instead
+		if validId(pass.id) and typeof(pass.robux) == "number" then
 			check(key, pass.id, pass.robux, Enum.InfoType.GamePass)
 		end
 	end

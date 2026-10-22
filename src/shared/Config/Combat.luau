@@ -152,6 +152,12 @@ Combat.Statuses = {
 	Sealed = { max = 2, label = "Sealed", icon = "🚫" },
 	Grabbed = { max = 3, label = "Grabbed", icon = "✊" },
 	Transformed = { max = 30, label = "Transformed", icon = "🐾" },
+	-- The Grandmaster: caught in Hundred Fists or the ultimate (nobody else's sequence can start on them)
+	Sequenced = { max = 2.5, label = "Caught", icon = "🥋" },
+	-- Knocked down by Sweeping Dragon recently: can't be knocked down by it again yet
+	SureFooted = { max = 6, label = "Sure-footed", icon = "🦶" },
+	-- Hit by Heaven-Splitting Dragon recently: no ultimate sequence can start on them
+	UltimateGuard = { max = 10, label = "Recovering", icon = "✨" },
 }
 
 -- Interactive defense windows

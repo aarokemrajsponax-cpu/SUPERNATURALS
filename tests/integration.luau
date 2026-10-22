@@ -13,7 +13,7 @@ local Engine = require("./smoke/Engine")
 
 local world = Engine.load(process.args[1] or "build/game.rbxl")
 local task = Engine.task
-local Vector3, CFrame = roblox.Vector3, roblox.CFrame
+local Vector3, CFrame = roblox.Vector3, Engine.CFrame
 
 local passed, failed = 0, 0
 local function check(name: string, fn: () -> ())

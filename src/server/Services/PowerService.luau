@@ -1,4 +1,4 @@
--- Gives every fighter its power: which of the seven, which degree, which
+-- Gives every fighter its power: which of the eight, which degree, which
 -- abilities are equipped, plus the power's resource (grit, fuel, corruption...),
 -- ultimate charge, cooldowns and look. Players choose in the Powers screen;
 -- the choice is checked here (premium ownership, degree unlocks, loadout rules),
@@ -6,8 +6,11 @@
 -- power, degree or loadout mid-fight, paid or otherwise.
 --
 -- Power-specific behaviour lives in Server/Powers/<PowerId>.luau; this service
--- calls its hooks (onEquip, tick, onHit, onHurt, modifyIncoming, onDodge,
+-- calls its hooks (init, onEquip, tick, onHit, onHurt, modifyIncoming, onDodge,
 -- appearance) and the ability handlers through AbilityService.
+--
+-- Degrees: most powers have three, a power can declare its own count
+-- (`degreeCount`, The Grandmaster has four); every check here uses Powers.validDegree.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -81,6 +84,11 @@ function PowerService:Init(services)
 		local module = folder and folder:FindFirstChild(powerId)
 		if module then
 			modules[powerId] = require(module) :: any
+			-- Optional: a power module that needs services of its own (defense results, purchases)
+			local loaded = modules[powerId]
+			if typeof(loaded) == "table" and typeof(loaded.init) == "function" then
+				loaded.init(services)
+			end
 		end
 	end
 end
@@ -135,6 +143,14 @@ function PowerService:Start()
 	local purchases = self.services.PurchaseService
 	if purchases then
 		purchases:onPassGranted(function(player, passKey)
+			-- A cosmetic pass: redraw the fighter in its style right away
+			local current = self.characters:getByPlayer(player)
+			local runtime = current and current.power
+			local cosmetic = runtime and runtime.def.cosmetic
+			if current and cosmetic and cosmetic.pass == passKey then
+				current.model:SetAttribute(Attribute.Style, passKey)
+				self:_applyAppearance(current)
+			end
 			for powerId, def in Powers.Defs do
 				if def.premium and def.premium.pass == passKey then
 					toast(player, `{def.name} unlocked! It's yours in every mode.`, "success")
@@ -196,7 +212,7 @@ end
 -- own can still be tried (trial) outside ranked fights.
 function PowerService:check(player: Player, powerId: string, degree: number): (boolean, string?, boolean)
 	local def = Powers.get(powerId)
-	if not def or typeof(degree) ~= "number" or degree < 1 or degree > Powers.Degrees or degree % 1 ~= 0 then
+	if not def or not Powers.validDegree(powerId, degree) then
 		return false, "That power doesn't exist.", false
 	end
 	local profile = self:_profile(player)
@@ -285,7 +301,7 @@ function PowerService:_onRequest(player: Player, action: string, first: any, sec
 		toast(player, `Now using {def.name}, {def.degrees[degree].name}{note}.`, "success")
 	elseif action == Action.SetLoadout then
 		local degree = second
-		if typeof(degree) ~= "number" or not def.degrees[degree] then
+		if not Powers.validDegree(powerId, degree) then
 			return
 		end
 		local ok, reason, cleaned = Powers.validateLoadout(powerId, degree, third, powerData(profile, powerId))
@@ -330,7 +346,7 @@ function PowerService:_onRequest(player: Player, action: string, first: any, sec
 		toast(player, `{ability.name} unlocked!`, "success")
 	elseif action == Action.UnlockDegree then
 		local degree = second
-		local degreeDef = typeof(degree) == "number" and def.degrees[degree]
+		local degreeDef = Powers.validDegree(powerId, degree) and def.degrees[degree]
 		if not degreeDef or degree < 2 or not degreeDef.unlock or not degreeDef.unlock.money then
 			return
 		end
@@ -380,7 +396,12 @@ function PowerService:_onRequest(player: Player, action: string, first: any, sec
 	elseif action == Action.PromptPass then
 		local premium = def.premium
 		local purchases = self.services.PurchaseService
-		if premium and premium.pass and purchases then
+		-- (powerId, "Cosmetic") buys the power's cosmetic pass (The Grandmaster's Celestial Dragon Style)
+		if second == "Cosmetic" then
+			if def.cosmetic and def.cosmetic.pass and purchases then
+				purchases:promptPass(player, def.cosmetic.pass)
+			end
+		elseif premium and premium.pass and purchases then
 			purchases:promptPass(player, premium.pass)
 		end
 	end
@@ -413,6 +434,11 @@ function PowerService:_equipForPlayer(fighter)
 	local selected = profile and profile.selected
 	local powerId = if selected and typeof(selected.power) == "string" then selected.power else Powers.Default
 	local degree = if selected and typeof(selected.degree) == "number" then selected.degree else 1
+	-- A saved degree above this power's count (data from a four-degree power) uses its top degree
+	local count = Powers.degreeCount(powerId)
+	if count > 0 and degree > count then
+		degree = count
+	end
 	local ok, reason, trial = self:check(player, powerId, degree)
 	if not ok then
 		-- Never switch silently: say why
@@ -472,6 +498,7 @@ function PowerService:equip(fighter, powerId: string, degree: number, loadout: {
 	model:SetAttribute(Attribute.Loadout, table.concat(runtime.loadout, ","))
 	model:SetAttribute(Attribute.ResourceMax, runtime.resourceMax)
 	model:SetAttribute(Attribute.Phase, 0)
+	model:SetAttribute(Attribute.Style, if self:ownsCosmetic(fighter, def) then def.cosmetic.pass else nil)
 	self.characters:setCombatProfile(fighter, Powers.combatProfile(powerId, degree))
 	self:_publish(fighter, true)
 
@@ -480,6 +507,17 @@ function PowerService:equip(fighter, powerId: string, degree: number, loadout: {
 		self:_safe(module.onEquip, fighter, runtime, AbilityKit.forFighter(fighter))
 	end
 	self:_applyAppearance(fighter)
+end
+
+-- Does this fighter's player own their power's cosmetic pass? Cosmetics change looks only.
+function PowerService:ownsCosmetic(fighter, def): boolean
+	local cosmetic = def and def.cosmetic
+	local purchases = self.services.PurchaseService
+	if not cosmetic or not cosmetic.pass or not fighter.player or not purchases then
+		return false
+	end
+	local ok, owns = pcall(purchases.ownsPass, purchases, fighter.player, cosmetic.pass)
+	return ok and owns == true
 end
 
 function PowerService:_applyAppearance(fighter)

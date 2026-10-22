@@ -1,4 +1,4 @@
--- The seven powers: where their definitions live and the rules every screen
+-- The eight powers: where their definitions live and the rules every screen
 -- and service shares about them (degree unlocks, loadouts, ability stats per
 -- degree, combat stats). Each power's own numbers are in the file named after
 -- it next to this one.
@@ -11,7 +11,7 @@ local Combat = require(script.Parent.Config.Combat)
 
 local Powers = {}
 
--- Selection screen order. Exactly seven powers; combined abilities (the Ghost's
+-- Selection screen order. Exactly eight powers; combined abilities (the Ghost's
 -- katana, Machine Master's soul fire) belong to their power, never their own fighter.
 Powers.Order = {
 	"StrongDude",
@@ -21,10 +21,14 @@ Powers.Order = {
 	"Corruption",
 	"Syntax",
 	"Admin",
+	"Grandmaster",
 }
 
 Powers.Default = "StrongDude"
+-- Degrees a power has unless its definition says otherwise (`degreeCount`)
 Powers.Degrees = 3
+-- The most any power has (The Grandmaster's four)
+Powers.MaxDegrees = 4
 
 -- Mastery: experience earned by fighting with a power. Level n needs Thresholds[n] XP in total.
 Powers.Mastery = {
@@ -42,6 +46,20 @@ Powers.Defs = defs
 
 function Powers.get(powerId: string): any?
 	return defs[powerId]
+end
+
+-- How many degrees this power has (0 for an unknown power)
+function Powers.degreeCount(powerId: string?): number
+	local def = powerId and defs[powerId]
+	if not def then
+		return 0
+	end
+	return def.degreeCount or Powers.Degrees
+end
+
+-- Is `degree` one of this power's degrees (a whole number from 1 to its count)?
+function Powers.validDegree(powerId: string?, degree: any): boolean
+	return typeof(degree) == "number" and degree % 1 == 0 and degree >= 1 and degree <= Powers.degreeCount(powerId)
 end
 
 function Powers.isPremium(powerId: string): boolean
@@ -110,7 +128,7 @@ function Powers.abilityFor(powerId: string, abilityId: string, degree: number): 
 	end
 	local def = defs[powerId]
 	local base = def and def.abilities[abilityId]
-	if not base then
+	if not base or not Powers.validDegree(powerId, degree) then
 		return nil
 	end
 	local result = deepCopy(base)
@@ -146,7 +164,10 @@ end
 
 function Powers.degree(powerId: string, degree: number): any?
 	local def = defs[powerId]
-	return def and def.degrees[degree]
+	if not def or not Powers.validDegree(powerId, degree) then
+		return nil
+	end
+	return def.degrees[degree]
 end
 
 -- Some powers replace the basic Light/Heavy attacks with their own (Machine
@@ -246,6 +267,9 @@ function Powers.degreeUnlocked(powerId: string, degree: number, powerData: { [st
 	if degree <= 1 then
 		return true
 	end
+	if not Powers.validDegree(powerId, degree) then
+		return false
+	end
 	local degrees = powerData and powerData.degrees
 	if typeof(degrees) == "table" and degrees[tostring(degree)] == true then
 		return true
@@ -279,7 +303,7 @@ function Powers.combatProfile(powerId: string?, degree: number?, formId: string?
 	local def = defs[powerId]
 	local profile = deepCopy(Combat)
 	merge(profile, def.stats)
-	local degreeDef = def.degrees[level]
+	local degreeDef = if Powers.validDegree(powerId, level) then def.degrees[level] else nil
 	if degreeDef then
 		merge(profile, degreeDef.stats)
 	end

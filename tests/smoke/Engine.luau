@@ -654,7 +654,8 @@ end)
 -- Terrain: fills are recorded (Engine.terrainOps) so tests and the preview
 -- renderer can see what was built; there are no voxels to read back
 Engine.terrainOps = {}
-roblox.implementMethod("Terrain", "FillBlock", function(_, cframe, size, material)
+roblox.implementMethod("Terrain", "FillBlock", function(terrain, cframe, size, material)
+	Engine.terrain = terrain
 	table.insert(Engine.terrainOps, { kind = "Block", cframe = cframe, size = size, material = material })
 end)
 roblox.implementMethod("Terrain", "FillBall", function(_, center, radius, material)
@@ -676,6 +677,27 @@ end)
 roblox.implementMethod("Terrain", "GetMaterialColor", function(_, material)
 	return Engine.terrainColors[material.Name] or roblox.Color3.fromRGB(128, 128, 128)
 end)
+-- Lune's own Terrain:SetMaterialColor runs instead of the shim above, so when
+-- something iterates the colours they are read back from the last Terrain filled
+local TERRAIN_MATERIALS = { "Grass", "LeafyGrass", "Ground", "Mud", "Rock", "Slate", "Sand", "Sandstone", "Basalt", "Snow", "Glacier", "Ice", "Concrete", "Brick", "Cobblestone", "Asphalt", "Pavement", "Limestone", "Salt", "WoodPlanks", "CrackedLava" }
+setmetatable(Engine.terrainColors, {
+	__iter = function(colors)
+		local merged = {}
+		for name, color in next, colors do
+			merged[name] = color
+		end
+		local terrain = Engine.terrain
+		if terrain then
+			for _, name in TERRAIN_MATERIALS do
+				local ok, color = pcall(terrain.GetMaterialColor, terrain, (roblox.Enum.Material :: any)[name])
+				if ok and typeof(color) == "Color3" and merged[name] == nil then
+					merged[name] = color
+				end
+			end
+		end
+		return next, merged
+	end,
+})
 roblox.implementMethod("Camera", "ViewportPointToRay", function(self, x, y)
 	local cframe = self.CFrame
 	return { Origin = cframe.Position, Direction = cframe.LookVector }
@@ -686,6 +708,35 @@ end)
 roblox.implementMethod("UserInputService", "GetFocusedTextBox", function()
 	return nil
 end)
+
+-- CFrame with Roblox's behaviour where Lune's differs: Lune's CFrame.lookAt
+-- mirrors the Z direction (looking at +Z gives a LookVector of -Z), and its
+-- CFrame.new doesn't take the (position, lookAt) pair Roblox still accepts.
+-- Game code and the test helpers get this one as `CFrame`.
+local function lookAt(at, target, up)
+	local offset = target - at
+	if offset.Magnitude < 1e-9 then
+		return roblox.CFrame.new(at)
+	end
+	local forward = offset.Unit
+	up = up or roblox.Vector3.new(0, 1, 0)
+	local right = forward:Cross(up)
+	if right.Magnitude < 1e-6 then
+		right = forward:Cross(roblox.Vector3.new(0, 0, 1))
+	end
+	right = right.Unit
+	return roblox.CFrame.fromMatrix(at, right, right:Cross(forward), -forward)
+end
+Engine.CFrame = setmetatable({
+	lookAt = lookAt,
+	new = function(...)
+		local first, second = ...
+		if select("#", ...) == 2 and typeof(first) == "Vector3" and typeof(second) == "Vector3" then
+			return lookAt(first, second)
+		end
+		return roblox.CFrame.new(...)
+	end,
+}, { __index = roblox.CFrame })
 
 -- Datatypes Lune doesn't have ---------------------------------------------------------------
 
@@ -900,6 +951,7 @@ function Engine.load(placePath: string)
 	} do
 		env[name] = roblox[name]
 	end
+	env.CFrame = Engine.CFrame
 	setmetatable(env, { __index = getfenv(0) })
 
 	return {

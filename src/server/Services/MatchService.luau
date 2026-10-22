@@ -449,7 +449,7 @@ function MatchService:_cpuOptions(options: any)
 		if typeof(options.cpuPower) == "string" and (options.cpuPower == "Random" or Powers.get(options.cpuPower)) then
 			cpu.power = options.cpuPower
 		end
-		if typeof(options.cpuDegree) == "number" and options.cpuDegree >= 1 and options.cpuDegree <= 3 then
+		if typeof(options.cpuDegree) == "number" and options.cpuDegree >= 1 and options.cpuDegree <= Powers.MaxDegrees then
 			cpu.degree = math.floor(options.cpuDegree)
 		end
 		local difficulties = self.services.CpuService and self.services.CpuService.Difficulties
@@ -466,6 +466,8 @@ function MatchService:_cpuOptions(options: any)
 		end
 		cpu.power = choices[math.random(1, #choices)]
 	end
+	-- Most powers have three degrees; the Grandmaster has four
+	cpu.degree = math.clamp(cpu.degree, 1, math.max(1, Powers.degreeCount(cpu.power)))
 	return cpu
 end
 

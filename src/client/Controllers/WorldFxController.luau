@@ -1,7 +1,8 @@
--- Brings the Nexus lobby to life on this client: the crystal turns and
--- floats, portal surfaces swirl, runes pulse and spirit fruit bob (only while
--- the camera is nearby, to save work). Also answers the gateway prompts by
--- sending the same requests the menus send, or opening the matching window.
+-- Brings the Nexus lobby to life on this client: the crystal hovers and
+-- slowly turns in its cradle, the inlaid runes breathe, and the wisps in each
+-- gateway's portal circle while its glow pulses (only while the camera is
+-- nearby, to save work). Also answers the gateway prompts by sending the same
+-- requests the menus send, or opening the matching window.
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,6 +20,12 @@ local WorldFxController = {}
 -- Animate only while the camera is this close to the plaza
 local ANIMATE_RANGE = 320
 local FRAME_STEP = 1 / 30
+-- The crystal rises and falls this many studs, and turns this fast (radians per second)
+local CRYSTAL_BOB = 0.35
+local CRYSTAL_BOB_SPEED = 0.9
+local CRYSTAL_TURN_SPEED = 0.3
+-- How much the runes fade at the low point of their breath
+local RUNE_DEPTH = 0.3
 
 local WINDOW_NAMES = { Play = "Play", Shop = "Shop", Watch = "Watch" }
 
@@ -53,17 +60,23 @@ end
 
 function WorldFxController:_animate(nexus: Instance)
 	local crystal = nexus:FindFirstChild("NexusCrystal")
-	local core = nexus:FindFirstChild("NexusCore")
 	local crystalHome = if crystal and crystal:IsA("BasePart") then crystal.CFrame else nil
-	local spinners, runes, fruit = {}, {}, {}
+	local crystalPieces, runes, wisps, glows = {}, {}, {}, {}
 	for _, item in nexus:GetDescendants() do
 		if item:IsA("BasePart") then
-			if item:GetAttribute("Spin") then
-				table.insert(spinners, { part = item, home = item.CFrame })
+			if item:GetAttribute("Crystal") and crystalHome then
+				table.insert(crystalPieces, { part = item, offset = crystalHome:ToObjectSpace(item.CFrame) })
 			elseif item:GetAttribute("Pulse") then
-				table.insert(runes, { part = item, phase = item:GetAttribute("Pulse") :: number })
-			elseif item:GetAttribute("Bob") then
-				table.insert(fruit, { part = item, home = item.CFrame, phase = math.random() * 6 })
+				table.insert(runes, { part = item, phase = item:GetAttribute("Pulse") :: number, base = item.Transparency })
+			elseif typeof(item:GetAttribute("Swirl")) == "number" then
+				-- Wisps circle the middle of their gate's portal
+				local portal = item.Parent and item.Parent:FindFirstChild("PortalSurface")
+				if portal and portal:IsA("BasePart") then
+					local pivot = portal.CFrame * CFrame.new(0, 0, -0.15)
+					table.insert(wisps, { part = item, pivot = pivot, offset = pivot:ToObjectSpace(item.CFrame), speed = item:GetAttribute("Swirl") :: number })
+				end
+			elseif typeof(item:GetAttribute("Glow")) == "number" then
+				table.insert(glows, { part = item, base = item:GetAttribute("Glow") :: number, phase = math.random() * 6 })
 			end
 		end
 	end
@@ -75,25 +88,26 @@ function WorldFxController:_animate(nexus: Instance)
 		end
 		elapsed = 0
 		local camera = workspace.CurrentCamera
-		if camera.CFrame.Position.Magnitude > ANIMATE_RANGE then
+		if not camera or camera.CFrame.Position.Magnitude > ANIMATE_RANGE then
 			return
 		end
 		local time = os.clock()
-		if crystalHome and crystal and core and crystal:IsA("BasePart") and core:IsA("BasePart") then
-			local frame = CFrame.new(crystalHome.Position + Vector3.new(0, math.sin(time * 1.1) * 0.8, 0))
-				* CFrame.Angles(0, time * 0.6, 0)
-				* (CFrame.new(crystalHome.Position):Inverse() * crystalHome)
-			crystal.CFrame = frame
-			core.CFrame = frame
-		end
-		for _, spinner in spinners do
-			spinner.part.CFrame = spinner.home * CFrame.Angles(time * 0.8, 0, 0)
+		if crystalHome then
+			local pivot = CFrame.new(crystalHome.Position + Vector3.new(0, math.sin(time * CRYSTAL_BOB_SPEED) * CRYSTAL_BOB, 0))
+				* CFrame.Angles(0, time * CRYSTAL_TURN_SPEED, 0)
+				* crystalHome.Rotation
+			for _, piece in crystalPieces do
+				piece.part.CFrame = pivot * piece.offset
+			end
 		end
 		for _, rune in runes do
-			rune.part.Transparency = 0.2 + 0.45 * (math.sin(time * 1.6 + rune.phase) + 1) / 2
+			rune.part.Transparency = rune.base + RUNE_DEPTH * (math.sin(time * 1.3 + rune.phase) + 1) / 2
 		end
-		for _, item in fruit do
-			item.part.CFrame = item.home + Vector3.new(0, math.sin(time * 1.4 + item.phase) * 0.3, 0)
+		for _, wisp in wisps do
+			wisp.part.CFrame = wisp.pivot * CFrame.Angles(0, 0, time * wisp.speed) * wisp.offset
+		end
+		for _, glow in glows do
+			glow.part.Transparency = glow.base + 0.06 * math.sin(time * 0.9 + glow.phase)
 		end
 	end)
 end

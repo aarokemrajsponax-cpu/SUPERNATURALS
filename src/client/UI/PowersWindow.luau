@@ -1,12 +1,14 @@
--- The Powers window: choose one of the seven powers, a degree, and the
+-- The Powers window: choose one of the eight powers, a degree, and the
 -- abilities to take into a fight. The left column lists the powers; the right
--- shows the chosen one: what it is and how it plays, mastery, the three
--- degrees (and what unlocks each), every ability with its cost, cooldown and
+-- shows the chosen one: what it is and how it plays, mastery, its degrees
+-- (three, or four for The Grandmaster, and what unlocks each), every ability with its cost, cooldown and
 -- price, the loadout slots, the ultimate, and its defense identity. Premium
 -- powers show their exact Robux price, the Gems path, and that they can be
--- tried free in Training and CPU Practice.
+-- tried free in Training and CPU Practice. A power's cosmetic pass (Celestial
+-- Dragon Style) shows Roblox's live price, or "Not on sale yet".
 -- Everything here only asks; the server checks ownership, prices and locks.
 
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -16,6 +18,7 @@ local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
 local Shell = require(script.Parent.Shell)
 local Profile = require(script.Parent.Parent.Profile)
+local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local PowerRequest = Remotes:WaitForChild("PowerRequest") :: RemoteEvent
@@ -69,6 +72,40 @@ local function owns(def): boolean
 		return true
 	end
 	return powerData(def.id).owned == true
+end
+
+-- Live Robux prices of cosmetic passes (asked once; nil until Roblox answers, false if it can't)
+local livePrices: { [string]: any } = {}
+
+local function cosmeticPrice(passKey: string, onReady: () -> ()): (string, boolean)
+	local pass = Monetization.Passes[passKey]
+	if not pass or typeof(pass.id) ~= "number" or pass.id <= 0 then
+		return "Not on sale yet", false
+	end
+	local known = livePrices[passKey]
+	if known == nil then
+		livePrices[passKey] = "pending"
+		task.spawn(function()
+			local ok, info = pcall(function()
+				return MarketplaceService:GetProductInfo(pass.id, Enum.InfoType.GamePass)
+			end)
+			local price = ok and typeof(info) == "table" and info.PriceInRobux
+			livePrices[passKey] = if typeof(price) == "number" and price > 0 then price else false
+			onReady()
+		end)
+		return "Checking price", false
+	elseif typeof(known) == "number" then
+		return `R$ {Components.formatNumber(known)}`, true
+	elseif known == "pending" then
+		return "Checking price", false
+	end
+	return "Not on sale yet", false
+end
+
+local function ownsPass(passKey: string): boolean
+	local view = Profile.get()
+	local passes = view and view.passes
+	return typeof(passes) == "table" and passes[passKey] == true
 end
 
 local function degreeOpen(def, degree: number): boolean
@@ -144,7 +181,7 @@ function PowersWindow.register()
 				return drafts[key]
 			end
 
-			-- Left: the seven powers -------------------------------------------------
+			-- Left: the eight powers -------------------------------------------------
 			local list = Components.scroll({
 				Name = "PowerList",
 				Size = UDim2.new(0, LIST_WIDTH, 1, 0),
@@ -245,6 +282,10 @@ function PowersWindow.register()
 				if not def then
 					return
 				end
+				-- A degree another power had (4) doesn't exist on a three-degree power
+				if not Powers.validDegree(def.id, selectedDegree) then
+					selectedDegree = 1
+				end
 				for powerId, entry in cards do
 					entry.card.setSelected(powerId == selectedPower)
 				end
@@ -325,6 +366,50 @@ function PowersWindow.register()
 					Components.text({ Text = note, Style = "Body", Wrap = true, LayoutOrder = 1, Parent = premium })
 				end
 
+				-- Cosmetic pass (looks only): what it changes, the live price, a buy button
+				local cosmetic = def.cosmetic
+				if cosmetic and cosmetic.pass then
+					local panel = make("Frame", {
+						Name = "CosmeticPass",
+						LayoutOrder = 3,
+						Size = UDim2.new(1, 0, 0, 0),
+						AutomaticSize = Enum.AutomaticSize.Y,
+						BackgroundColor3 = Colors.Gold,
+						BackgroundTransparency = 0.92,
+						Parent = detail,
+					}, { Components.corner(Theme.SmallCorner), Components.stroke(Colors.Gold, 1, 0.6) })
+					Components.padding(Space.M).Parent = panel
+					local textColumn = make("Frame", {
+						Size = UDim2.new(1, -(170 + Space.M), 0, 0),
+						AutomaticSize = Enum.AutomaticSize.Y,
+						BackgroundTransparency = 1,
+						Parent = panel,
+					})
+					Components.list(textColumn, Space.XS)
+					Components.text({ Text = string.upper(cosmetic.name), Style = "Label", Wrap = true, LayoutOrder = 1, Parent = textColumn })
+					Components.text({ Text = cosmetic.benefit, Style = "Caption", Color = Colors.TextDim, Wrap = true, LayoutOrder = 2, Parent = textColumn })
+					local ownedStyle = ownsPass(cosmetic.pass)
+					local priceText, onSale = cosmeticPrice(cosmetic.pass, function()
+						if selectedPower == def.id and render then
+							render()
+						end
+					end)
+					local buy = Components.button(if ownedStyle then "OWNED" else priceText, {
+						Name = "CosmeticBuy",
+						Variant = if ownedStyle then "Secondary" else "Gold",
+						AnchorPoint = Vector2.new(1, 0.5),
+						Position = UDim2.fromScale(1, 0.5),
+						Size = UDim2.fromOffset(170, 44),
+						TextSize = Theme.TextSize.Caption,
+						Parent = panel,
+					}, function()
+						send(Action.PromptPass, def.id, "Cosmetic")
+					end)
+					if ownedStyle or not onSale then
+						Components.setDisabled(buy, true)
+					end
+				end
+
 				-- Mastery
 				local xp = if typeof(data.xp) == "number" then data.xp else 0
 				local level = Powers.masteryLevel(xp)
@@ -341,21 +426,30 @@ function PowersWindow.register()
 
 				-- Degrees
 				heading(detail, 5, "DEGREE")
+				-- Three degrees sit in one row; four (The Grandmaster) in a 2 x 2 grid so names fit
+				local degreeCount = Powers.degreeCount(def.id)
+				local columns = if degreeCount > 3 then 2 else degreeCount
+				local rows = math.ceil(degreeCount / columns)
 				local degreeRow = make("Frame", {
 					LayoutOrder = 6,
-					Size = UDim2.new(1, 0, 0, 48),
+					Size = UDim2.new(1, 0, 0, rows * 48 + (rows - 1) * Space.S),
 					BackgroundTransparency = 1,
 					Parent = detail,
 				})
-				Components.list(degreeRow, Space.S, { FillDirection = Enum.FillDirection.Horizontal })
-				for degree = 1, Powers.Degrees do
+				local grid = Instance.new("UIGridLayout")
+				grid.CellPadding = UDim2.fromOffset(Space.S, Space.S)
+				grid.CellSize = UDim2.new(1 / columns, -math.ceil(Space.S * (columns - 1) / columns), 0, 48)
+				grid.SortOrder = Enum.SortOrder.LayoutOrder
+				grid.FillDirection = Enum.FillDirection.Horizontal
+				grid.Parent = degreeRow
+				for degree = 1, degreeCount do
 					local degreeDef = def.degrees[degree]
 					local open = degreeOpen(def, degree)
 					local chosen = degree == selectedDegree
 					local button = Components.button(`{if open then "" else "🔒 "}{degree}  ·  {string.upper(degreeDef.name)}`, {
 						LayoutOrder = degree,
 						Variant = if chosen then "Primary" else "Secondary",
-						Size = UDim2.new(1 / 3, -6, 1, 0),
+						Size = UDim2.new(1 / columns, -6, 1, 0),
 						TextSize = Theme.TextSize.Caption,
 					}, function()
 						selectedDegree = degree

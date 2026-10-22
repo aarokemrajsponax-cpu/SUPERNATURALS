@@ -25,7 +25,11 @@ Schema.Config = {
 	MaxRewardLog = 50,
 	MaxBaseItems = 400,
 	MaxLoadoutSize = 8,
-	MaxDegree = 3,
+	-- The most degrees any power has; powers with a different count are listed in
+	-- PowerDegrees (must match the power's `degreeCount`, checked by Powers.spec)
+	MaxDegree = 4,
+	DefaultDegrees = 3,
+	PowerDegrees = { Grandmaster = 4 },
 	MaxFurnitureCount = 9999,
 	MaxXp = 1e9,
 	MaxTextLength = 100,
@@ -331,6 +335,17 @@ end
 
 -- Repair ------------------------------------------------------------------------------------
 
+-- How many degrees a power has, as far as saved data is concerned
+function Schema.degreesOf(powerId: string): number
+	return Schema.Config.PowerDegrees[powerId] or Schema.Config.DefaultDegrees
+end
+
+-- Is `key` ("1", "2"...) one of this power's degrees?
+local function isDegreeKey(powerId: string, key: string): boolean
+	local degree = tonumber(key)
+	return degree ~= nil and degree % 1 == 0 and degree >= 1 and degree <= Schema.degreesOf(powerId) and tostring(degree) == key
+end
+
 local function repairPowers(value: any): { [string]: PowerData }
 	local result = {}
 	for powerId, entry in asTable(value) do
@@ -338,6 +353,12 @@ local function repairPowers(value: any): { [string]: PowerData }
 			local power = extras(entry, POWER_DEFAULT)
 			power.xp = integer(entry.xp, 0, Schema.Config.MaxXp, 0)
 			power.degrees = stringSet(entry.degrees)
+			-- Only degrees this power actually has
+			for key in power.degrees do
+				if not isDegreeKey(powerId, key) then
+					power.degrees[key] = nil
+				end
+			end
 			power.abilities = stringSet(entry.abilities)
 			power.owned = entry.owned == true
 			result[powerId] = power :: any
@@ -352,7 +373,7 @@ local function repairLoadouts(value: any): { [string]: { [string]: { string } } 
 		if typeof(powerId) == "string" and typeof(byDegree) == "table" then
 			local clean = {}
 			for degree, list in byDegree do
-				if typeof(degree) == "string" and typeof(list) == "table" then
+				if typeof(degree) == "string" and typeof(list) == "table" and isDegreeKey(powerId, degree) then
 					clean[degree] = stringList(list, Schema.Config.MaxLoadoutSize, false, true)
 				end
 			end

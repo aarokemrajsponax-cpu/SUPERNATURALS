@@ -12,7 +12,7 @@ local World = {}
 function World.start(placePath: string, configure: ((world: any) -> ())?)
 	local world = Engine.load(placePath)
 	local task = Engine.task
-	local Vector3, CFrame = roblox.Vector3, roblox.CFrame
+	local Vector3, CFrame = roblox.Vector3, Engine.CFrame
 
 	local function find(path: string)
 		return world.find(path)

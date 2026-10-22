@@ -33,6 +33,15 @@ Monetization.Passes = {
 		name = "Admin Powers",
 		benefit = "Unlocks Admin Powers: all three degrees, playable in every mode.",
 	},
+	-- Cosmetic only (The Grandmaster's look). The owner sets the price on the
+	-- Creator Dashboard; the client reads the live price from Roblox, so robux stays nil.
+	CelestialDragonStyle = {
+		id = 0,
+		robux = nil,
+		cosmeticFor = "Grandmaster",
+		name = "Celestial Dragon Style",
+		benefit = "Cosmetic only: a celestial stance and victory pose, star-silver impacts, extra aura colours and a dragon-themed ultimate for The Grandmaster. No gameplay changes.",
+	},
 }
 
 -- Order passes appear in the shop

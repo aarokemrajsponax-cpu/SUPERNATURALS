@@ -180,6 +180,11 @@ Protocol.Attribute = {
 	StatusPrefix = "SNS_",
 	-- A power's visual stage (Corruption's overwrite, Machine Master's heat...), 0 to 1
 	Phase = "SNPhase",
+	-- The Grandmaster's extra meters (0 to 100): Focus (Degree III+) and Perfect Form (Degree IV)
+	Focus = "SNFocus",
+	PerfectForm = "SNPerfect",
+	-- The cosmetic pass a fighter shows (its key in Monetization.Passes), nil for the standard look
+	Style = "SNStyle",
 	MaxHealth = "SNMaxHealth",
 	-- On Player objects: which base plot is theirs, and what they're watching
 	Plot = "SNPlot",

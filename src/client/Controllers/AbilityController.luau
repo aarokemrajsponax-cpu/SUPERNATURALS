@@ -29,6 +29,8 @@ AbilityController.Bindings = {
 	{ slot = 3, name = "SNAbility3", inputs = { Enum.KeyCode.Three, Enum.KeyCode.ButtonL2 }, keyText = "3", padText = "L2" },
 	{ slot = 4, name = "SNAbility4", inputs = { Enum.KeyCode.Four, Enum.KeyCode.DPadUp }, keyText = "4", padText = "↑" },
 	{ slot = 5, name = "SNAbility5", inputs = { Enum.KeyCode.Five, Enum.KeyCode.DPadLeft }, keyText = "5", padText = "←" },
+	-- Only powers with a sixth slot (the Grandmaster at Degree IV) use this one
+	{ slot = 6, name = "SNAbility6", inputs = { Enum.KeyCode.Six, Enum.KeyCode.DPadRight }, keyText = "6", padText = "→" },
 	{ slot = "Ultimate", name = "SNUltimate", inputs = { Enum.KeyCode.R, Enum.KeyCode.DPadDown }, keyText = "R", padText = "↓" },
 }
 

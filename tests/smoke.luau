@@ -16,7 +16,7 @@ local world = Engine.load(placePath)
 local game = world.game
 local task = Engine.task
 local roblox = require("@lune/roblox") :: any
-local Vector3, CFrame, Color3 = roblox.Vector3, roblox.CFrame, roblox.Color3
+local Vector3, CFrame, Color3 = roblox.Vector3, Engine.CFrame, roblox.Color3
 
 local passed, failed = 0, 0
 local function check(name: string, fn: () -> ())
@@ -81,7 +81,7 @@ check("the Nexus lobby builds: plaza, gates with prompts, statues, spawn", funct
 			statues += 1
 		end
 	end
-	assert(statues == 7, "seven statues")
+	assert(statues == 8, "eight statues, one per power")
 	local parts = count(folder, "BasePart")
 	assert(parts < 1600, `lobby part budget ({parts})`)
 	print(`     nexus: {parts} parts`)
