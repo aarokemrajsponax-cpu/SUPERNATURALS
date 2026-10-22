@@ -225,6 +225,7 @@ check("two players equip the Ghost: stats, Spirit and a sheathed katana", functi
 		assert(fighter.model:GetAttribute(Attribute.ResourceMax) == 100, "Spirit maximum")
 		assert(fighter.model:GetAttribute(Attribute.Phase) == 0, "katana sheathed")
 	end
+	local queuedAt = now()
 	request("MatchRequest", alice, "Queue", "Duel")
 	request("MatchRequest", bob, "Queue", "Duel")
 	local match
@@ -235,7 +236,9 @@ check("two players equip the Ghost: stats, Spirit and a sheathed katana", functi
 	arena = match.arena
 	task.wait(0.2)
 	assert(A().power.id == "Ghost" and B().power.id == "Ghost", "still Ghosts in the duel")
-	assert(math.abs(A().power.resource - 50) < 3, "Spirit starts at 50: " .. A().power.resource)
+	-- Reset to 50 when the duel set up, plus regen since then (never the 100 it had)
+	local spirit = A().power.resource
+	assert(spirit >= 49.5 and spirit <= 50 + GHOST.resource.regen * (now() - queuedAt) + 0.5, "Spirit starts at 50: " .. spirit)
 end)
 
 -- Degree 1: Phantom Blade ------------------------------------------------------------------------
