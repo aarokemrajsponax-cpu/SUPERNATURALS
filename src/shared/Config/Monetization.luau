@@ -70,10 +70,24 @@ Monetization.Products = {
 		name = "Vault of Gems",
 		benefit = "Adds 1,100 Gems to your balance.",
 	},
+	GemsHuge = {
+		id = 0,
+		robux = 999,
+		gems = 2600,
+		name = "Hoard of Gems",
+		benefit = "Adds 2,600 Gems to your balance.",
+	},
+	GemsMassive = {
+		id = 0,
+		robux = 2499,
+		gems = 7000,
+		name = "Treasury of Gems",
+		benefit = "Adds 7,000 Gems to your balance.",
+	},
 }
 
 -- Order products appear in the shop
-Monetization.ProductOrder = { "GemsSmall", "GemsMedium", "GemsLarge" }
+Monetization.ProductOrder = { "GemsSmall", "GemsMedium", "GemsLarge", "GemsHuge", "GemsMassive" }
 
 -- Shown when someone tries to buy an item whose id is still 0
 Monetization.NotOnSaleText = "This item isn't on sale yet"
