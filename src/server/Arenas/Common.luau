@@ -54,6 +54,9 @@ function Common.part(parent: Instance, props: { [string]: any }): BasePart
 	end
 	instance.Size = props.Size
 	instance.CFrame = props.CFrame
+	-- Same point again: a no-op in Roblox, but the test engine keeps Position
+	-- apart from CFrame, and arenas built mid-test are read straight away
+	instance.Position = props.CFrame.Position
 	instance.Parent = parent
 	return instance
 end

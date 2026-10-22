@@ -59,6 +59,10 @@ local queueFilledAt: { [string]: number? } = {}
 local matches: { [string]: Match } = {}
 local matchOfFighter: { [string]: Match } = {}
 
+-- The arena theme each queued player asked for (weak keys: a player who
+-- leaves the game drops out on their own)
+local arenaChoice: { [Player]: string } = setmetatable({}, { __mode = "k" }) :: any
+
 local startedListeners: { (Match) -> () } = {}
 local finishedListeners: { (Match, any) -> () } = {}
 
@@ -203,6 +207,7 @@ function MatchService:_onRequest(player: Player, action: string, argument: any, 
 			return
 		end
 		self:_stopSpectating(player)
+		local arenaId = self:_arenaOption(options)
 		-- Premium powers being tried out can't go into PvP queues
 		local powers = self.services.PowerService
 		if powers then
@@ -214,11 +219,12 @@ function MatchService:_onRequest(player: Player, action: string, argument: any, 
 		end
 		if MatchConfig.Modes[argument].Solo then
 			self:_leaveQueues(player)
-			if not self:_startMatch(argument, { player }, self:_cpuOptions(options)) then
+			if not self:_startMatch(argument, { player }, self:_cpuOptions(options), arenaId) then
 				self:_notice(player, "All arenas are busy. Try again in a moment.")
 			end
 		else
 			self:_joinQueue(player, argument)
+			arenaChoice[player] = arenaId
 		end
 	elseif action == Action.LeaveQueue then
 		self:_leaveQueues(player)
@@ -394,6 +400,7 @@ function MatchService:_leaveQueues(player: Player)
 		local index = table.find(queue, player)
 		if index then
 			table.remove(queue, index)
+			arenaChoice[player] = nil
 			MatchEvent:FireClient(player, Event.Queue, nil)
 			if #queue < MatchConfig.Modes[modeName].MinPlayers then
 				queueFilledAt[modeName] = nil
@@ -433,13 +440,45 @@ function MatchService:_checkQueue(modeName: string)
 	for index = 1, math.min(#queue, mode.MaxPlayers) do
 		table.insert(players, queue[index])
 	end
-	if self:_startMatch(modeName, players) then
+	if self:_startMatch(modeName, players, nil, self:_queuedArena(players)) then
 		queueFilledAt[modeName] = nil
 		self:_sendQueueStatus(modeName)
 	end
 end
 
 -- Match lifecycle ------------------------------------------------------------------
+
+-- The arena theme a Queue request asked for: a known theme id, or "Random"
+function MatchService:_arenaOption(options: any): string
+	if typeof(options) == "table" and typeof(options.arena) == "string" and MatchConfig.Arenas[options.arena] then
+		return options.arena
+	end
+	return "Random"
+end
+
+-- The arena for a queued group: everyone's choice if they all agree,
+-- otherwise one of the themes someone picked, at random ("Random" adds none)
+function MatchService:_queuedArena(players: { Player }): string
+	local picks = {}
+	for _, player in players do
+		table.insert(picks, arenaChoice[player] or "Random")
+	end
+	local first = picks[1] or "Random"
+	local agree = true
+	for _, pick in picks do
+		agree = agree and pick == first
+	end
+	if agree then
+		return first
+	end
+	local themes = {}
+	for _, pick in picks do
+		if pick ~= "Random" then
+			table.insert(themes, pick)
+		end
+	end
+	return if #themes > 0 then themes[math.random(1, #themes)] else "Random"
+end
 
 -- What a solo player asked for in CPU Practice: which power the CPU plays, at
 -- what degree and difficulty (anything unknown falls back to a sensible choice)
@@ -471,9 +510,9 @@ function MatchService:_cpuOptions(options: any)
 	return cpu
 end
 
-function MatchService:_startMatch(modeName: string, players: { Player }, cpu: { power: string, degree: number, difficulty: string }?): boolean
+function MatchService:_startMatch(modeName: string, players: { Player }, cpu: { power: string, degree: number, difficulty: string }?, arenaId: string?): boolean
 	local mode = MatchConfig.Modes[modeName]
-	local arena = self.arenas:reserve()
+	local arena = self.arenas:reserve(arenaId)
 	if not arena then
 		return false
 	end
@@ -504,6 +543,7 @@ function MatchService:_startMatch(modeName: string, players: { Player }, cpu: { 
 		if index then
 			table.remove(queue, index)
 		end
+		arenaChoice[player] = nil
 		MatchEvent:FireClient(player, Event.Queue, nil)
 		player:SetAttribute(Protocol.Attribute.MatchId, match.id)
 		add({ id = playerId(player), name = player.DisplayName, player = player, returned = false })
@@ -769,7 +809,8 @@ function MatchService:_cleanup(match: Match)
 					return
 				end
 			end
-			self:_startMatch(match.modeName, again :: { Player }, match.cpu)
+			-- A rematch is fought in the same arena theme
+			self:_startMatch(match.modeName, again :: { Player }, match.cpu, match.arena.id)
 		end)
 	end
 end

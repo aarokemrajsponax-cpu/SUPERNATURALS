@@ -304,7 +304,7 @@ check("after the match nobody is stuck: lobby, unfrozen, full health, arena free
 		assert(not fighter.root.Anchored, player.Name .. " not anchored")
 	end
 	local arena = services.ArenaService:reserve()
-	assert(arena and arena.id == 1, "the first arena is free again")
+	assert(arena and arena.slot == 1, "the first arena is free again")
 	services.ArenaService:release(arena)
 end)
 

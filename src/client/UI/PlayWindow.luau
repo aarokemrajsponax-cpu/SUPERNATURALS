@@ -24,6 +24,8 @@ local make = Components.make
 local PlayWindow = {}
 
 local TRAINING = "Training"
+-- The arena picker's "let the game choose" option (the server reads it as random)
+local RANDOM_ARENA = "Random"
 -- Ignore repeat presses for this long (the server rate-limits requests too)
 local PRESS_COOLDOWN = 0.6
 
@@ -198,6 +200,8 @@ function PlayWindow.register(): Controller
 		order = 1,
 		build = function(body: Frame, api)
 			local selected = MatchConfig.ModeOrder[1]
+			-- The arena the next queue asks for (Random until the player picks one)
+			local arenaChoice = RANDOM_ARENA
 
 			-- Left: the choices
 			local left = make("Frame", {
@@ -286,8 +290,7 @@ function PlayWindow.register(): Controller
 			end
 			local note = Components.text({ Name = "Note", Style = "Caption", Color = Colors.TextMuted, Wrap = true, LayoutOrder = 4, Parent = info })
 
-			-- Reserved for the arena picker and CPU options (filled in later);
-			-- empty, it takes no space
+			-- Match options: the arena picker (hidden for the training ground)
 			local options = make("Frame", {
 				Name = "MatchOptions",
 				LayoutOrder = 5,
@@ -297,6 +300,79 @@ function PlayWindow.register(): Controller
 				Parent = info,
 			})
 			Components.list(options, Space.S)
+			Components.text({ Name = "ArenaHeader", Text = "ARENA", Style = "Micro", Color = Colors.TextMuted, LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 18), Parent = options })
+			local picker = make("Frame", {
+				Name = "ArenaPicker",
+				LayoutOrder = 2,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				BackgroundTransparency = 1,
+				Parent = options,
+			})
+			Components.grid(picker, UDim2.new(0.5, -Space.S / 2, 0, 44), Space.S)
+			local arenaNote = Components.text({ Name = "ArenaDescription", Style = "Caption", Wrap = true, LayoutOrder = 3, Parent = options })
+			local chips: { [string]: { render: () -> () } } = {}
+			local arenaIds = { RANDOM_ARENA }
+			for _, id in MatchConfig.ArenaOrder do
+				table.insert(arenaIds, id)
+			end
+			local function selectArena(id: string)
+				arenaChoice = id
+				for _, chip in chips do
+					chip.render()
+				end
+				local arena = MatchConfig.Arenas[id]
+				arenaNote.Text = if arena then arena.description else "Any of the five arenas, picked when the match starts."
+			end
+			for order, id in arenaIds do
+				local arena = MatchConfig.Arenas[id]
+				local color = if arena then arena.color else Colors.TextDim
+				local chip = make("TextButton", {
+					Name = "Arena_" .. id,
+					LayoutOrder = order,
+					Size = UDim2.new(1, 0, 0, 44),
+					Text = "",
+					AutoButtonColor = false,
+					BackgroundColor3 = Colors.PanelLight,
+					BackgroundTransparency = 0.35,
+					BorderSizePixel = 0,
+					Parent = picker,
+				}, {
+					Components.corner(Theme.SmallCorner),
+					Components.padding(0, Space.M, 0, Space.M),
+				})
+				local stroke = Components.stroke(Colors.Stroke, 1, 0.85)
+				stroke.Parent = chip
+				make("Frame", {
+					Name = "Swatch",
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.fromScale(0, 0.5),
+					Size = UDim2.fromOffset(4, 20),
+					BackgroundColor3 = color,
+					BorderSizePixel = 0,
+					Parent = chip,
+				}, { Components.corner(UDim.new(1, 0)) })
+				Components.text({
+					Name = "Name",
+					Text = if arena then arena.name else "Random",
+					Style = "Label",
+					TextSize = Theme.TextSize.Body,
+					Position = UDim2.fromOffset(Space.M, 0),
+					Size = UDim2.new(1, -Space.M, 1, 0),
+					Parent = chip,
+				})
+				local _, refresh = Components.interactive(chip, function(state)
+					local chosen = arenaChoice == id
+					chip.BackgroundColor3 = if chosen or state.hovered then Colors.PanelHover else Colors.PanelLight
+					stroke.Color = if chosen then color else Colors.Stroke
+					stroke.Transparency = if chosen then 0.1 else 0.85
+				end)
+				chips[id] = { render = refresh }
+				chip.Activated:Connect(function()
+					selectArena(id)
+				end)
+			end
+			selectArena(arenaChoice)
 
 			local actionButton: TextButton
 			local cancelButton: TextButton
@@ -336,6 +412,7 @@ function PlayWindow.register(): Controller
 					ruleTiles[index].value.Text = rule.value
 				end
 				note.Text = "ⓘ  " .. startNote(id)
+				options.Visible = id ~= TRAINING
 				renderAction()
 			end
 
@@ -379,7 +456,7 @@ function PlayWindow.register(): Controller
 					MatchRequest:FireServer(Action.Travel, "Training")
 					api.toast("Heading to the training ground.", "info")
 				else
-					MatchRequest:FireServer(Action.Queue, selected)
+					MatchRequest:FireServer(Action.Queue, selected, { arena = arenaChoice })
 				end
 				api.close()
 			end)
