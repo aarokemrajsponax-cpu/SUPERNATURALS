@@ -19,6 +19,21 @@ export type Outcome = {
 	comboCapped: boolean,
 	-- Absorbed by super armor: damage still lands, but no flinch
 	armored: boolean,
+	-- Fighting System v2: counter, punish, riposte, wallSplat, knockdown, launch,
+	-- airborne, otg (true when they apply; absent otherwise)
+	tags: { [string]: boolean },
+	-- Hit a juggled fighter past the juggle limit: no stun, no launch
+	juggleCapped: boolean,
+}
+
+-- What the server knows about the hit that the attack fields don't say
+export type Context = {
+	-- A close-range strike (counter hits and punishes apply)
+	melee: boolean?,
+	-- A basic attack (combo scaling applies)
+	basic: boolean?,
+	-- A light attack made inside the riposte window
+	riposte: boolean?,
 }
 
 export type Side = {
@@ -39,14 +54,36 @@ local function outcome(result: string): Outcome
 		attackerStun = 0,
 		comboCapped = false,
 		armored = false,
+		tags = {},
+		juggleCapped = false,
 	}
 end
 
-function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now: number): Outcome
+-- Damage multiplier for the `combo`-th hit of a combo
+function HitResolver.comboScale(config, combo: number): number
+	local scaling = config.ComboScaling
+	if not scaling or combo <= scaling.From then
+		return 1
+	end
+	return math.max(scaling.Min, 1 - scaling.PerHit * (combo - scaling.From))
+end
+
+-- Do two melee attacks meet? `other` is the defender's own attack: it clashes
+-- when it is about to connect or connecting right now (the server checks it
+-- is aimed at the attacker).
+function HitResolver.clashes(other, config, now: number): boolean
+	if other == nil or (other.kind ~= "Light" and other.kind ~= "Heavy") or other.def.Low then
+		return false
+	end
+	return now >= other.activeAt - config.Clash.Window and now <= other.activeEnd
+end
+
+function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now: number, context: Context?): Outcome
 	local state = defender.state
 	if FighterState.isInvulnerable(state, now) then
 		return outcome("Invulnerable")
 	end
+	local info: Context = context or {}
 
 	local block = config.Block
 	local guarding = attack.Blockable ~= false
@@ -60,7 +97,11 @@ function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now
 			return parried
 		end
 		local guardDamage = attack.GuardDamage or 0
-		local broken = FighterState.guardAt(state, config, now) - guardDamage <= 0
+		-- A winded fighter's guard gives way faster
+		if config.Stamina and FighterState.isWinded(state, config, now) then
+			guardDamage *= config.Stamina.WindedGuardMultiplier
+		end
+		local broken = attack.GuardBreak == true or FighterState.guardAt(state, config, now) - guardDamage <= 0
 		local result = outcome(if broken then "GuardBreak" else "Blocked")
 		result.damage = attack.Damage * block.DamageMultiplier
 		result.knockback = (attack.Knockback or 0) * block.PushbackMultiplier
@@ -70,10 +111,38 @@ function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now
 	end
 
 	local hit = outcome("Hit")
+	local tags = hit.tags
 	hit.damage = attack.Damage
 	hit.hitstun = attack.Hitstun or 0
 	hit.knockback = attack.Knockback or 0
 	hit.launch = attack.Launch or 0
+	if info.basic then
+		hit.damage *= HitResolver.comboScale(config, FighterState.projectedCombo(state, config, now))
+	end
+	-- Reading the opponent: hitting a wind-up is a counter, hitting a whiff's recovery a punish
+	if info.melee and config.Counter then
+		if FighterState.inWindup(state, now) then
+			tags.counter = true
+			hit.damage *= config.Counter.DamageMultiplier
+			hit.hitstun += config.Counter.ExtraHitstun
+		elseif FighterState.inWhiffRecovery(state, now) then
+			tags.punish = true
+			hit.damage *= config.Punish.DamageMultiplier
+		end
+	end
+	if info.riposte and config.Riposte then
+		tags.riposte = true
+		hit.damage *= config.Riposte.DamageMultiplier
+	end
+	-- On the floor: one weaker hit, no stun or push (no ground loops)
+	if config.Knockdown and FighterState.isDowned(state, now) then
+		tags.otg = true
+		hit.damage *= config.Knockdown.OTGDamageMultiplier
+		hit.hitstun = 0
+		hit.knockback = 0
+		hit.launch = 0
+		return hit
+	end
 	-- Super armor (a committed charge, an ultimate's wind-up) takes the hit without flinching
 	if FighterState.hasArmor(state, now) then
 		hit.armored = true
@@ -89,6 +158,21 @@ function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now
 		hit.knockback = math.max(hit.knockback, 45)
 		hit.launch = math.max(hit.launch, 12)
 	end
+	-- Juggles: a launched fighter can only be kept up so many times
+	if config.Air and FighterState.isAirborne(state, now) then
+		tags.airborne = true
+		if state.juggleCount >= config.Air.JuggleLimit then
+			hit.juggleCapped = true
+			hit.hitstun = 0
+			hit.launch = 0
+		end
+	end
+	if attack.Knockdown and not hit.comboCapped and not hit.juggleCapped then
+		tags.knockdown = true
+	end
+	if hit.launch > 0 then
+		tags.launch = true
+	end
 	return hit
 end
 
@@ -98,6 +182,10 @@ function HitResolver.apply(result: Outcome, config, attacker: Side, defender: Si
 		return
 	elseif kind == "Parried" then
 		FighterState.applyStun(attacker.state, result.attackerStun, now)
+		-- The defender's next light attack is a riposte
+		if config.Riposte then
+			defender.state.riposteUntil = now + config.Riposte.Window
+		end
 		return
 	end
 
@@ -110,12 +198,29 @@ function HitResolver.apply(result: Outcome, config, attacker: Side, defender: Si
 		return
 	end
 
-	FighterState.registerHit(defender.state, config, attacker.id, now)
+	local state = defender.state
+	local wasAirborne = FighterState.isAirborne(state, now)
+	FighterState.registerHit(state, config, attacker.id, now)
 	if result.armored then
-		FighterState.useArmor(defender.state)
+		FighterState.useArmor(state)
 		return
 	end
-	FighterState.applyStun(defender.state, result.hitstun, now)
+	local tags = result.tags or {}
+	if tags.otg then
+		FighterState.hitWhileDowned(state, config, now)
+		return
+	end
+	FighterState.applyStun(state, result.hitstun, now)
+	if tags.knockdown and config.Knockdown then
+		FighterState.knockDown(state, config, now)
+	elseif config.Air then
+		if wasAirborne then
+			state.juggleCount += 1
+		end
+		if result.launch > 0 then
+			FighterState.launch(state, config, now)
+		end
+	end
 end
 
 -- Damage actually dealt to a fighter with `health` left. Blocked damage can't knock out.

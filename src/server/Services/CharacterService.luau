@@ -190,6 +190,7 @@ function CharacterService:register(model: Model, info: { id: string, displayName
 	model:SetAttribute(Attribute.FighterId, fighter.id)
 	model:SetAttribute(Attribute.DisplayName, fighter.displayName)
 	model:SetAttribute(Attribute.MaxGuard, Combat.Block.MaxGuard)
+	model:SetAttribute(Attribute.StaminaMax, Combat.Stamina.Max)
 	CollectionService:AddTag(model, Protocol.Tag.Fighter)
 
 	table.insert(fighter.connections, humanoid.Died:Connect(function()
@@ -272,6 +273,11 @@ function CharacterService:refresh(fighter: Fighter)
 	model:SetAttribute(Attribute.DodgeReadyAt, stamp(state.dodgeReadyAt))
 	model:SetAttribute(Attribute.BusyUntil, stamp(FighterState.busyUntil(state)))
 	model:SetAttribute(Attribute.ProtectedUntil, stamp(state.protectedUntil))
+	model:SetAttribute(Attribute.DownedUntil, if FighterState.isDowned(state, time) then stamp(state.downedUntil) else 0)
+	model:SetAttribute(Attribute.Carrying, state.carrying)
+	model:SetAttribute(Attribute.ChargeStart, if FighterState.isCharging(state, time) then state.chargeStart else nil)
+	model:SetAttribute(Attribute.Airborne, FighterState.isAirborne(state, time))
+	self:publishStamina(fighter)
 
 	-- Come back when a timed state (stun, attack, dodge) runs out. Only the
 	-- newest scheduled refresh does anything.
@@ -284,6 +290,28 @@ function CharacterService:refresh(fighter: Fighter)
 				self:refresh(fighter)
 			end
 		end)
+	end
+end
+
+-- Publishes stamina, sprinting and winded to clients (whole numbers, and only
+-- when they change, so a draining sprint doesn't flood the network)
+function CharacterService:publishStamina(fighter: Fighter)
+	if byId[fighter.id] ~= fighter then
+		return
+	end
+	local state = fighter.state
+	local time = now()
+	local model = fighter.model
+	local stamina = math.floor(FighterState.staminaAt(state, fighter.combat, time) + 0.5)
+	if model:GetAttribute(Attribute.Stamina) ~= stamina then
+		model:SetAttribute(Attribute.Stamina, stamina)
+	end
+	local sprinting = FighterState.isSprinting(state, time)
+	if model:GetAttribute(Attribute.Sprinting) ~= sprinting then
+		model:SetAttribute(Attribute.Sprinting, sprinting)
+	end
+	if model:GetAttribute(Attribute.Winded) ~= state.winded then
+		model:SetAttribute(Attribute.Winded, state.winded)
 	end
 end
 
@@ -392,6 +420,7 @@ function CharacterService:setCombatProfile(fighter: Fighter, profile)
 		fighter.model:SetAttribute(Attribute.MaxHealth, maxHealth)
 	end
 	fighter.model:SetAttribute(Attribute.MaxGuard, profile.Block.MaxGuard)
+	fighter.model:SetAttribute(Attribute.StaminaMax, profile.Stamina.Max)
 	self:refresh(fighter)
 end
 

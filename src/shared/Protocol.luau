@@ -11,14 +11,35 @@ Protocol.CombatAction = {
 	BlockStart = "BlockStart", -- payload "Held" when re-raised automatically (no parry)
 	BlockEnd = "BlockEnd",
 	Dodge = "Dodge",
+	-- Fighting System v2. Light/Heavy/Dodge/Grab/Sweep may carry { dir = Vector3 }
+	-- (flat movement intent in world space, magnitude <= 1). Heavy with
+	-- { dir, charge = true } starts a charge that HeavyRelease swings. The server
+	-- picks the move from the fighter's state (air, sprint, back input, downed,
+	-- launched, carrying, grabbed).
+	HeavyRelease = "HeavyRelease",
+	Feint = "Feint",
+	Grab = "Grab",
+	Sweep = "Sweep",
+	SprintStart = "SprintStart",
+	SprintEnd = "SprintEnd",
+	Taunt = "Taunt",
 }
 
 -- Server -> clients, through Remotes.CombatEvent
 Protocol.CombatEvent = {
-	Attack = "Attack", -- { attacker: Model, kind: string, step: number, startup: number, active: number }
-	Hit = "Hit", -- { attacker: Model, victim: Model, result: string, damage: number, position: Vector3, heavy: boolean, finisher: boolean }
-	Dodge = "Dodge", -- { fighter: Model, direction: Vector3 }
+	-- move: Jab, Cross, Hook, FinisherKick, Heavy, ChargedHeavy, Launcher, RushStrike,
+	-- ShoulderCharge, AirKick, Slam, Sweep, Grab, PropThrow; charge 0..1 (charged heavies)
+	Attack = "Attack", -- { attacker: Model, kind: string, step: number, startup: number, active: number, recovery: number, move: string, charge: number? }
+	-- tags: { counter, punish, riposte, wallSplat, knockdown, launch, airborne, otg } (absent = false)
+	Hit = "Hit", -- { attacker: Model, victim: Model, result: string, damage: number, position: Vector3, heavy: boolean, finisher: boolean, move: string?, tags: {}, direction: Vector3 }
+	-- style: "Side" | "Back" | "Forward"; speed and duration are what the dodge moves at
+	Dodge = "Dodge", -- { fighter: Model, direction: Vector3, style: string, speed: number, duration: number, invulnerable: number }
 	Rejected = "Rejected", -- { action: string, reason: string } (only to the requesting player)
+	Clash = "Clash", -- { a: Model, b: Model, position: Vector3 }
+	Grab = "Grab", -- { attacker: Model, victim: Model?, phase: "Hold" | "Throw" | "Tech" | "Whiff", direction: Vector3? }
+	-- motion: Charge, Feint, Knockdown, GetUp, TechRoll, Breakfall, Taunt, TauntDone, Winded,
+	-- Recovered, PickUp, Drop, PerfectDodge, DodgeCancel, SprintStart, SprintEnd
+	Motion = "Motion", -- { fighter: Model, motion: string, direction: Vector3?, duration: number? }
 }
 
 -- Client -> server, through Remotes.MatchRequest
@@ -161,6 +182,19 @@ Protocol.Attribute = {
 	-- End of the current swing or dodge (no new attack or dodge before then)
 	BusyUntil = "BusyUntil",
 	ProtectedUntil = "ProtectedUntil",
+	-- Fighting System v2 (server sets, clients read)
+	Stamina = "SNStamina",
+	StaminaMax = "SNStaminaMax",
+	Sprinting = "SNSprinting",
+	Winded = "SNWinded",
+	-- Server time the fighter gets up (0 when standing)
+	DownedUntil = "SNDownedUntil",
+	-- Name of the prop being carried (nil when empty-handed)
+	Carrying = "SNCarrying",
+	-- Server time the current heavy charge began (nil when not charging)
+	ChargeStart = "SNChargeStart",
+	-- Launched or being juggled
+	Airborne = "SNAirborne",
 	MatchId = "MatchId",
 	-- Powers (on fighter models)
 	Power = "SNPower",

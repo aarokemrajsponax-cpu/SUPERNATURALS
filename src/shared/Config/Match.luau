@@ -61,6 +61,46 @@ Match.Arena = {
 	WallHeight = 60,
 	-- Falling this far below the floor is a knockout
 	FallDepth = 25,
+	-- Spawns stand this far in from each corner of the floor
+	SpawnInset = 16,
+	-- Scenery (terrain and props) stays inside this box around each arena's
+	-- centre, so neighbouring slots never overlap and the lobby (x < 330) stays
+	-- clear. Nothing else is built beyond the arenas on +X, so it can go far there.
+	SceneryMin = Vector3.new(-64, -100, -108),
+	SceneryMax = Vector3.new(200, 120, 108),
+	-- Most parts one arena may use (the smoke test checks it)
+	PartBudget = 450,
+}
+
+-- The arena themes players can pick, in menu order. "Random" picks one of these.
+Match.ArenaOrder = { "ProvingGrounds", "RuinedFortress", "DigitalGrid", "CorruptedWastes", "SoulFoundry" }
+
+Match.Arenas = {
+	ProvingGrounds = {
+		name = "Proving Grounds",
+		description = "An old rune ring on a hilltop where new powers get tested.",
+		color = Color3.fromRGB(96, 188, 204),
+	},
+	RuinedFortress = {
+		name = "Ruined Fortress",
+		description = "A castle courtyard with broken walls, rubble and braziers.",
+		color = Color3.fromRGB(214, 142, 76),
+	},
+	DigitalGrid = {
+		name = "Digital Grid",
+		description = "Syntax's dimension. Glass floor, data cubes, hologram pillars.",
+		color = Color3.fromRGB(64, 214, 222),
+	},
+	CorruptedWastes = {
+		name = "Corrupted Wastes",
+		description = "Black cracked earth, void crystals and shards hanging in the air.",
+		color = Color3.fromRGB(152, 102, 222),
+	},
+	SoulFoundry = {
+		name = "Soul Foundry",
+		description = "Steel plates and catwalks around vents of blue soul fire.",
+		color = Color3.fromRGB(92, 152, 255),
+	},
 }
 
 -- The practice dummies area near spawn
