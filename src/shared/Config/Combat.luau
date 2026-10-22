@@ -187,6 +187,8 @@ Combat.Air = {
 	BreakfallAfter = 0.35,
 	-- A launched fighter counts as airborne for at most this long
 	MaxAirborne = 1.8,
+	-- Touching the floor this long after a launch ends the juggle
+	LandAfter = 0.3,
 }
 
 -- Sweep: a low spin kick. Fast and short, knocks a standing opponent down;
@@ -209,6 +211,10 @@ Combat.Grab = {
 	BackDamage = 14,
 	Knockback = 55,
 	Launch = 14,
+	-- Stun on the throw itself (the knockdown follows)
+	Hitstun = 0.4,
+	-- How hard a teched grab pushes both fighters apart
+	TechPushback = 30,
 	Cooldown = 1.2,
 }
 
@@ -237,7 +243,21 @@ Combat.WallSplat = { MinKnockback = 40, CheckDistance = 6, Damage = 5, Stun = 0.
 -- Taunting unhit for the whole Duration grants ultimate charge; being hit is a counter hit
 Combat.Taunt = { Duration = 1.4, UltimateCharge = 8, Cooldown = 6 }
 -- Carrying a light prop (Weight 1): slower walk, no blocking. Light throws it.
-Combat.Carry = { WalkSpeed = 11, ThrowSpeed = 85, Damage = 10, Knockback = 35, Reach = 6, MaxDuration = 10 }
+-- MaxDuration: put down by itself after this long. ReturnDelay: a thrown prop goes
+-- home after this long. Throw: the throwing motion (the prop flies as a projectile).
+Combat.Carry = {
+	WalkSpeed = 11,
+	ThrowSpeed = 85,
+	ThrowGravity = 30,
+	-- Degrees above flat the prop leaves at
+	ThrowPitch = 6,
+	Damage = 10,
+	Knockback = 35,
+	Reach = 6,
+	MaxDuration = 10,
+	ReturnDelay = 8,
+	Throw = { Move = "PropThrow", Startup = 0.08, Active = 0, Recovery = 0.3 },
+}
 -- Basic attacks after the From-th hit of a combo deal PerHit less each (never below Min)
 Combat.ComboScaling = { From = 3, PerHit = 0.08, Min = 0.5 }
 

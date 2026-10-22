@@ -30,6 +30,9 @@ local SIGHT_RANGE = 30
 local RETRY_DELAY = 2
 -- Training dummies knocked further than this from their spot walk back to it
 local HOME_RANGE = 4
+-- Guard and sparring dummies break throws and tech roll this often, so players
+-- can practise both sides of the grab and knockdown games
+local SPAR_RECOVERY = 0.5
 
 export type Dummy = {
 	id: string,
@@ -211,6 +214,7 @@ function DummyService:_behave(dummy: Dummy, fighter)
 	local behavior = dummy.kind.behavior
 	local nextDecision = 0
 	local awaySince: number? = nil
+	local techFor, rollFor = -1, -1
 	while dummy.active and dummy.fighter == fighter and self.characters:isAlive(fighter) do
 		task.wait(0.2)
 		if not self.characters:isAlive(fighter) then
@@ -236,6 +240,19 @@ function DummyService:_behave(dummy: Dummy, fighter)
 		end
 		if behavior == "Idle" then
 			continue
+		end
+
+		-- Break a throw, or roll out of a knockdown (through the same rules as players)
+		if FighterState.canTech(state, fighter.combat, time) and techFor ~= state.grabbedAt then
+			techFor = state.grabbedAt
+			if math.random() < SPAR_RECOVERY then
+				self.combat:perform(fighter, Protocol.CombatAction.Grab)
+			end
+		elseif FighterState.isDowned(state, time) and rollFor ~= state.downedAt then
+			rollFor = state.downedAt
+			if math.random() < SPAR_RECOVERY then
+				self.combat:perform(fighter, Protocol.CombatAction.Dodge)
+			end
 		end
 
 		local target = nearestPlayer(self.characters, fighter)

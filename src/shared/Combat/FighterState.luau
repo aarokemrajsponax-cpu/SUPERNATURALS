@@ -90,11 +90,17 @@ export type State = {
 	grabbedAt: number,
 	grabUntil: number,
 	holdingId: string?,
+	-- A hold ends by itself here even if the throw never comes
+	holdUntil: number,
 	-- Name of the prop being carried
 	carrying: string?,
 }
 
 local NEVER = -math.huge
+
+-- Names for light steps that don't name themselves (a power's own chain);
+-- a chain's finisher is always the kick
+local LIGHT_MOVES = { "Jab", "Cross", "Hook", "FinisherKick" }
 
 function FighterState.new(id: string, config, now: number): State
 	local state = {} :: State
@@ -155,6 +161,7 @@ function FighterState.reset(state: State, config, now: number, protection: numbe
 	state.grabbedAt = NEVER
 	state.grabUntil = NEVER
 	state.holdingId = nil
+	state.holdUntil = NEVER
 	state.carrying = nil
 end
 
@@ -199,8 +206,9 @@ function FighterState.isGrabbed(state: State, now: number): boolean
 	return state.grabbedById ~= nil and now < state.grabUntil
 end
 
-function FighterState.isHolding(state: State): boolean
-	return state.holdingId ~= nil
+-- Holding someone in a basic grab (`now` omitted: whether anyone is held at all)
+function FighterState.isHolding(state: State, now: number?): boolean
+	return state.holdingId ~= nil and (now == nil or now < state.holdUntil)
 end
 
 function FighterState.isCharging(state: State, now: number): boolean
@@ -263,7 +271,7 @@ function FighterState.movement(state: State, config, now: number): (number, numb
 		or FighterState.isStunned(state, now)
 		or FighterState.isDowned(state, now)
 		or FighterState.isGrabbed(state, now)
-		or state.holdingId ~= nil
+		or FighterState.isHolding(state, now)
 	then
 		return 0, 0, false
 	elseif state.frozen then
@@ -301,6 +309,7 @@ function FighterState.nextMovementChange(state: State, now: number): number?
 	consider(state.grabUntil)
 	consider(state.airborneUntil)
 	consider(state.recoverUntil)
+	consider(state.holdUntil)
 	local attack = state.attack
 	if attack then
 		consider(attack.recoveryEnd)
@@ -314,7 +323,8 @@ function FighterState.busyUntil(state: State): number
 	local attack = state.attack
 	local attackEnd = if attack then attack.recoveryEnd else -math.huge
 	local grabEnd = if state.grabbedById then state.grabUntil else -math.huge
-	return math.max(attackEnd, state.dodgeUntil, state.downedUntil, state.recoverUntil, grabEnd)
+	local holdEnd = if state.holdingId then state.holdUntil else -math.huge
+	return math.max(attackEnd, state.dodgeUntil, state.downedUntil, state.recoverUntil, grabEnd, holdEnd)
 end
 
 -- Credit for a knockout goes to whoever touched this fighter last, if recent enough
@@ -336,7 +346,7 @@ local function unavailable(state: State, now: number): string?
 		return "downed"
 	elseif FighterState.isGrabbed(state, now) then
 		return "grabbed"
-	elseif state.holdingId ~= nil or FighterState.isDodging(state, now) or now < state.recoverUntil then
+	elseif FighterState.isHolding(state, now) or FighterState.isDodging(state, now) or now < state.recoverUntil then
 		return "busy"
 	end
 	return nil
@@ -392,6 +402,9 @@ function FighterState.startLight(state: State, config, now: number): (Attack?, s
 		step = state.lightStep + 1
 	end
 	local attack = begin(state, "Light", step, steps[step], now)
+	if steps[step].Move == nil then
+		attack.move = if steps[step].Finisher then "FinisherKick" else LIGHT_MOVES[math.min(step, #LIGHT_MOVES - 1)]
+	end
 	if now <= state.riposteUntil then
 		attack.riposte = true
 		state.riposteUntil = NEVER
@@ -715,7 +728,7 @@ function FighterState.isSprinting(state: State, now: number): boolean
 		and not state.knockedOut
 		and not state.frozen
 		and state.carrying == nil
-		and state.holdingId == nil
+		and not FighterState.isHolding(state, now)
 		and state.blockingSince == nil
 		and not FighterState.isAttacking(state, now)
 		and not FighterState.isStunned(state, now)
@@ -803,8 +816,10 @@ function FighterState.nextStaminaChange(state: State, config, now: number): numb
 	if FighterState.isSprinting(state, now) then
 		return now + value / stamina.Costs.SprintPerSecond
 	elseif state.winded then
-		local regenFrom = math.max(now, state.staminaSpentAt + stamina.RegenDelay)
-		return regenFrom + math.max(0, stamina.WindedRecover - value) / stamina.Regen
+		-- From the stored value: it refills from the later of when it was stored
+		-- and the end of the regen delay (nothing drains it while winded)
+		local regenFrom = math.max(state.staminaSettledAt, state.staminaSpentAt + stamina.RegenDelay)
+		return regenFrom + math.max(0, stamina.WindedRecover - state.stamina) / stamina.Regen
 	end
 	return nil
 end
@@ -936,7 +951,9 @@ end
 -- Lets go of a charge: a short hold is a normal heavy, a longer one hits harder,
 -- a full one breaks guard and knocks down
 function FighterState.releaseCharge(state: State, config, now: number): (Attack?, string?)
-	if not FighterState.isCharging(state, now + 0.05) or state.chargeStart == nil then
+	-- A release arriving a moment after the charge filled still counts (network delay)
+	local current = state.attack
+	if current == nil or current.kind ~= "Charge" or state.chargeStart == nil or now > current.recoveryEnd + config.Block.LatencyAllowance then
 		return nil, "not charging"
 	end
 	local charge = config.Heavy.Charge
@@ -1042,8 +1059,10 @@ function FighterState.startGrab(state: State, config, now: number): (Attack?, st
 end
 
 -- The grab caught `victim`: both are locked together until the throw
+-- (The lock lasts a little past Grab.Hold, so the throw always lands before the
+-- victim is free; if the throw never comes, it still ends by itself.)
 function FighterState.grabConnect(attacker: State, victim: State, config, now: number)
-	local hold = config.Grab.Hold
+	local hold = config.Grab.Hold + 0.15
 	FighterState.cancelAttack(victim)
 	victim.blockingSince = nil
 	victim.dodgeUntil = math.min(victim.dodgeUntil, now)
@@ -1052,6 +1071,7 @@ function FighterState.grabConnect(attacker: State, victim: State, config, now: n
 	victim.grabUntil = now + hold
 	victim.stunUntil = math.max(victim.stunUntil, now + hold)
 	attacker.holdingId = victim.id
+	attacker.holdUntil = now + hold
 	local attack = attacker.attack
 	if attack then
 		attack.landed = true
@@ -1076,6 +1096,7 @@ function FighterState.releaseGrab(attacker: State?, victim: State?, now: number)
 	end
 	if attacker then
 		attacker.holdingId = nil
+		attacker.holdUntil = math.min(attacker.holdUntil, now)
 		local attack = attacker.attack
 		if attack and attack.kind == "Grab" then
 			attack.recoveryEnd = math.min(attack.recoveryEnd, now)
@@ -1218,6 +1239,7 @@ function FighterState.clearTransient(state: State)
 	state.grabbedById = nil
 	state.grabUntil = NEVER
 	state.holdingId = nil
+	state.holdUntil = NEVER
 	state.downedUntil = NEVER
 	state.getUpUntil = NEVER
 	state.otgUsed = false

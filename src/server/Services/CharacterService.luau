@@ -13,6 +13,8 @@ local Protocol = require(ReplicatedStorage.Shared.Protocol)
 
 local Attribute = Protocol.Attribute
 
+local STAMINA_PUBLISH_INTERVAL = 0.2
+
 local CharacterService = {}
 
 export type Fighter = {
@@ -52,6 +54,8 @@ local knockoutListeners: { (Fighter, Fighter?) -> () } = {}
 local spawnListeners: { (Fighter) -> () } = {}
 local restoreListeners: { (Fighter) -> () } = {}
 local unregisterListeners: { (Fighter) -> () } = {}
+local staminaListeners: { (Fighter, string) -> () } = {}
+local profileListeners: { (Fighter) -> () } = {}
 local spawnResolver: ((Player) -> CFrame?)? = nil
 
 local function now(): number
@@ -88,6 +92,18 @@ function CharacterService:Start()
 		local fighter = byPlayer[player]
 		if fighter then
 			self:unregister(fighter)
+		end
+	end)
+	-- Stamina refills smoothly between state changes: publish it a few times a
+	-- second (attributes only change when the whole number does)
+	task.spawn(function()
+		while true do
+			task.wait(STAMINA_PUBLISH_INTERVAL)
+			for _, fighter in byId do
+				if not fighter.state.knockedOut then
+					self:publishStamina(fighter)
+				end
+			end
 		end
 	end)
 end
@@ -227,6 +243,16 @@ function CharacterService:unregister(fighter: Fighter)
 	end
 end
 
+-- callback(fighter, "Winded" | "Recovered") when stamina runs out or comes back
+function CharacterService:onStamina(callback: (Fighter, string) -> ())
+	table.insert(staminaListeners, callback)
+end
+
+-- callback(fighter) after a fighter switches combat numbers (power, degree, form)
+function CharacterService:onProfileChanged(callback: (Fighter) -> ())
+	table.insert(profileListeners, callback)
+end
+
 -- Runs when a fighter stops existing (character removed, player left)
 function CharacterService:onUnregistered(callback: (Fighter) -> ())
 	table.insert(unregisterListeners, callback)
@@ -254,6 +280,12 @@ function CharacterService:refresh(fighter: Fighter)
 	local time = now()
 	local humanoid = fighter.humanoid
 
+	-- Stamina is kept lazily: bring it up to date (publishStamina below says
+	-- when the fighter became winded or recovered)
+	if not state.knockedOut then
+		FighterState.settleStamina(state, fighter.combat, time)
+	end
+
 	local walkSpeed, jumpHeight, autoRotate = FighterState.movement(state, fighter.combat, time)
 	if fighter.rooted then
 		walkSpeed, jumpHeight = 0, 0
@@ -279,9 +311,13 @@ function CharacterService:refresh(fighter: Fighter)
 	model:SetAttribute(Attribute.Airborne, FighterState.isAirborne(state, time))
 	self:publishStamina(fighter)
 
-	-- Come back when a timed state (stun, attack, dodge) runs out. Only the
-	-- newest scheduled refresh does anything.
+	-- Come back when a timed state (stun, attack, dodge) runs out, or stamina
+	-- runs dry or recovers. Only the newest scheduled refresh does anything.
 	local nextChange = FighterState.nextMovementChange(state, time)
+	local staminaAt = if state.knockedOut then nil else FighterState.nextStaminaChange(state, fighter.combat, time)
+	if staminaAt and staminaAt > time and (nextChange == nil or staminaAt < nextChange) then
+		nextChange = staminaAt
+	end
 	fighter.movementToken += 1
 	if nextChange then
 		local token = fighter.movementToken
@@ -310,8 +346,15 @@ function CharacterService:publishStamina(fighter: Fighter)
 	if model:GetAttribute(Attribute.Sprinting) ~= sprinting then
 		model:SetAttribute(Attribute.Sprinting, sprinting)
 	end
-	if model:GetAttribute(Attribute.Winded) ~= state.winded then
+	local winded = model:GetAttribute(Attribute.Winded)
+	if winded ~= state.winded then
 		model:SetAttribute(Attribute.Winded, state.winded)
+		-- Out of stamina, or back (the first publish after spawning says nothing)
+		if winded ~= nil then
+			for _, listener in staminaListeners do
+				task.spawn(listener, fighter, if state.winded then "Winded" else "Recovered")
+			end
+		end
 	end
 end
 
@@ -421,6 +464,13 @@ function CharacterService:setCombatProfile(fighter: Fighter, profile)
 	end
 	fighter.model:SetAttribute(Attribute.MaxGuard, profile.Block.MaxGuard)
 	fighter.model:SetAttribute(Attribute.StaminaMax, profile.Stamina.Max)
+	-- Stamina never sits above the new maximum
+	local state = fighter.state
+	FighterState.settleStamina(state, profile, now())
+	state.stamina = math.min(state.stamina, profile.Stamina.Max)
+	for _, listener in profileListeners do
+		task.spawn(listener, fighter)
+	end
 	self:refresh(fighter)
 end
 

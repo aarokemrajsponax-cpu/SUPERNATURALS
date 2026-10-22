@@ -119,13 +119,14 @@ function HitResolver.resolve(attack, config, attacker: Side, defender: Side, now
 	if info.basic then
 		hit.damage *= HitResolver.comboScale(config, FighterState.projectedCombo(state, config, now))
 	end
-	-- Reading the opponent: hitting a wind-up is a counter, hitting a whiff's recovery a punish
-	if info.melee and config.Counter then
-		if FighterState.inWindup(state, now) then
+	-- Reading the opponent: hitting a wind-up is a counter, hitting a whiff's
+	-- recovery a punish. A taunting fighter is open to everything.
+	if config.Counter then
+		if (info.melee and FighterState.inWindup(state, now)) or FighterState.isTaunting(state, now) then
 			tags.counter = true
 			hit.damage *= config.Counter.DamageMultiplier
 			hit.hitstun += config.Counter.ExtraHitstun
-		elseif FighterState.inWhiffRecovery(state, now) then
+		elseif info.melee and FighterState.inWhiffRecovery(state, now) then
 			tags.punish = true
 			hit.damage *= config.Punish.DamageMultiplier
 		end
