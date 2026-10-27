@@ -124,12 +124,12 @@ task.spawn(function()
 end)
 
 local nextId = 100
-local function join(name: string)
+local function join(name: string, userId: number?)
 	nextId += 1
 	local player = world.Instance.new("Player")
 	player.Name = name
 	player.DisplayName = name
-	player.UserId = nextId
+	player.UserId = userId or nextId
 	player.Parent = world.game:GetService("Players")
 	table.insert(Engine.players, player)
 	Players.PlayerAdded:Fire(player)
@@ -413,9 +413,16 @@ check("dodge and block requests work and expire", function()
 end)
 
 check("owner panel: the owner can run events, actions and announcements", function()
-	local owner = join("XxxXxxX_77797")
+	-- Owner access goes by user id only: the owner's name on another account gets nothing
+	local impostor = join("XxxXxxX_77797", 4242)
 	task.wait(0.1)
-	assert(owner:GetAttribute("SNIsOwner") == true, "the owner is recognised")
+	assert(impostor:GetAttribute("SNIsOwner") ~= true, "a different account with the owner's name is not the owner")
+	ownerRequest(impostor, "StartEvent", "MeteorShower")
+	assert(world.game:GetService("ReplicatedStorage"):GetAttribute("AdminEvent") == "", "the impostor can't start events")
+	leave(impostor)
+	local owner = join("AJKR", 8722595934)
+	task.wait(0.1)
+	assert(owner:GetAttribute("SNIsOwner") == true, "the owner is recognised by user id")
 	local replicated = world.game:GetService("ReplicatedStorage")
 	for _, id in { "MeteorShower", "BlackHole", "Thunderstorm", "IceAge", "LowGravity", "GiantParty", "Galaxy" } do
 		ownerRequest(owner, "StartEvent", id)

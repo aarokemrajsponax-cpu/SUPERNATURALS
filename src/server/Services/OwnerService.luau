@@ -26,7 +26,6 @@ local Settings = AdminEvents.ActionSettings
 local OwnerService = {}
 
 local ownerIds: { [number]: boolean } = {}
-local ownerNames: { [string]: boolean } = {}
 local bannedIds: { [number]: boolean } = {}
 -- Timers and hidden-part transparency are stored as attributes on the
 -- instances themselves (Roblox can recycle the Lua object for an Instance, so a
@@ -55,9 +54,6 @@ function OwnerService:Init(services)
 	self.damage = services.DamageService
 	self.events = services.AdminEventService
 	self.antiExploit = services.AntiExploitService
-	for _, name in OwnerConfig.Usernames do
-		ownerNames[string.lower(name)] = true
-	end
 	for _, id in OwnerConfig.UserIds do
 		ownerIds[id] = true
 	end
@@ -67,14 +63,7 @@ function OwnerService:Init(services)
 end
 
 function OwnerService:Start()
-	-- Turn usernames into user ids so a renamed account keeps the panel
 	task.spawn(function()
-		for _, name in OwnerConfig.Usernames do
-			local ok, id = pcall(Players.GetUserIdFromNameAsync, Players, name)
-			if ok and typeof(id) == "number" then
-				ownerIds[id] = true
-			end
-		end
 		for _, player in Players:GetPlayers() do
 			self:_refreshOwner(player)
 		end
@@ -119,7 +108,7 @@ function OwnerService:Start()
 end
 
 function OwnerService:isOwner(player: Player): boolean
-	return ownerIds[player.UserId] == true or ownerNames[string.lower(player.Name)] == true
+	return ownerIds[player.UserId] == true
 end
 
 function OwnerService:_refreshOwner(player: Player)
