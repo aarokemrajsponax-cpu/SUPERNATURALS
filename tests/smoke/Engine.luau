@@ -146,7 +146,7 @@ for _, spec in {
 	{ "RunService", { "Heartbeat", "RenderStepped", "Stepped" } },
 	{ "RemoteEvent", { "OnServerEvent", "OnClientEvent" } },
 	{ "BindableEvent", { "Event" } },
-	{ "UserInputService", { "InputBegan", "InputEnded", "WindowFocusReleased", "LastInputTypeChanged" } },
+	{ "UserInputService", { "InputBegan", "InputEnded", "InputChanged", "TouchEnded", "WindowFocusReleased", "LastInputTypeChanged" } },
 	{ "TweenBase", { "Completed" } },
 } do
 	for _, name in spec[2] do
@@ -725,6 +725,16 @@ end)
 roblox.implementMethod("UserInputService", "GetFocusedTextBox", function()
 	return nil
 end)
+-- Model scale (tests can set the "SmokeScale" attribute) and humanoid state
+-- ("SmokeState" attribute, a HumanoidStateType name; Running by default)
+roblox.implementMethod("Model", "GetScale", function(self)
+	local scale = self:GetAttribute("SmokeScale")
+	return if typeof(scale) == "number" then scale else 1
+end)
+roblox.implementMethod("Humanoid", "GetState", function(self)
+	local state = self:GetAttribute("SmokeState")
+	return (roblox.Enum.HumanoidStateType :: any)[if typeof(state) == "string" then state else "Running"]
+end)
 
 -- CFrame with Roblox's behaviour where Lune's differs: Lune's CFrame.lookAt
 -- mirrors the Z direction (looking at +Z gives a LookVector of -Z), and its
@@ -898,7 +908,7 @@ function Engine.load(placePath: string)
 	local DEFAULTS = {
 		{ "BasePart", { Position = roblox.Vector3.zero, AssemblyLinearVelocity = roblox.Vector3.zero, AssemblyAngularVelocity = roblox.Vector3.zero, AssemblyMass = 10 } },
 		{ "Model", { WorldPivot = roblox.CFrame.new() } },
-		{ "Humanoid", { Health = 100, MaxHealth = 100, WalkSpeed = 16, JumpHeight = 7.2 } },
+		{ "Humanoid", { Health = 100, MaxHealth = 100, WalkSpeed = 16, JumpHeight = 7.2, MoveDirection = roblox.Vector3.zero, FloorMaterial = roblox.Enum.Material.Plastic } },
 	}
 	local function withDefaults(instance)
 		for _, entry in DEFAULTS do

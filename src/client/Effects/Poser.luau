@@ -502,15 +502,23 @@ stopTrack = function(character: Model, settle: boolean)
 	if not settle or not character.Parent then
 		return
 	end
+	local last = state.sequence.keys[#state.sequence.keys].pose
 	for _, group in state.groups do
 		local motor = group.motor
 		if motor.Parent then
-			local held = nil
+			local held, posedAtEnd = nil, false
 			for _, joint in group.joints do
 				held = held or heldAngles(character, joint)
+				local angles = last[joint]
+				-- A spin that ends a full turn round is back at rest
+				if angles and (math.abs((angles[1] or 0) % 360) + math.abs((angles[2] or 0) % 360) + math.abs((angles[3] or 0) % 360) > 0.5 or offsetOf(angles).Magnitude > 0.01) then
+					posedAtEnd = true
+				end
 			end
 			if held then
 				tweenTo(motor, posed(motor, held), 0.1)
+			elseif posedAtEnd then
+				tweenTo(motor, group.base, 0.15)
 			else
 				motor.C0 = group.base
 			end
@@ -784,6 +792,1047 @@ step = function(dt: number)
 	end
 end
 
--- The move library (registered below) ------------------------------------------------
+-- The move library ----------------------------------------------------------------------
+-- Every combat move and reaction. Times are seconds, authored for the default
+-- numbers in Config/Combat (startup/active/recovery in each info), and
+-- Poser.sequence stretches them to whatever the server sends. A strike reaches
+-- full extension exactly when its hitbox opens (the end of startup), overshoots
+-- a little during the active frames, then recovers. Hips and shoulders lead:
+-- the Root twists before the arm arrives, and the head counter-turns so the eyes
+-- stay on the target.
+
+local function merge(...: { [string]: { number } }): { [string]: { number } }
+	local result = {}
+	for _, pose in { ... } do
+		for joint, angles in pose do
+			result[joint] = angles
+		end
+	end
+	return result
+end
+
+local function define(name: string, info: { [string]: any }, keys: { any })
+	Poser.registerSequence(name, keys, info)
+end
+
+local REST = {}
+
+-- Orthodox fighting stance: left side forward, hands up, knees soft
+local GUARD = {
+	Root = { 0, -12, 0, 0, -0.12, 0 },
+	Torso = { -6, -8, 0 },
+	Neck = { -6, 18, 0 },
+	LeftShoulder = { 62, 0, 18 },
+	LeftElbow = { 100, 0, 0 },
+	RightShoulder = { 52, 0, -24 },
+	RightElbow = { 112, 0, 0 },
+	LeftHip = { 20, 0, -4 },
+	LeftKnee = { -28, 0, 0 },
+	RightHip = { -12, 0, 6 },
+	RightKnee = { -22, 0, 0 },
+}
+local BLOCK = Poser.Poses.Block
+
+-- Light string ---------------------------------------------------------------------------
+
+-- Jab: the lead hand snaps straight out and straight back
+define("Jab", { startup = 0.1, active = 0.1, recovery = 0.2, upper = true }, {
+	{ 0.06, merge(GUARD, { Root = { 0, -16, 0, 0, -0.14, 0 }, Torso = { -4, -4, 0 }, LeftShoulder = { 56, 0, 22 }, LeftElbow = { 112, 0, 0 } }) },
+	{ 0.1, merge(GUARD, {
+		Root = { 0, -24, 0, 0, -0.16, 0 },
+		Torso = { -10, -18, 0 },
+		Neck = { -8, 30, 0 },
+		LeftShoulder = { 90, 0, 8 },
+		LeftElbow = { 4, 0, 0 },
+		LeftHip = { 26, 0, -4 },
+		LeftKnee = { -32, 0, 0 },
+		RightHip = { -16, 0, 6 },
+		RightKnee = { -18, 0, 0 },
+	}), "Snap" },
+	{ 0.15, merge(GUARD, { Root = { 0, -26, 0, 0, -0.16, 0 }, Torso = { -12, -22, 0 }, Neck = { -8, 32, 0 }, LeftShoulder = { 93, 0, 6 }, LeftElbow = { 0, 0, 0 } }), "Out" },
+	{ 0.2, merge(GUARD, { Torso = { -8, -14, 0 }, LeftShoulder = { 82, 0, 14 }, LeftElbow = { 26, 0, 0 } }) },
+	{ 0.3, GUARD },
+	{ 0.4, REST },
+})
+
+-- Cross: the rear hand, thrown with the hips; the rear heel turns and the lead hand guards the chin
+define("Cross", { startup = 0.1, active = 0.1, recovery = 0.2, upper = true }, {
+	{ 0.06, merge(GUARD, { Root = { 0, -22, 0, 0, -0.18, 0 }, Torso = { -4, -16, 0 }, Neck = { -6, 36, 0 }, RightShoulder = { 46, 0, -20 }, RightElbow = { 122, 0, 0 } }) },
+	{ 0.1, merge(GUARD, {
+		Root = { 0, 16, 0, 0, -0.2, 0 },
+		Torso = { -12, 26, 0 },
+		Neck = { -8, -40, 0 },
+		RightShoulder = { 90, 0, -12 },
+		RightElbow = { 4, 0, 0 },
+		LeftShoulder = { 58, 0, 30 },
+		LeftElbow = { 120, 0, 0 },
+		RightHip = { -4, 0, 2 },
+		RightKnee = { -32, 0, 0 },
+		LeftHip = { 22, 0, -4 },
+		LeftKnee = { -24, 0, 0 },
+	}), "Snap" },
+	{ 0.15, merge(GUARD, {
+		Root = { 0, 20, 0, 0, -0.2, 0 },
+		Torso = { -14, 32, 0 },
+		Neck = { -8, -48, 0 },
+		RightShoulder = { 93, 0, -10 },
+		RightElbow = { 0, 0, 0 },
+		LeftShoulder = { 58, 0, 30 },
+		LeftElbow = { 120, 0, 0 },
+		RightKnee = { -32, 0, 0 },
+	}), "Out" },
+	{ 0.2, merge(GUARD, { Root = { 0, 10, 0, 0, -0.16, 0 }, Torso = { -8, 18, 0 }, Neck = { -6, -26, 0 }, RightShoulder = { 80, 0, -16 }, RightElbow = { 30, 0, 0 } }) },
+	{ 0.3, GUARD },
+	{ 0.4, REST },
+})
+
+-- Hook: the lead elbow lifts out to the side, then the whole torso swings it through
+define("Hook", { startup = 0.12, active = 0.1, recovery = 0.22, upper = true }, {
+	{ 0.07, merge(GUARD, { Root = { 0, 8, 0, 0, -0.22, 0 }, Torso = { -6, 20, 0 }, Neck = { -6, -26, 0 }, LeftShoulder = { 22, -10, -74 }, LeftElbow = { 98, 0, 0 }, LeftKnee = { -30, 0, 0 }, RightKnee = { -26, 0, 0 } }) },
+	{ 0.12, merge(GUARD, {
+		Root = { 0, -24, 0, 0, -0.24, 0 },
+		Torso = { -10, -34, 0 },
+		Neck = { -8, 52, 0 },
+		LeftShoulder = { 6, -55, -82 },
+		LeftElbow = { 92, 0, 0 },
+		LeftHip = { 22, 0, -2 },
+		LeftKnee = { -36, 0, 0 },
+		RightHip = { -8, 0, 4 },
+		RightKnee = { -26, 0, 0 },
+	}), "Snap" },
+	{ 0.17, merge(GUARD, { Root = { 0, -28, 0, 0, -0.24, 0 }, Torso = { -12, -44, 0 }, Neck = { -8, 60, 0 }, LeftShoulder = { 4, -70, -80 }, LeftElbow = { 92, 0, 0 }, LeftKnee = { -36, 0, 0 } }), "Out" },
+	{ 0.22, merge(GUARD, { Root = { 0, -20, 0, 0, -0.18, 0 }, Torso = { -8, -34, 0 }, Neck = { -6, 46, 0 }, LeftShoulder = { 24, -44, -56 }, LeftElbow = { 104, 0, 0 } }) },
+	{ 0.34, GUARD },
+	{ 0.44, REST },
+})
+
+-- Finisher kick: a rising roundhouse. The knee chambers, the support foot pivots
+-- (the whole body turns 70 degrees), the shin whips out at hip height, the arms
+-- counterbalance and the torso leans away from the kick.
+define("FinisherKick", { startup = 0.16, active = 0.12, recovery = 0.45 }, {
+	{ 0.09, {
+		Root = { 0, 26, 0, 0, -0.06, 0 },
+		Torso = { 6, -12, 6 },
+		Neck = { -6, -14, 0 },
+		RightHip = { 70, 0, 30 },
+		RightKnee = { -104, 0, 0 },
+		LeftHip = { 4, 0, 0 },
+		LeftKnee = { -20, 0, 0 },
+		LeftShoulder = { 46, 0, 24 },
+		LeftElbow = { 96, 0, 0 },
+		RightShoulder = { -14, 0, 28 },
+		RightElbow = { 70, 0, 0 },
+	} },
+	{ 0.16, {
+		Root = { 0, 72, 0, 0, -0.04, 0 },
+		Torso = { 18, -30, 16 },
+		Neck = { -10, -42, -10 },
+		RightHip = { 14, 0, 86 },
+		RightKnee = { -8, 0, 0 },
+		LeftHip = { -4, 0, -4 },
+		LeftKnee = { -16, 0, 0 },
+		LeftShoulder = { 56, 0, 34 },
+		LeftElbow = { 92, 0, 0 },
+		RightShoulder = { -24, 0, 48 },
+		RightElbow = { 30, 0, 0 },
+	}, "Snap" },
+	{ 0.22, {
+		Root = { 0, 92, 0, 0, -0.04, 0 },
+		Torso = { 20, -34, 18 },
+		Neck = { -10, -50, -12 },
+		RightHip = { 12, 0, 82 },
+		RightKnee = { -10, 0, 0 },
+		LeftHip = { -4, 0, -4 },
+		LeftKnee = { -16, 0, 0 },
+		LeftShoulder = { 56, 0, 34 },
+		LeftElbow = { 92, 0, 0 },
+		RightShoulder = { -24, 0, 48 },
+		RightElbow = { 30, 0, 0 },
+	}, "Out" },
+	{ 0.28, {
+		Root = { 0, 70, 0, 0, -0.08, 0 },
+		Torso = { 10, -24, 8 },
+		Neck = { -8, -40, -6 },
+		RightHip = { 50, 0, 40 },
+		RightKnee = { -96, 0, 0 },
+		LeftKnee = { -20, 0, 0 },
+		LeftShoulder = { 50, 0, 28 },
+		LeftElbow = { 96, 0, 0 },
+		RightShoulder = { 10, 0, 30 },
+		RightElbow = { 60, 0, 0 },
+	} },
+	{ 0.48, merge(GUARD, { Root = { 0, 20, 0, 0, -0.12, 0 }, Torso = { 0, -6, 0 }, Neck = { -4, -12, 0 }, RightHip = { 14, 0, 6 }, RightKnee = { -26, 0, 0 } }) },
+	{ 0.73, REST },
+})
+
+-- Heavy: an overhand right. A long, readable load (hips coil, weight sinks onto
+-- the rear leg, the lead hand measures), a hitch, then everything unwinds at once.
+local HEAVY_LOAD = {
+	Root = { 0, -32, 0, 0, -0.34, 0 },
+	Torso = { -4, -30, -6 },
+	Neck = { -10, 52, 4 },
+	RightShoulder = { -30, 0, 50 },
+	RightElbow = { 96, 0, 0 },
+	LeftShoulder = { 76, 0, 24 },
+	LeftElbow = { 40, 0, 0 },
+	LeftHip = { 24, 0, -4 },
+	LeftKnee = { -34, 0, 0 },
+	RightHip = { -14, 0, 6 },
+	RightKnee = { -38, 0, 0 },
+}
+local HEAVY_CONTACT = {
+	Root = { 0, 30, 0, 0, -0.3, 0 },
+	Torso = { -18, 34, 4 },
+	Neck = { -6, -52, 0 },
+	RightShoulder = { 102, 0, -8 },
+	RightElbow = { 2, 0, 0 },
+	LeftShoulder = { 32, 0, 12 },
+	LeftElbow = { 112, 0, 0 },
+	RightHip = { -4, 0, 2 },
+	RightKnee = { -40, 0, 0 },
+	LeftHip = { 28, 0, -4 },
+	LeftKnee = { -28, 0, 0 },
+}
+local HEAVY_RECOVER = {
+	Root = { 0, 10, 0, 0, -0.14, 0 },
+	Torso = { -6, 10, 0 },
+	Neck = { -4, -14, 0 },
+	RightShoulder = { 60, 0, -20 },
+	RightElbow = { 70, 0, 0 },
+	LeftShoulder = { 50, 0, 16 },
+	LeftElbow = { 90, 0, 0 },
+	LeftKnee = { -16, 0, 0 },
+	RightKnee = { -16, 0, 0 },
+}
+define("Heavy", { startup = 0.5, active = 0.14, recovery = 0.4, upper = true }, {
+	{ 0.3, HEAVY_LOAD },
+	{ 0.46, merge(HEAVY_LOAD, { Root = { 0, -36, 0, 0, -0.4, 0 }, Torso = { -2, -36, -8 }, Neck = { -10, 58, 6 }, RightShoulder = { -38, 0, 56 } }) },
+	{ 0.5, HEAVY_CONTACT, "Snap" },
+	{ 0.58, merge(HEAVY_CONTACT, { Root = { 0, 36, 0, 0, -0.34, 0 }, Torso = { -22, 40, 4 }, Neck = { -6, -58, 0 }, RightShoulder = { 97, 0, -14 } }), "Out" },
+	{ 0.64, merge(HEAVY_CONTACT, { Torso = { -18, 36, 4 }, RightShoulder = { 92, 0, -14 }, RightElbow = { 10, 0, 0 } }) },
+	{ 0.84, HEAVY_RECOVER },
+	{ 1.04, REST },
+})
+
+-- Charging: a deeper coil that keeps sinking, fist cocked by the ear, shaking
+-- harder the longer it's held. It pauses at full charge until the release.
+local CHARGE_COIL = {
+	Root = { 0, -40, 0, 0, -0.44, 0 },
+	Torso = { 6, -38, -8 },
+	Neck = { -14, 62, 6 },
+	RightShoulder = { -44, 0, 60 },
+	RightElbow = { 112, 0, 0 },
+	LeftShoulder = { 80, 0, 30 },
+	LeftElbow = { 30, 0, 0 },
+	LeftHip = { 28, 0, -4 },
+	LeftKnee = { -42, 0, 0 },
+	RightHip = { -16, 0, 6 },
+	RightKnee = { -46, 0, 0 },
+}
+define("ChargeHold", { holdAt = 1.2, tremble = 3.5, trembleRamp = 1.2 }, {
+	{ 0.22, CHARGE_COIL },
+	{ 1.2, merge(CHARGE_COIL, { Root = { 0, -44, 0, 0, -0.54, 0 }, Torso = { 8, -44, -10 }, Neck = { -14, 66, 8 }, RightShoulder = { -52, 0, 64 }, RightKnee = { -54, 0, 0 } }) },
+	{ 1.6, REST },
+})
+
+-- Letting a charge go: the coil explodes forward (from the charge pose)
+define("ChargedStrike", { startup = 0.18, active = 0.14, recovery = 0.4 }, {
+	{ 0.12, merge(HEAVY_CONTACT, { Root = { 0, 14, 0, 0, -0.42, 0 }, Torso = { -18, 22, 0 }, Neck = { -8, -20, 0 }, RightShoulder = { 70, 0, -4 }, RightElbow = { 30, 0, 0 }, LeftShoulder = { 40, 0, 16 }, LeftElbow = { 100, 0, 0 } }), "In" },
+	{ 0.18, merge(HEAVY_CONTACT, {
+		Root = { 0, 42, 0, 0, -0.36, 0 },
+		Torso = { -26, 44, 6 },
+		Neck = { -6, -58, 0 },
+		RightShoulder = { 98, 0, -10 },
+		RightElbow = { 0, 0, 0 },
+		LeftShoulder = { 20, 0, 20 },
+		LeftElbow = { 120, 0, 0 },
+		RightHip = { 0, 0, 0 },
+		RightKnee = { -50, 0, 0 },
+		LeftHip = { 34, 0, -4 },
+		LeftKnee = { -36, 0, 0 },
+	}), "Snap" },
+	{ 0.26, merge(HEAVY_CONTACT, { Root = { 0, 48, 0, 0, -0.36, 0 }, Torso = { -30, 52, 8 }, Neck = { -6, -64, 0 }, RightShoulder = { 96, 0, -14 }, LeftShoulder = { 20, 0, 20 }, LeftElbow = { 120, 0, 0 }, RightKnee = { -50, 0, 0 } }), "Out" },
+	{ 0.32, merge(HEAVY_CONTACT, { Root = { 0, 44, 0, 0, -0.34, 0 }, Torso = { -26, 46, 6 }, Neck = { -6, -56, 0 }, RightShoulder = { 92, 0, -14 }, RightElbow = { 10, 0, 0 } }) },
+	{ 0.52, merge(HEAVY_RECOVER, { Root = { 0, 16, 0, 0, -0.2, 0 }, Torso = { -8, 14, 0 }, RightShoulder = { 50, 0, -16 }, RightElbow = { 80, 0, 0 } }) },
+	{ 0.72, REST },
+})
+
+-- Directional, sprint and air moves -------------------------------------------------------
+
+-- Launcher: crouch low, then drive up through the legs into an uppercut
+define("Launcher", { startup = 0.28, active = 0.12, recovery = 0.4 }, {
+	{ 0.2, {
+		Root = { 0, -18, 0, 0, -0.58, 0 },
+		Torso = { -26, -18, 0 },
+		Neck = { 22, 18, 0 },
+		RightShoulder = { 10, 0, 22 },
+		RightElbow = { 104, 0, 0 },
+		LeftShoulder = { 60, 0, 24 },
+		LeftElbow = { 100, 0, 0 },
+		LeftHip = { 42, 0, -4 },
+		LeftKnee = { -62, 0, 0 },
+		RightHip = { 14, 0, 6 },
+		RightKnee = { -64, 0, 0 },
+	} },
+	{ 0.28, {
+		Root = { 0, 22, 0, 0, 0.12, 0 },
+		Torso = { 14, 24, 0 },
+		Neck = { 6, -22, 0 },
+		RightShoulder = { 166, 0, -10 },
+		RightElbow = { 28, 0, 0 },
+		LeftShoulder = { 28, 0, 12 },
+		LeftElbow = { 112, 0, 0 },
+		LeftHip = { 6, 0, 0 },
+		LeftKnee = { -6, 0, 0 },
+		RightHip = { -10, 0, 0 },
+		RightKnee = { -12, 0, 0 },
+	}, "Snap" },
+	{ 0.34, {
+		Root = { 0, 24, 0, 0, 0.18, 0 },
+		Torso = { 20, 28, 0 },
+		Neck = { 8, -24, 0 },
+		RightShoulder = { 173, 0, -6 },
+		RightElbow = { 22, 0, 0 },
+		LeftShoulder = { 28, 0, 12 },
+		LeftElbow = { 112, 0, 0 },
+		RightHip = { -10, 0, 0 },
+		RightKnee = { -10, 0, 0 },
+	}, "Out" },
+	{ 0.4, { Root = { 0, 20, 0, 0, 0.1, 0 }, Torso = { 16, 24, 0 }, Neck = { 6, -20, 0 }, RightShoulder = { 160, 0, -8 }, RightElbow = { 34, 0, 0 }, LeftShoulder = { 30, 0, 12 }, LeftElbow = { 108, 0, 0 } } },
+	{ 0.6, { Root = { 0, 6, 0, 0, -0.12, 0 }, Torso = { 0, 8, 0 }, RightShoulder = { 80, 0, -12 }, RightElbow = { 84, 0, 0 }, LeftShoulder = { 46, 0, 16 }, LeftElbow = { 96, 0, 0 }, LeftKnee = { -14, 0, 0 }, RightKnee = { -14, 0, 0 } } },
+	{ 0.8, REST },
+})
+
+-- Rush strike: running momentum poured into a long, low straight right
+define("RushStrike", { startup = 0.14, active = 0.14, recovery = 0.3 }, {
+	{ 0.08, {
+		Root = { 0, -16, 0, 0, -0.26, 0 },
+		Torso = { -28, -16, 0 },
+		Neck = { 22, 16, 0 },
+		RightShoulder = { -30, 0, 30 },
+		RightElbow = { 92, 0, 0 },
+		LeftShoulder = { 72, 0, 20 },
+		LeftElbow = { 60, 0, 0 },
+		LeftHip = { 40, 0, -2 },
+		LeftKnee = { -50, 0, 0 },
+		RightHip = { -30, 0, 4 },
+		RightKnee = { -30, 0, 0 },
+	} },
+	{ 0.14, {
+		Root = { 0, 22, 0, 0, -0.3, 0 },
+		Torso = { -30, 28, 0 },
+		Neck = { 24, -28, 0 },
+		RightShoulder = { 100, 0, -10 },
+		RightElbow = { 0, 0, 0 },
+		LeftShoulder = { -30, 0, -18 },
+		LeftElbow = { 84, 0, 0 },
+		LeftHip = { 48, 0, -2 },
+		LeftKnee = { -44, 0, 0 },
+		RightHip = { -40, 0, 4 },
+		RightKnee = { -20, 0, 0 },
+	}, "Snap" },
+	{ 0.22, {
+		Root = { 0, 24, 0, 0, -0.3, 0 },
+		Torso = { -34, 32, 0 },
+		Neck = { 26, -30, 0 },
+		RightShoulder = { 104, 0, -8 },
+		LeftShoulder = { -30, 0, -18 },
+		LeftElbow = { 84, 0, 0 },
+		LeftHip = { 48, 0, -2 },
+		LeftKnee = { -44, 0, 0 },
+		RightHip = { -40, 0, 4 },
+		RightKnee = { -20, 0, 0 },
+	}, "Out" },
+	{ 0.28, { Root = { 0, 20, 0, 0, -0.28, 0 }, Torso = { -28, 26, 0 }, Neck = { 22, -26, 0 }, RightShoulder = { 96, 0, -10 }, RightElbow = { 12, 0, 0 }, LeftShoulder = { -16, 0, -14 }, LeftElbow = { 80, 0, 0 }, LeftHip = { 40, 0, 0 }, LeftKnee = { -40, 0, 0 } } },
+	{ 0.45, { Root = { 0, 8, 0, 0, -0.12, 0 }, Torso = { -10, 10, 0 }, Neck = { 8, -8, 0 }, RightShoulder = { 50, 0, -16 }, RightElbow = { 70, 0, 0 }, LeftShoulder = { 40, 0, 10 }, LeftElbow = { 90, 0, 0 } } },
+	{ 0.58, REST },
+})
+
+-- Shoulder charge: turn side-on, tuck the lead shoulder, drive off the back leg
+local SHOULDER = {
+	Root = { 0, -62, 0, 0, -0.46, 0 },
+	Torso = { -30, -24, 14 },
+	Neck = { -4, 66, -10 },
+	LeftShoulder = { 24, 0, 24 },
+	LeftElbow = { 112, 0, 0 },
+	RightShoulder = { 44, 0, -40 },
+	RightElbow = { 100, 0, 0 },
+	LeftHip = { 52, 0, -4 },
+	LeftKnee = { -40, 0, 0 },
+	RightHip = { -36, 0, 6 },
+	RightKnee = { -20, 0, 0 },
+}
+define("ShoulderCharge", { startup = 0.22, active = 0.2, recovery = 0.4 }, {
+	{ 0.14, merge(SHOULDER, { Root = { 0, -50, 0, 0, -0.4, 0 }, Torso = { -22, -20, 10 }, Neck = { -6, 62, -8 }, LeftShoulder = { 30, 0, 30 }, LeftHip = { 40, 0, -4 }, LeftKnee = { -56, 0, 0 }, RightHip = { -20, 0, 6 }, RightKnee = { -46, 0, 0 } }) },
+	{ 0.22, SHOULDER, "Snap" },
+	{ 0.32, merge(SHOULDER, { Torso = { -34, -26, 16 } }), "Out" },
+	{ 0.42, merge(SHOULDER, { Root = { 0, -56, 0, 0, -0.4, 0 }, Torso = { -28, -22, 12 } }) },
+	{ 0.62, merge(GUARD, { Root = { 0, -20, 0, 0, -0.16, 0 }, Torso = { -8, -8, 4 }, Neck = { -2, 24, 0 } }) },
+	{ 0.82, REST },
+})
+
+-- Air kick: tuck both knees, then fire one leg straight out, leaning back
+define("AirKick", { startup = 0.1, active = 0.12, recovery = 0.25 }, {
+	{ 0.06, {
+		Torso = { 14, 0, 0 },
+		Neck = { -10, 0, 0 },
+		RightHip = { 80, 0, 10 },
+		RightKnee = { -112, 0, 0 },
+		LeftHip = { 30, 0, -6 },
+		LeftKnee = { -80, 0, 0 },
+		RightShoulder = { 30, 0, 50 },
+		LeftShoulder = { 30, 0, -50 },
+		RightElbow = { 40, 0, 0 },
+		LeftElbow = { 40, 0, 0 },
+	} },
+	{ 0.1, {
+		Root = { 8, 0, 0 },
+		Torso = { 24, 0, 0 },
+		Neck = { -22, 0, 0 },
+		RightHip = { 96, 0, 0 },
+		RightKnee = { -4, 0, 0 },
+		LeftHip = { 22, 0, -6 },
+		LeftKnee = { -104, 0, 0 },
+		RightShoulder = { -22, 0, 40 },
+		LeftShoulder = { 62, 0, -28 },
+		LeftElbow = { 60, 0, 0 },
+		RightElbow = { 20, 0, 0 },
+	}, "Snap" },
+	{ 0.16, {
+		Root = { 10, 0, 0 },
+		Torso = { 26, 0, 0 },
+		Neck = { -22, 0, 0 },
+		RightHip = { 102, 0, 0 },
+		LeftHip = { 22, 0, -6 },
+		LeftKnee = { -104, 0, 0 },
+		RightShoulder = { -22, 0, 40 },
+		LeftShoulder = { 62, 0, -28 },
+		LeftElbow = { 60, 0, 0 },
+	}, "Out" },
+	{ 0.22, { Root = { 8, 0, 0 }, Torso = { 22, 0, 0 }, Neck = { -18, 0, 0 }, RightHip = { 92, 0, 0 }, RightKnee = { -14, 0, 0 }, LeftHip = { 24, 0, -6 }, LeftKnee = { -96, 0, 0 }, RightShoulder = { -10, 0, 40 }, LeftShoulder = { 50, 0, -30 } } },
+	{ 0.36, { Torso = { 6, 0, 0 }, RightHip = { 40, 0, 0 }, RightKnee = { -60, 0, 0 }, LeftHip = { 30, 0, 0 }, LeftKnee = { -60, 0, 0 }, RightShoulder = { 20, 0, 30 }, LeftShoulder = { 20, 0, -30 } } },
+	{ 0.47, REST },
+})
+
+-- Slam: both fists raised overhead, knees tucked, then the whole body folds down
+-- into the dive and lands in a heavy crouch
+define("Slam", { startup = 0.22, active = 0.18, recovery = 0.45 }, {
+	{ 0.16, {
+		Root = { -8, 0, 0 },
+		Torso = { 18, 0, 0 },
+		Neck = { -8, 0, 0 },
+		RightShoulder = { 170, 0, -14 },
+		LeftShoulder = { 170, 0, 14 },
+		RightElbow = { 42, 0, 0 },
+		LeftElbow = { 42, 0, 0 },
+		RightHip = { 52, 0, 4 },
+		RightKnee = { -92, 0, 0 },
+		LeftHip = { 52, 0, -4 },
+		LeftKnee = { -92, 0, 0 },
+	} },
+	{ 0.22, {
+		Root = { 10, 0, 0 },
+		Torso = { -40, 0, 0 },
+		Neck = { 26, 0, 0 },
+		RightShoulder = { 40, 0, -22 },
+		LeftShoulder = { 40, 0, 22 },
+		RightElbow = { 10, 0, 0 },
+		LeftElbow = { 10, 0, 0 },
+		RightHip = { 24, 0, 4 },
+		RightKnee = { -40, 0, 0 },
+		LeftHip = { 24, 0, -4 },
+		LeftKnee = { -40, 0, 0 },
+	}, "Snap" },
+	{ 0.3, { Root = { 10, 0, 0 }, Torso = { -46, 0, 0 }, Neck = { 28, 0, 0 }, RightShoulder = { 30, 0, -22 }, LeftShoulder = { 30, 0, 22 }, RightElbow = { 8, 0, 0 }, LeftElbow = { 8, 0, 0 }, RightHip = { 24, 0, 4 }, RightKnee = { -40, 0, 0 }, LeftHip = { 24, 0, -4 }, LeftKnee = { -40, 0, 0 } }, "Out" },
+	{ 0.4, {
+		Root = { 0, 0, 0, 0, -0.6, 0 },
+		Torso = { -30, 0, 0 },
+		Neck = { 20, 0, 0 },
+		RightShoulder = { 24, 0, -20 },
+		LeftShoulder = { 24, 0, 20 },
+		RightHip = { 50, 0, 6 },
+		RightKnee = { -76, 0, 0 },
+		LeftHip = { 50, 0, -6 },
+		LeftKnee = { -76, 0, 0 },
+	}, "In" },
+	{ 0.62, { Root = { 0, 0, 0, 0, -0.2, 0 }, Torso = { -12, 0, 0 }, Neck = { 6, 0, 0 }, RightShoulder = { 20, 0, -12 }, LeftShoulder = { 20, 0, 12 }, RightHip = { 16, 0, 0 }, LeftHip = { 16, 0, 0 }, RightKnee = { -22, 0, 0 }, LeftKnee = { -22, 0, 0 } } },
+	{ 0.85, REST },
+})
+
+-- Sweep: drop onto the folded lead leg, plant a hand, and spin a full turn with
+-- the rear leg straight along the floor
+local SWEEP_LOW = {
+	Torso = { -30, 0, -10 },
+	Neck = { 20, -10, 8 },
+	LeftHip = { 82, 0, -8 },
+	LeftKnee = { -130, 0, 0 },
+	RightHip = { 18, 0, 62 },
+	RightKnee = { -6, 0, 0 },
+	RightShoulder = { 24, 0, 44 },
+	LeftShoulder = { 20, 0, -30 },
+	LeftElbow = { 20, 0, 0 },
+}
+define("Sweep", { startup = 0.16, active = 0.12, recovery = 0.35 }, {
+	{ 0.08, merge(SWEEP_LOW, { Root = { 0, 30, 0, 0, -1.35, 0 } }) },
+	{ 0.16, merge(SWEEP_LOW, { Root = { 0, 150, 0, 0, -1.4, 0 } }), "Linear" },
+	{ 0.22, merge(SWEEP_LOW, { Root = { 0, 255, 0, 0, -1.4, 0 } }), "Linear" },
+	{ 0.28, merge(SWEEP_LOW, { Root = { 0, 360, 0, 0, -1.36, 0 } }), "Out" },
+	{ 0.42, {
+		Root = { 0, 360, 0, 0, -0.9, 0 },
+		Torso = { -16, 0, 0 },
+		Neck = { 10, 0, 0 },
+		RightHip = { 50, 0, 20 },
+		RightKnee = { -90, 0, 0 },
+		LeftHip = { 60, 0, -6 },
+		LeftKnee = { -100, 0, 0 },
+		RightShoulder = { 30, 0, 20 },
+		LeftShoulder = { 30, 0, -20 },
+	} },
+	{ 0.63, { Root = { 0, 360, 0 } } },
+})
+
+-- Grappling ---------------------------------------------------------------------------------
+
+-- Grab: arms open, a short step in, both hands shoot out and clamp. A miss
+-- over-reaches and stumbles (that's the punish window).
+define("Grab", { startup = 0.22, active = 0.1, recovery = 0.55 }, {
+	{ 0.14, {
+		Root = { 0, 0, 0, 0, -0.26, 0 },
+		Torso = { -14, 0, 0 },
+		Neck = { 10, 0, 0 },
+		RightShoulder = { 42, 0, 30 },
+		LeftShoulder = { 42, 0, -30 },
+		RightElbow = { 64, 0, 0 },
+		LeftElbow = { 64, 0, 0 },
+		LeftHip = { 26, 0, -4 },
+		LeftKnee = { -36, 0, 0 },
+		RightHip = { -10, 0, 4 },
+		RightKnee = { -30, 0, 0 },
+	} },
+	{ 0.22, {
+		Root = { 0, 0, 0, 0, -0.32, 0 },
+		Torso = { -24, 0, 0 },
+		Neck = { 18, 0, 0 },
+		RightShoulder = { 92, 0, -12 },
+		LeftShoulder = { 92, 0, 12 },
+		RightElbow = { 22, 0, 0 },
+		LeftElbow = { 22, 0, 0 },
+		LeftHip = { 38, 0, -4 },
+		LeftKnee = { -30, 0, 0 },
+		RightHip = { -24, 0, 4 },
+		RightKnee = { -14, 0, 0 },
+	}, "Snap" },
+	{ 0.32, {
+		Root = { 0, 0, 0, 0, -0.32, 0 },
+		Torso = { -26, 0, 0 },
+		Neck = { 18, 0, 0 },
+		RightShoulder = { 88, 0, -26 },
+		LeftShoulder = { 88, 0, 26 },
+		RightElbow = { 40, 0, 0 },
+		LeftElbow = { 40, 0, 0 },
+		LeftHip = { 38, 0, -4 },
+		LeftKnee = { -30, 0, 0 },
+		RightHip = { -24, 0, 4 },
+		RightKnee = { -14, 0, 0 },
+	}, "Out" },
+	{ 0.5, {
+		Root = { 0, 8, 0, 0, -0.3, 0 },
+		Torso = { -30, 10, 6 },
+		Neck = { 20, -8, 0 },
+		RightShoulder = { 60, 0, -6 },
+		LeftShoulder = { 70, 0, 10 },
+		RightElbow = { 30, 0, 0 },
+		LeftElbow = { 20, 0, 0 },
+		LeftHip = { 44, 0, -4 },
+		LeftKnee = { -40, 0, 0 },
+		RightHip = { -20, 0, 4 },
+		RightKnee = { -20, 0, 0 },
+	} },
+	{ 0.7, { Root = { 0, 0, 0, 0, -0.12, 0 }, Torso = { -10, 0, 0 }, Neck = { 6, 0, 0 }, RightShoulder = { 30, 0, -10 }, LeftShoulder = { 30, 0, 10 }, RightElbow = { 40, 0, 0 }, LeftElbow = { 40, 0, 0 } } },
+	{ 0.87, REST },
+})
+
+-- Holding a caught opponent: arms locked around them, weight low, wrestling
+local CLINCH = {
+	Root = { 0, 0, 0, 0, -0.22, 0 },
+	Torso = { -16, 0, 0 },
+	Neck = { 8, 0, 0 },
+	RightShoulder = { 86, 0, -38 },
+	LeftShoulder = { 86, 0, 38 },
+	RightElbow = { 84, 0, 0 },
+	LeftElbow = { 84, 0, 0 },
+	LeftHip = { 24, 0, -4 },
+	LeftKnee = { -32, 0, 0 },
+	RightHip = { -12, 0, 4 },
+	RightKnee = { -26, 0, 0 },
+}
+define("ClinchHold", { holdAt = 0.5, tremble = 1.6, trembleRamp = 0.3 }, {
+	{ 0.1, CLINCH, "Out" },
+	{ 0.5, merge(CLINCH, { Root = { 0, 6, 0, 0, -0.26, 0 }, Torso = { -20, 6, 0 } }) },
+	{ 0.8, REST },
+})
+
+-- Being held: leaning back from the pull, hands pushing at the holder's arms
+local CLINCHED = {
+	Root = { 0, 0, 0, 0, -0.08, 0 },
+	Torso = { 14, 0, 0 },
+	Neck = { -14, 0, 0 },
+	RightShoulder = { 72, 0, -8 },
+	LeftShoulder = { 72, 0, 8 },
+	RightElbow = { 74, 0, 0 },
+	LeftElbow = { 74, 0, 0 },
+	RightKnee = { -18, 0, 0 },
+	LeftKnee = { -18, 0, 0 },
+}
+define("Clinched", { holdAt = 0.5, tremble = 2.5, trembleRamp = 0.2 }, {
+	{ 0.08, CLINCHED, "Snap" },
+	{ 0.5, merge(CLINCHED, { Torso = { 18, -6, 4 }, Neck = { -18, 4, 0 } }) },
+	{ 0.8, REST },
+})
+
+-- Throwing forward: load the hips, then a hip toss that whips the arms through
+define("ThrowForward", {}, {
+	{ 0.08, {
+		Root = { 0, -34, 0, 0, -0.42, 0 },
+		Torso = { -12, -30, 0 },
+		Neck = { -4, 40, 0 },
+		RightShoulder = { 60, 0, -30 },
+		LeftShoulder = { 70, 0, 40 },
+		RightElbow = { 90, 0, 0 },
+		LeftElbow = { 80, 0, 0 },
+		LeftHip = { 34, 0, -4 },
+		LeftKnee = { -48, 0, 0 },
+		RightHip = { -12, 0, 4 },
+		RightKnee = { -44, 0, 0 },
+	} },
+	{ 0.18, {
+		Root = { 0, 44, 0, 0, -0.3, 0 },
+		Torso = { -30, 40, 0 },
+		Neck = { -2, -50, 0 },
+		RightShoulder = { 104, 0, 10 },
+		LeftShoulder = { 56, 0, 44 },
+		RightElbow = { 12, 0, 0 },
+		LeftElbow = { 30, 0, 0 },
+		LeftHip = { 30, 0, -4 },
+		LeftKnee = { -30, 0, 0 },
+		RightHip = { -24, 0, 4 },
+		RightKnee = { -30, 0, 0 },
+	}, "Snap" },
+	{ 0.3, { Root = { 0, 52, 0, 0, -0.3, 0 }, Torso = { -34, 52, 0 }, Neck = { -2, -58, 0 }, RightShoulder = { 96, 0, 12 }, LeftShoulder = { 50, 0, 44 }, RightElbow = { 14, 0, 0 }, LeftElbow = { 30, 0, 0 }, LeftKnee = { -30, 0, 0 }, RightKnee = { -30, 0, 0 } }, "Out" },
+	{ 0.46, { Root = { 0, 14, 0, 0, -0.14, 0 }, Torso = { -10, 14, 0 }, Neck = { 0, -14, 0 }, RightShoulder = { 50, 0, -10 }, RightElbow = { 60, 0, 0 }, LeftShoulder = { 40, 0, 10 }, LeftElbow = { 70, 0, 0 } } },
+	{ 0.62, REST },
+})
+
+-- Throwing backward (the server turns the thrower to face the throw): a deep
+-- squat, then a two-handed heave up and over
+define("ThrowBack", {}, {
+	{ 0.1, {
+		Root = { 0, 0, 0, 0, -0.5, 0 },
+		Torso = { -28, 0, 0 },
+		Neck = { 16, 0, 0 },
+		RightShoulder = { 30, 0, -20 },
+		LeftShoulder = { 30, 0, 20 },
+		RightElbow = { 40, 0, 0 },
+		LeftElbow = { 40, 0, 0 },
+		RightHip = { 40, 0, 8 },
+		LeftHip = { 30, 0, -8 },
+		RightKnee = { -56, 0, 0 },
+		LeftKnee = { -50, 0, 0 },
+	} },
+	{ 0.22, { Root = { 0, 0, 0, 0, 0.1, 0 }, Torso = { 16, 0, 0 }, Neck = { -10, 0, 0 }, RightShoulder = { 150, 0, -10 }, LeftShoulder = { 150, 0, 10 }, RightElbow = { 20, 0, 0 }, LeftElbow = { 20, 0, 0 } }, "Snap" },
+	{ 0.34, { Root = { 0, 0, 0, 0, -0.1, 0 }, Torso = { -10, 0, 0 }, Neck = { 4, 0, 0 }, RightShoulder = { 120, 0, -10 }, LeftShoulder = { 120, 0, 10 }, RightElbow = { 14, 0, 0 }, LeftElbow = { 14, 0, 0 } }, "Out" },
+	{ 0.6, REST },
+})
+
+-- Being thrown: limbs flung out, body twisting through the air
+define("Thrown", {}, {
+	{ 0.06, {
+		Root = { -20, 0, 8 },
+		Torso = { 30, 0, 10 },
+		Neck = { 24, 0, 0 },
+		RightShoulder = { 120, 0, 60 },
+		LeftShoulder = { 120, 0, -60 },
+		RightElbow = { 30, 0, 0 },
+		LeftElbow = { 30, 0, 0 },
+		RightHip = { 50, 0, 10 },
+		LeftHip = { 30, 0, -10 },
+		RightKnee = { -50, 0, 0 },
+		LeftKnee = { -30, 0, 0 },
+	}, "Snap" },
+	{ 0.3, { Root = { -40, 0, 14 }, Torso = { 24, 0, 6 }, Neck = { 18, 0, 0 }, RightShoulder = { 140, 0, 40 }, LeftShoulder = { 100, 0, -70 }, RightElbow = { 20, 0, 0 }, LeftElbow = { 40, 0, 0 }, RightHip = { 40, 0, 10 }, LeftHip = { 20, 0, -10 }, RightKnee = { -60, 0, 0 }, LeftKnee = { -30, 0, 0 } }, "Out" },
+	{ 0.55, REST },
+})
+
+-- A teched throw: both fighters shove each other's arms off and hop back
+define("TechBreak", {}, {
+	{ 0.06, {
+		Root = { 0, 0, 0, 0, -0.1, 0 },
+		Torso = { 16, 0, 0 },
+		Neck = { 10, 0, 0 },
+		RightShoulder = { 92, 0, 40 },
+		LeftShoulder = { 92, 0, -40 },
+		RightElbow = { 16, 0, 0 },
+		LeftElbow = { 16, 0, 0 },
+		RightHip = { -18, 0, 4 },
+		RightKnee = { -26, 0, 0 },
+		LeftKnee = { -16, 0, 0 },
+	}, "Snap" },
+	{ 0.18, { Root = { 0, 0, 0, 0, -0.14, 0 }, Torso = { 12, 0, 0 }, Neck = { 6, 0, 0 }, RightShoulder = { 60, 0, 30 }, LeftShoulder = { 60, 0, -30 }, RightElbow = { 60, 0, 0 }, LeftElbow = { 60, 0, 0 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -18, 0, 0 } }, "Out" },
+	{ 0.36, GUARD },
+	{ 0.5, REST },
+})
+
+-- Throwing a carried prop: arch back with it overhead, then whip it forward
+define("PropThrow", { startup = 0.08, active = 0, recovery = 0.3 }, {
+	{ 0.05, { Root = { 0, 0, 0, 0, -0.12, 0 }, Torso = { 14, 0, 0 }, Neck = { -10, 0, 0 }, RightShoulder = { 176, 0, 10 }, LeftShoulder = { 176, 0, -10 }, RightElbow = { 60, 0, 0 }, LeftElbow = { 60, 0, 0 } } },
+	{ 0.08, { Root = { 0, 0, 0, 0, -0.2, 0 }, Torso = { -22, 0, 0 }, Neck = { 10, 0, 0 }, RightShoulder = { 104, 0, -6 }, LeftShoulder = { 104, 0, 6 }, RightElbow = { 6, 0, 0 }, LeftElbow = { 6, 0, 0 }, LeftHip = { 24, 0, 0 }, LeftKnee = { -30, 0, 0 } }, "Snap" },
+	{ 0.18, { Root = { 0, 0, 0, 0, -0.2, 0 }, Torso = { -28, 0, 0 }, Neck = { 14, 0, 0 }, RightShoulder = { 80, 0, -6 }, LeftShoulder = { 80, 0, 6 }, RightElbow = { 10, 0, 0 }, LeftElbow = { 10, 0, 0 }, LeftHip = { 24, 0, 0 }, LeftKnee = { -30, 0, 0 } }, "Out" },
+	{ 0.38, REST },
+})
+
+-- Hit reactions ---------------------------------------------------------------------------
+
+-- Hit from the front: head snaps back first, the chest follows, arms fly up
+define("FlinchFront", {}, {
+	{ 0.05, {
+		Root = { 8, 0, 0, 0, -0.08, 0 },
+		Torso = { 18, 0, 0 },
+		Neck = { 24, 0, 0 },
+		RightShoulder = { 32, 0, 26 },
+		LeftShoulder = { 32, 0, -26 },
+		RightElbow = { 54, 0, 0 },
+		LeftElbow = { 54, 0, 0 },
+		RightHip = { -8, 0, 0 },
+		LeftHip = { 10, 0, 0 },
+		RightKnee = { -14, 0, 0 },
+		LeftKnee = { -10, 0, 0 },
+	}, "Snap" },
+	{ 0.12, { Root = { 8, 0, 0, 0, -0.08, 0 }, Torso = { 22, 0, 0 }, Neck = { 28, 0, 0 }, RightShoulder = { 30, 0, 24 }, LeftShoulder = { 30, 0, -24 }, RightElbow = { 50, 0, 0 }, LeftElbow = { 50, 0, 0 }, RightKnee = { -14, 0, 0 }, LeftKnee = { -10, 0, 0 } }, "Out" },
+	{ 0.3, { Root = { 2, 0, 0, 0, -0.04, 0 }, Torso = { 8, 0, 0 }, Neck = { 6, 0, 0 }, RightShoulder = { 20, 0, 12 }, LeftShoulder = { 20, 0, -12 }, RightElbow = { 40, 0, 0 }, LeftElbow = { 40, 0, 0 } } },
+	{ 0.5, REST },
+})
+
+-- Hit from behind: folds forward, arms thrown back
+define("FlinchBack", {}, {
+	{ 0.05, { Root = { -8, 0, 0, 0, -0.1, 0 }, Torso = { -24, 0, 0 }, Neck = { -18, 0, 0 }, RightShoulder = { -24, 0, 24 }, LeftShoulder = { -24, 0, -24 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, LeftHip = { 20, 0, 0 }, LeftKnee = { -24, 0, 0 } }, "Snap" },
+	{ 0.12, { Root = { -8, 0, 0, 0, -0.1, 0 }, Torso = { -28, 0, 0 }, Neck = { -20, 0, 0 }, RightShoulder = { -26, 0, 24 }, LeftShoulder = { -26, 0, -24 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, LeftHip = { 20, 0, 0 }, LeftKnee = { -24, 0, 0 } }, "Out" },
+	{ 0.3, { Torso = { -8, 0, 0 }, Neck = { -4, 0, 0 }, RightShoulder = { -6, 0, 10 }, LeftShoulder = { -6, 0, -10 } } },
+	{ 0.5, REST },
+})
+
+-- Hit on the right side (pushed left): bends and twists away; mirrored for the left
+define("FlinchSide", {}, {
+	{ 0.05, { Root = { 0, 10, 6, 0, -0.08, 0 }, Torso = { 6, 18, 18 }, Neck = { 8, 10, 16 }, RightShoulder = { 36, 0, 44 }, RightElbow = { 50, 0, 0 }, LeftShoulder = { 10, 0, -20 }, LeftHip = { 0, 0, -10 }, RightHip = { 0, 0, 8 }, RightKnee = { -12, 0, 0 } }, "Snap" },
+	{ 0.12, { Root = { 0, 12, 6, 0, -0.08, 0 }, Torso = { 6, 22, 22 }, Neck = { 8, 12, 18 }, RightShoulder = { 36, 0, 44 }, RightElbow = { 50, 0, 0 }, LeftShoulder = { 10, 0, -20 }, LeftHip = { 0, 0, -10 }, RightHip = { 0, 0, 8 }, RightKnee = { -12, 0, 0 } }, "Out" },
+	{ 0.3, { Torso = { 2, 8, 6 }, Neck = { 2, 4, 4 }, RightShoulder = { 16, 0, 18 }, RightElbow = { 24, 0, 0 } } },
+	{ 0.5, REST },
+})
+
+-- A heavy hit: knocked back a step, then folds over the blow
+define("HitHeavy", {}, {
+	{ 0.05, {
+		Root = { 12, 0, 0, 0, -0.12, 0 },
+		Torso = { 26, 6, 0 },
+		Neck = { 30, 0, 0 },
+		RightShoulder = { 50, 0, 50 },
+		LeftShoulder = { 50, 0, -50 },
+		RightElbow = { 40, 0, 0 },
+		LeftElbow = { 40, 0, 0 },
+		RightHip = { -24, 0, 6 },
+		RightKnee = { -34, 0, 0 },
+		LeftHip = { 16, 0, -4 },
+		LeftKnee = { -14, 0, 0 },
+	}, "Snap" },
+	{ 0.14, { Root = { 12, 0, 0, 0, -0.12, 0 }, Torso = { 30, 8, 4 }, Neck = { 34, 0, 6 }, RightShoulder = { 54, 0, 54 }, LeftShoulder = { 54, 0, -54 }, RightElbow = { 40, 0, 0 }, LeftElbow = { 40, 0, 0 }, RightHip = { -24, 0, 6 }, RightKnee = { -34, 0, 0 } }, "Out" },
+	{ 0.4, { Root = { 4, 0, 0, 0, -0.2, 0 }, Torso = { -12, 0, 0 }, Neck = { -6, 0, 0 }, RightShoulder = { 20, 0, 20 }, LeftShoulder = { 20, 0, -20 }, RightHip = { 12, 0, 0 }, LeftHip = { 16, 0, 0 }, RightKnee = { -30, 0, 0 }, LeftKnee = { -24, 0, 0 } } },
+	{ 0.7, { Torso = { -4, 0, 0 }, RightKnee = { -12, 0, 0 }, LeftKnee = { -12, 0, 0 } } },
+	{ 0.9, REST },
+})
+
+-- Guard broken: arms blown apart, a stumble back, then a dazed sway
+define("GuardBreak", {}, {
+	{ 0.07, {
+		Root = { 6, 0, 0, 0, -0.1, 0 },
+		Torso = { 24, 0, 0 },
+		Neck = { 22, 0, 0 },
+		RightShoulder = { 64, 0, 72 },
+		LeftShoulder = { 64, 0, -72 },
+		RightElbow = { 30, 0, 0 },
+		LeftElbow = { 30, 0, 0 },
+		RightHip = { -22, 0, 6 },
+		RightKnee = { -32, 0, 0 },
+		LeftKnee = { -12, 0, 0 },
+	}, "Snap" },
+	{ 0.16, { Root = { 6, 0, 0, 0, -0.1, 0 }, Torso = { 28, 0, 0 }, Neck = { 24, 0, 0 }, RightShoulder = { 70, 0, 80 }, LeftShoulder = { 70, 0, -80 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, RightHip = { -22, 0, 6 }, RightKnee = { -32, 0, 0 } }, "Out" },
+	{ 0.4, { Root = { 2, 6, 0, 0, -0.2, 0 }, Torso = { 12, 10, 8 }, Neck = { 10, 0, 12 }, RightShoulder = { 26, 0, 30 }, LeftShoulder = { 20, 0, -26 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 24, 0, 0 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -24, 0, 0 } } },
+	{ 0.7, { Root = { 2, -6, 0, 0, -0.2, 0 }, Torso = { 14, -10, -8 }, Neck = { 14, 0, -12 }, RightShoulder = { 22, 0, 26 }, LeftShoulder = { 26, 0, -30 }, RightElbow = { 26, 0, 0 }, LeftElbow = { 30, 0, 0 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -24, 0, 0 } } },
+	{ 1.0, { Root = { 0, 4, 0, 0, -0.14, 0 }, Torso = { 10, 8, 6 }, Neck = { 8, 0, 8 }, RightShoulder = { 18, 0, 20 }, LeftShoulder = { 18, 0, -20 }, RightKnee = { -16, 0, 0 }, LeftKnee = { -16, 0, 0 } } },
+	{ 1.25, { Torso = { 4, 0, 0 }, Neck = { 2, 0, 0 }, RightKnee = { -10, 0, 0 }, LeftKnee = { -10, 0, 0 } } },
+	{ 1.4, REST },
+})
+
+-- Parry (the defender): a sharp outward swat with the rear forearm
+define("ParryDeflect", {}, {
+	{ 0.05, merge(GUARD, { Root = { 0, -14, 0, 0, -0.14, 0 }, Torso = { -6, -20, 0 }, Neck = { -4, 20, 0 }, RightShoulder = { 104, 0, 44 }, RightElbow = { 88, 0, 0 }, LeftShoulder = { 70, 0, 30 }, LeftElbow = { 112, 0, 0 } }), "Snap" },
+	{ 0.14, merge(GUARD, { Root = { 0, -16, 0, 0, -0.14, 0 }, Torso = { -6, -24, 0 }, Neck = { -4, 22, 0 }, RightShoulder = { 110, 0, 56 }, RightElbow = { 84, 0, 0 }, LeftShoulder = { 70, 0, 30 }, LeftElbow = { 112, 0, 0 } }), "Out" },
+	{ 0.3, GUARD },
+	{ 0.45, REST },
+})
+
+-- Parried (the attacker): the striking arm knocked high and wide, wide open
+define("ParriedRecoil", {}, {
+	{ 0.06, { Root = { 6, 16, 0, 0, -0.08, 0 }, Torso = { 20, 26, 0 }, Neck = { 18, -10, 0 }, RightShoulder = { 150, 0, 52 }, RightElbow = { 30, 0, 0 }, LeftShoulder = { 20, 0, -30 }, RightHip = { -16, 0, 4 }, RightKnee = { -26, 0, 0 } }, "Snap" },
+	{ 0.18, { Root = { 6, 18, 0, 0, -0.08, 0 }, Torso = { 24, 30, 4 }, Neck = { 20, -12, 0 }, RightShoulder = { 156, 0, 58 }, RightElbow = { 26, 0, 0 }, LeftShoulder = { 20, 0, -30 }, RightHip = { -16, 0, 4 }, RightKnee = { -26, 0, 0 } }, "Out" },
+	{ 0.5, { Root = { 0, 6, 0, 0, -0.1, 0 }, Torso = { 10, 10, 4 }, Neck = { 8, 0, 6 }, RightShoulder = { 50, 0, 30 }, RightElbow = { 40, 0, 0 }, LeftShoulder = { 16, 0, -16 } } },
+	{ 0.8, { Torso = { 4, 0, 0 } } },
+	{ 1.0, REST },
+})
+
+-- A blocked hit: the guard compresses and the body gives a little, then resets
+define("BlockImpact", {}, {
+	{ 0.04, merge(BLOCK, { Torso = { -2, 0, 0 }, Neck = { -2, 0, 0 }, Root = { 4, 0, 0, 0, -0.2, 0 }, RightElbow = { 124, 0, 0 }, LeftElbow = { 120, 0, 0 }, RightKnee = { -22, 0, 0 }, LeftKnee = { -26, 0, 0 } }), "Snap" },
+	{ 0.16, merge(BLOCK, { Torso = { -12, 0, 0 } }), "Out" },
+	{ 0.26, BLOCK },
+})
+
+-- Out of stamina: bent over, hands on knees, breathing hard
+local WINDED = {
+	Root = { 0, 0, 0, 0, -0.34, 0 },
+	Torso = { -38, 0, 0 },
+	Neck = { 30, 0, 0 },
+	RightShoulder = { 48, 0, -10 },
+	LeftShoulder = { 48, 0, 10 },
+	RightElbow = { 14, 0, 0 },
+	LeftElbow = { 14, 0, 0 },
+	RightHip = { 30, 0, 6 },
+	LeftHip = { 30, 0, -6 },
+	RightKnee = { -34, 0, 0 },
+	LeftKnee = { -34, 0, 0 },
+}
+define("Winded", {}, {
+	{ 0.25, WINDED },
+	{ 0.55, merge(WINDED, { Root = { 0, 0, 0, 0, -0.3, 0 }, Torso = { -32, 0, 0 }, Neck = { 26, 0, 0 } }) },
+	{ 0.85, merge(WINDED, { Root = { 0, 0, 0, 0, -0.36, 0 }, Torso = { -40, 0, 0 } }) },
+	{ 1.15, merge(WINDED, { Torso = { -33, 0, 0 }, Neck = { 27, 0, 0 } }) },
+	{ 1.6, REST },
+})
+
+-- Knockdowns: fall, lie still (paused until the get-up), then get up.
+-- Knocked back: tips over backwards, hits the floor, a small bounce
+define("KnockdownBack", { holdAt = 0.62 }, {
+	{ 0.08, { Root = { 14, 0, 0, 0, -0.1, 0 }, Torso = { 22, 0, 0 }, Neck = { 22, 0, 0 }, RightShoulder = { 72, 0, 40 }, LeftShoulder = { 72, 0, -40 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, RightHip = { 24, 0, 4 }, LeftHip = { 10, 0, -4 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -14, 0, 0 } }, "Snap" },
+	{ 0.28, { Root = { 68, 0, 6, 0, -1.05, 0 }, Torso = { 10, 0, 0 }, Neck = { -14, 0, 0 }, RightShoulder = { 120, 0, 60 }, LeftShoulder = { 120, 0, -60 }, RightElbow = { 20, 0, 0 }, LeftElbow = { 20, 0, 0 }, RightHip = { 30, 0, 6 }, LeftHip = { 20, 0, -6 }, RightKnee = { -30, 0, 0 }, LeftKnee = { -24, 0, 0 } }, "In" },
+	{ 0.36, { Root = { 94, 0, 2, 0, -1.56, 0 }, Torso = { -6, 0, 0 }, Neck = { -22, 0, 0 }, RightShoulder = { 150, 0, 80 }, LeftShoulder = { 150, 0, -80 }, RightElbow = { 10, 0, 0 }, LeftElbow = { 10, 0, 0 }, RightHip = { 14, 0, 8 }, LeftHip = { 8, 0, -8 }, RightKnee = { -10, 0, 0 }, LeftKnee = { -8, 0, 0 } }, "In" },
+	{ 0.48, { Root = { 86, 0, 0, 0, -1.44, 0 }, Torso = { -4, 0, 0 }, Neck = { -6, 0, 0 }, RightShoulder = { 146, 0, 78 }, LeftShoulder = { 140, 0, -76 }, RightElbow = { 16, 0, 0 }, LeftElbow = { 20, 0, 0 }, RightHip = { 24, 0, 8 }, LeftHip = { 16, 0, -8 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -18, 0, 0 } }, "Out" },
+	{ 0.62, { Root = { 90, 0, 3, 0, -1.5, 0 }, Torso = { -2, 0, 0 }, Neck = { -4, 0, 6 }, RightShoulder = { 140, 0, 74 }, LeftShoulder = { 130, 0, -70 }, RightElbow = { 24, 0, 0 }, LeftElbow = { 30, 0, 0 }, RightHip = { 16, 0, 8 }, LeftHip = { 30, 0, -6 }, RightKnee = { -20, 0, 0 }, LeftKnee = { -40, 0, 0 } } },
+	-- Getting up: sit up with the knees drawn in, hands pushing the floor, rise
+	{ 0.78, { Root = { 60, 0, 0, 0, -1.18, 0 }, Torso = { -34, 0, 0 }, Neck = { 12, 0, 0 }, RightShoulder = { -30, 0, 24 }, LeftShoulder = { -30, 0, -24 }, RightElbow = { 10, 0, 0 }, LeftElbow = { 10, 0, 0 }, RightHip = { 60, 0, 8 }, LeftHip = { 60, 0, -8 }, RightKnee = { -100, 0, 0 }, LeftKnee = { -100, 0, 0 } } },
+	{ 0.95, { Root = { 22, 0, 0, 0, -0.72, 0 }, Torso = { -28, 0, 0 }, Neck = { 18, 0, 0 }, RightShoulder = { 20, 0, 20 }, LeftShoulder = { 20, 0, -20 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, RightHip = { 68, 0, 6 }, LeftHip = { 68, 0, -6 }, RightKnee = { -110, 0, 0 }, LeftKnee = { -110, 0, 0 } } },
+	{ 1.12, { Root = { 0, 0, 0, 0, -0.2, 0 }, Torso = { -8, 0, 0 }, Neck = { 4, 0, 0 }, RightShoulder = { 30, 0, 14 }, LeftShoulder = { 30, 0, -14 }, RightElbow = { 40, 0, 0 }, LeftElbow = { 40, 0, 0 }, RightHip = { 18, 0, 0 }, LeftHip = { 18, 0, 0 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -24, 0, 0 } } },
+	{ 1.26, REST },
+})
+
+-- Knocked forward: pitches onto the hands and chest, then pushes up to the knees
+define("KnockdownFront", { holdAt = 0.62 }, {
+	{ 0.08, { Root = { -12, 0, 0, 0, -0.1, 0 }, Torso = { -24, 0, 0 }, Neck = { -18, 0, 0 }, RightShoulder = { -30, 0, 20 }, LeftShoulder = { -30, 0, -20 }, LeftHip = { 20, 0, 0 }, LeftKnee = { -30, 0, 0 } }, "Snap" },
+	{ 0.28, { Root = { -66, 0, 0, 0, -1.0, 0 }, Torso = { -6, 0, 0 }, Neck = { 20, 0, 0 }, RightShoulder = { 100, 0, 30 }, LeftShoulder = { 100, 0, -30 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, LeftHip = { 10, 0, 0 }, LeftKnee = { -20, 0, 0 } }, "In" },
+	{ 0.36, { Root = { -90, 0, 0, 0, -1.5, 0 }, Neck = { 30, 0, 10 }, RightShoulder = { 150, 0, 30 }, LeftShoulder = { 150, 0, -30 }, RightElbow = { 60, 0, 0 }, LeftElbow = { 60, 0, 0 }, RightHip = { -6, 0, 4 }, LeftHip = { -6, 0, -4 } }, "In" },
+	{ 0.48, { Root = { -84, 0, 0, 0, -1.42, 0 }, Neck = { 28, 0, 14 }, RightShoulder = { 154, 0, 34 }, LeftShoulder = { 146, 0, -34 }, RightElbow = { 70, 0, 0 }, LeftElbow = { 70, 0, 0 }, RightHip = { -4, 0, 4 }, LeftHip = { -4, 0, -4 } }, "Out" },
+	{ 0.62, { Root = { -90, 0, 2, 0, -1.5, 0 }, Neck = { 26, 0, 20 }, RightShoulder = { 160, 0, 40 }, LeftShoulder = { 140, 0, -40 }, RightElbow = { 80, 0, 0 }, LeftElbow = { 80, 0, 0 }, RightKnee = { -20, 0, 0 } } },
+	{ 0.8, { Root = { -56, 0, 0, 0, -1.2, 0 }, Torso = { -10, 0, 0 }, Neck = { 36, 0, 0 }, RightShoulder = { 60, 0, 10 }, LeftShoulder = { 60, 0, -10 }, RightHip = { 70, 0, 0 }, LeftHip = { 50, 0, 0 }, RightKnee = { -100, 0, 0 }, LeftKnee = { -90, 0, 0 } } },
+	{ 0.98, { Root = { -20, 0, 0, 0, -0.7, 0 }, Torso = { -20, 0, 0 }, Neck = { 30, 0, 0 }, RightShoulder = { 20, 0, 10 }, LeftShoulder = { 20, 0, -10 }, RightHip = { 70, 0, 6 }, LeftHip = { 36, 0, -6 }, RightKnee = { -110, 0, 0 }, LeftKnee = { -70, 0, 0 } } },
+	{ 1.14, { Root = { 0, 0, 0, 0, -0.2, 0 }, Torso = { -8, 0, 0 }, Neck = { 4, 0, 0 }, RightShoulder = { 30, 0, 14 }, LeftShoulder = { 30, 0, -14 }, RightElbow = { 40, 0, 0 }, LeftElbow = { 40, 0, 0 }, RightHip = { 18, 0, 0 }, LeftHip = { 18, 0, 0 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -24, 0, 0 } } },
+	{ 1.28, REST },
+})
+
+-- Tech rolls: a tight tuck and a full roll, landing in a crouch
+local TUCK = {
+	Torso = { -30, 0, 0 },
+	Neck = { -26, 0, 0 },
+	RightShoulder = { 60, 0, 20 },
+	LeftShoulder = { 60, 0, -20 },
+	RightElbow = { 100, 0, 0 },
+	LeftElbow = { 100, 0, 0 },
+	RightHip = { 120, 0, 0 },
+	LeftHip = { 120, 0, 0 },
+	RightKnee = { -140, 0, 0 },
+	LeftKnee = { -140, 0, 0 },
+}
+local ROLL_LAND = {
+	Torso = { -20, 0, 0 },
+	Neck = { 6, 0, 0 },
+	RightShoulder = { 40, 0, 30 },
+	LeftShoulder = { 40, 0, -30 },
+	RightElbow = { 50, 0, 0 },
+	LeftElbow = { 50, 0, 0 },
+	RightHip = { 64, 0, 8 },
+	LeftHip = { 50, 0, -8 },
+	RightKnee = { -96, 0, 0 },
+	LeftKnee = { -80, 0, 0 },
+}
+local ROLL_RISE = merge(GUARD, { Torso = { -8, 0, 0 }, Neck = { 2, 0, 0 }, RightHip = { 16, 0, 0 }, LeftHip = { 16, 0, 0 }, RightKnee = { -22, 0, 0 }, LeftKnee = { -22, 0, 0 } })
+-- Backward roll (from lying on the back), pitch keeps turning through a full circle
+define("TechRollBack", {}, {
+	{ 0.05, merge(TUCK, { Root = { 130, 0, 0, 0, -1.3, 0 } }) },
+	{ 0.12, merge(TUCK, { Root = { 215, 0, 0, 0, -1.2, 0 } }), "Linear" },
+	{ 0.19, merge(TUCK, { Root = { 295, 0, 0, 0, -0.9, 0 } }), "Linear" },
+	{ 0.26, merge(ROLL_LAND, { Root = { 360, 0, 0, 0, -0.55, 0 } }), "Out" },
+	{ 0.4, merge(ROLL_RISE, { Root = { 360, -12, 0, 0, -0.16, 0 } }) },
+	{ 0.52, { Root = { 360, 0, 0 } } },
+})
+-- Forward roll (from lying face down)
+define("TechRollForward", {}, {
+	{ 0.05, merge(TUCK, { Root = { -130, 0, 0, 0, -1.3, 0 } }) },
+	{ 0.12, merge(TUCK, { Root = { -215, 0, 0, 0, -1.2, 0 } }), "Linear" },
+	{ 0.19, merge(TUCK, { Root = { -295, 0, 0, 0, -0.9, 0 } }), "Linear" },
+	{ 0.26, merge(ROLL_LAND, { Root = { -360, 0, 0, 0, -0.55, 0 } }), "Out" },
+	{ 0.4, merge(ROLL_RISE, { Root = { -360, -12, 0, 0, -0.16, 0 } }) },
+	{ 0.52, { Root = { -360, 0, 0 } } },
+})
+-- Kip-up: from the back, legs swing up and over and the fighter springs to the feet
+define("TechKipUp", {}, {
+	{ 0.06, { Root = { 120, 0, 0, 0, -1.4, 0 }, Torso = { -10, 0, 0 }, RightShoulder = { 170, 0, 20 }, LeftShoulder = { 170, 0, -20 }, RightElbow = { 120, 0, 0 }, LeftElbow = { 120, 0, 0 }, RightHip = { 120, 0, 0 }, LeftHip = { 120, 0, 0 }, RightKnee = { -60, 0, 0 }, LeftKnee = { -60, 0, 0 } } },
+	{ 0.16, { Root = { 30, 0, 0, 0, -0.3, 0 }, Torso = { -10, 0, 0 }, RightShoulder = { 80, 0, 40 }, LeftShoulder = { 80, 0, -40 }, RightElbow = { 40, 0, 0 }, LeftElbow = { 40, 0, 0 }, RightHip = { 60, 0, 0 }, LeftHip = { 60, 0, 0 }, RightKnee = { -90, 0, 0 }, LeftKnee = { -90, 0, 0 } }, "Snap" },
+	{ 0.26, merge(ROLL_LAND, { Root = { 0, 0, 0, 0, -0.4, 0 } }), "Out" },
+	{ 0.4, merge(ROLL_RISE, { Root = { 0, -12, 0, 0, -0.14, 0 } }) },
+	{ 0.52, REST },
+})
+-- Side roll: a log roll along the floor toward the body's left (mirrored for the right)
+define("TechRollSide", {}, {
+	{ 0.06, { Root = { 90, 70, 0, 0, -1.45, 0 }, RightShoulder = { 40, 0, -10 }, LeftShoulder = { 40, 0, 10 }, RightElbow = { 110, 0, 0 }, LeftElbow = { 110, 0, 0 }, RightHip = { 20, 0, 0 }, LeftHip = { 20, 0, 0 }, RightKnee = { -30, 0, 0 }, LeftKnee = { -30, 0, 0 } } },
+	{ 0.13, { Root = { 90, 180, 0, 0, -1.45, 0 }, RightShoulder = { 40, 0, -10 }, LeftShoulder = { 40, 0, 10 }, RightElbow = { 110, 0, 0 }, LeftElbow = { 110, 0, 0 }, RightHip = { 20, 0, 0 }, LeftHip = { 20, 0, 0 }, RightKnee = { -30, 0, 0 }, LeftKnee = { -30, 0, 0 } }, "Linear" },
+	{ 0.2, { Root = { 84, 290, 0, 0, -1.3, 0 }, RightShoulder = { 40, 0, -10 }, LeftShoulder = { 40, 0, 10 }, RightElbow = { 110, 0, 0 }, LeftElbow = { 110, 0, 0 }, RightHip = { 40, 0, 0 }, LeftHip = { 40, 0, 0 }, RightKnee = { -60, 0, 0 }, LeftKnee = { -60, 0, 0 } }, "Linear" },
+	{ 0.28, merge(ROLL_LAND, { Root = { 30, 360, 0, 0, -0.6, 0 } }), "Out" },
+	{ 0.42, merge(ROLL_RISE, { Root = { 0, 348, 0, 0, -0.15, 0 } }) },
+	{ 0.52, { Root = { 0, 360, 0 } } },
+})
+
+-- Breakfall: a tucked backflip out of a juggle, landing on both feet
+define("Breakfall", {}, {
+	{ 0.05, merge(TUCK, { Root = { 70, 0, 0, 0, 0.1, 0 }, Torso = { -20, 0, 0 } }) },
+	{ 0.12, merge(TUCK, { Root = { 180, 0, 0, 0, 0.15, 0 } }), "Linear" },
+	{ 0.2, merge(TUCK, { Root = { 290, 0, 0, 0, 0.05, 0 } }), "Linear" },
+	{ 0.28, { Root = { 360, 0, 0, 0, -0.3, 0 }, Torso = { -14, 0, 0 }, Neck = { 6, 0, 0 }, RightShoulder = { 60, 0, 60 }, LeftShoulder = { 60, 0, -60 }, RightElbow = { 20, 0, 0 }, LeftElbow = { 20, 0, 0 }, RightHip = { 40, 0, 8 }, LeftHip = { 40, 0, -8 }, RightKnee = { -60, 0, 0 }, LeftKnee = { -60, 0, 0 } }, "Out" },
+	{ 0.46, merge(ROLL_RISE, { Root = { 360, -12, 0, 0, -0.1, 0 } }) },
+	{ 0.56, { Root = { 360, 0, 0 } } },
+})
+
+-- Launched: arched back, limbs trailing as the body rises
+define("Launched", {}, {
+	{ 0.06, { Root = { -10, 0, 0 }, Torso = { 30, 0, 0 }, Neck = { 26, 0, 0 }, RightShoulder = { 140, 0, 50 }, LeftShoulder = { 140, 0, -50 }, RightElbow = { 20, 0, 0 }, LeftElbow = { 20, 0, 0 }, RightHip = { 30, 0, 8 }, LeftHip = { 14, 0, -8 }, RightKnee = { -50, 0, 0 }, LeftKnee = { -30, 0, 0 } }, "Snap" },
+	{ 0.3, { Root = { -26, 0, 6 }, Torso = { 26, 0, 4 }, Neck = { 18, 0, 0 }, RightShoulder = { 120, 0, 70 }, LeftShoulder = { 110, 0, -64 }, RightElbow = { 24, 0, 0 }, LeftElbow = { 30, 0, 0 }, RightHip = { 40, 0, 10 }, LeftHip = { 24, 0, -8 }, RightKnee = { -60, 0, 0 }, LeftKnee = { -46, 0, 0 } }, "Out" },
+	{ 0.6, { Root = { -12, 0, 0 }, Torso = { 14, 0, 0 }, Neck = { 8, 0, 0 }, RightShoulder = { 60, 0, 50 }, LeftShoulder = { 60, 0, -50 }, RightHip = { 30, 0, 0 }, LeftHip = { 30, 0, 0 }, RightKnee = { -50, 0, 0 }, LeftKnee = { -50, 0, 0 } } },
+	{ 0.9, REST },
+})
+
+-- Wall splat: back flat against the wall, arms splayed, then a slump forward
+define("WallSplat", {}, {
+	{ 0.05, { Root = { -6, 0, 0, 0, 0.1, 0 }, Torso = { 18, 0, 0 }, Neck = { 30, 0, 0 }, RightShoulder = { 86, 0, 90 }, LeftShoulder = { 86, 0, -90 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, RightHip = { 4, 0, 14 }, LeftHip = { 4, 0, -14 } }, "Snap" },
+	{ 0.36, { Root = { -6, 0, 0, 0, -0.24, 0 }, Torso = { 14, 0, 0 }, Neck = { 24, 0, 0 }, RightShoulder = { 80, 0, 84 }, LeftShoulder = { 80, 0, -84 }, RightElbow = { 34, 0, 0 }, LeftElbow = { 34, 0, 0 }, RightHip = { 10, 0, 14 }, LeftHip = { 10, 0, -14 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -20, 0, 0 } } },
+	{ 0.6, { Root = { 0, 0, 0, 0, -0.3, 0 }, Torso = { -22, 0, 0 }, Neck = { -16, 0, 0 }, RightShoulder = { 24, 0, 26 }, LeftShoulder = { 24, 0, -26 }, RightElbow = { 20, 0, 0 }, LeftElbow = { 20, 0, 0 }, RightHip = { 24, 0, 0 }, LeftHip = { 24, 0, 0 }, RightKnee = { -36, 0, 0 }, LeftKnee = { -36, 0, 0 } } },
+	{ 0.8, REST },
+})
+
+-- Clash: both strikes bounce off each other; arms jolt back, a half-step back
+define("ClashRecoil", {}, {
+	{ 0.05, { Root = { 6, 0, 0, 0, -0.12, 0 }, Torso = { 18, -8, 0 }, Neck = { 14, 0, 0 }, RightShoulder = { 128, 0, 30 }, RightElbow = { 40, 0, 0 }, LeftShoulder = { 40, 0, -20 }, LeftElbow = { 80, 0, 0 }, RightHip = { -16, 0, 4 }, RightKnee = { -24, 0, 0 }, LeftKnee = { -14, 0, 0 } }, "Snap" },
+	{ 0.14, { Root = { 6, 0, 0, 0, -0.12, 0 }, Torso = { 22, -10, 0 }, Neck = { 16, 0, 0 }, RightShoulder = { 132, 0, 34 }, RightElbow = { 40, 0, 0 }, LeftShoulder = { 40, 0, -20 }, LeftElbow = { 80, 0, 0 }, RightHip = { -16, 0, 4 }, RightKnee = { -24, 0, 0 } }, "Out" },
+	{ 0.3, GUARD },
+	{ 0.45, REST },
+})
+
+-- Feint: the heavy's load snaps back up into a tall guard with a little dip
+define("Feint", {}, {
+	{ 0.07, { Root = { 0, -6, 0, 0, -0.06, 0 }, Torso = { 6, -4, 0 }, Neck = { -4, 10, 0 }, RightShoulder = { 50, 0, -26 }, RightElbow = { 118, 0, 0 }, LeftShoulder = { 64, 0, 22 }, LeftElbow = { 102, 0, 0 }, LeftHip = { 14, 0, -4 }, LeftKnee = { -18, 0, 0 }, RightHip = { -8, 0, 4 }, RightKnee = { -14, 0, 0 } }, "Snap" },
+	{ 0.14, merge(GUARD, { Root = { 0, -10, 0, 0, -0.18, 0 } }), "Out" },
+	{ 0.25, GUARD },
+	{ 0.38, REST },
+})
+
+-- Movement ------------------------------------------------------------------------------
+
+-- Sidestep toward the body's left (mirrored for the right): low, leaning into it
+define("DodgeSide", {}, {
+	{ 0.05, { Root = { 0, 0, 12, 0, -0.28, 0 }, Torso = { -8, 0, 8 }, Neck = { -4, 0, -10 }, RightShoulder = { 60, 0, -20 }, RightElbow = { 110, 0, 0 }, LeftShoulder = { 64, 0, 24 }, LeftElbow = { 104, 0, 0 }, LeftHip = { 10, 0, -26 }, LeftKnee = { -20, 0, 0 }, RightHip = { 6, 0, 10 }, RightKnee = { -34, 0, 0 } }, "Snap" },
+	{ 0.16, { Root = { 0, 0, 8, 0, -0.24, 0 }, Torso = { -8, 0, 6 }, Neck = { -4, 0, -8 }, RightShoulder = { 60, 0, -20 }, RightElbow = { 110, 0, 0 }, LeftShoulder = { 64, 0, 24 }, LeftElbow = { 104, 0, 0 }, LeftHip = { 8, 0, -16 }, LeftKnee = { -24, 0, 0 }, RightHip = { 6, 0, 8 }, RightKnee = { -30, 0, 0 } }, "Out" },
+	{ 0.28, GUARD },
+	{ 0.38, REST },
+})
+-- Backstep: a hop back with the legs tucked and the guard up
+define("DodgeBack", {}, {
+	{ 0.05, { Root = { -8, 0, 0, 0, -0.18, 0 }, Torso = { -10, 0, 0 }, Neck = { 6, 0, 0 }, RightShoulder = { 62, 0, -22 }, RightElbow = { 112, 0, 0 }, LeftShoulder = { 66, 0, 22 }, LeftElbow = { 106, 0, 0 }, RightHip = { 34, 0, 4 }, LeftHip = { 44, 0, -4 }, RightKnee = { -50, 0, 0 }, LeftKnee = { -56, 0, 0 } }, "Snap" },
+	{ 0.16, { Root = { -4, 0, 0, 0, -0.22, 0 }, Torso = { -8, 0, 0 }, Neck = { 4, 0, 0 }, RightShoulder = { 62, 0, -22 }, RightElbow = { 112, 0, 0 }, LeftShoulder = { 66, 0, 22 }, LeftElbow = { 106, 0, 0 }, RightHip = { 20, 0, 4 }, LeftHip = { 26, 0, -4 }, RightKnee = { -30, 0, 0 }, LeftKnee = { -34, 0, 0 } }, "Out" },
+	{ 0.28, GUARD },
+	{ 0.38, REST },
+})
+-- Forward dash: chest low over the lead knee, arms swept back
+define("DodgeForward", {}, {
+	{ 0.05, { Root = { 0, 0, 0, 0, -0.32, 0 }, Torso = { -30, 0, 0 }, Neck = { 24, 0, 0 }, RightShoulder = { -40, 0, 20 }, LeftShoulder = { -40, 0, -20 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, LeftHip = { 40, 0, 0 }, LeftKnee = { -50, 0, 0 }, RightHip = { -24, 0, 0 }, RightKnee = { -30, 0, 0 } }, "Snap" },
+	{ 0.16, { Root = { 0, 0, 0, 0, -0.32, 0 }, Torso = { -34, 0, 0 }, Neck = { 26, 0, 0 }, RightShoulder = { -44, 0, 20 }, LeftShoulder = { -44, 0, -20 }, RightElbow = { 30, 0, 0 }, LeftElbow = { 30, 0, 0 }, LeftHip = { 40, 0, 0 }, LeftKnee = { -50, 0, 0 }, RightHip = { -24, 0, 0 }, RightKnee = { -30, 0, 0 } }, "Out" },
+	{ 0.3, merge(GUARD, { Root = { 0, -8, 0, 0, -0.14, 0 }, Torso = { -10, 0, 0 }, Neck = { 6, 8, 0 } }) },
+	{ 0.4, REST },
+})
+
+-- Taunts (Combat.Taunt.Duration long) --------------------------------------------------
+
+-- "Come on": lead hand out, palm up, fingers curling twice, chin up
+define("TauntBeckon", {}, {
+	{ 0.2, merge(GUARD, { Root = { 0, -14, 0, 0, -0.08, 0 }, Neck = { 10, 16, 8 } }) },
+	{ 0.45, merge(GUARD, { LeftShoulder = { 84, 10, 6 }, LeftElbow = { 20, 0, 0 }, Neck = { 14, 16, 10 } }), "Back" },
+	{ 0.62, merge(GUARD, { LeftShoulder = { 84, 10, 6 }, LeftElbow = { 80, 0, 0 }, Neck = { 14, 16, 10 } }) },
+	{ 0.78, merge(GUARD, { LeftShoulder = { 84, 10, 6 }, LeftElbow = { 16, 0, 0 }, Neck = { 14, 16, 10 } }) },
+	{ 0.94, merge(GUARD, { LeftShoulder = { 84, 10, 6 }, LeftElbow = { 84, 0, 0 }, Neck = { 14, 16, 10 } }) },
+	{ 1.1, merge(GUARD, { Neck = { 8, 18, 6 } }) },
+	{ 1.4, REST },
+})
+-- Shrug: arms open, head tilting side to side ("is that all?")
+local SHRUG = { Root = { 0, 0, 0, 0, 0.06, 0 }, Torso = { 8, 0, 0 }, Neck = { 6, 0, 14 }, RightShoulder = { 30, -30, 50 }, LeftShoulder = { 30, 30, -50 }, RightElbow = { 84, 0, 0 }, LeftElbow = { 84, 0, 0 } }
+define("TauntShrug", {}, {
+	{ 0.25, SHRUG, "Back" },
+	{ 0.5, merge(SHRUG, { Root = { 0, 0, 0 }, Torso = { 10, 0, 0 }, Neck = { 4, 0, -12 } }) },
+	{ 0.75, SHRUG },
+	{ 1.05, merge(SHRUG, { Torso = { 4, 0, 0 }, RightShoulder = { 24, -20, 40 }, LeftShoulder = { 24, 20, -40 } }) },
+	{ 1.4, REST },
+})
+-- Flex: a double biceps, squeezed twice
+local FLEX = {
+	Root = { 0, 0, 0, 0, -0.12, 0 },
+	Torso = { 4, 0, 0 },
+	Neck = { -8, 0, 0 },
+	RightShoulder = { 90, 0, 92 },
+	LeftShoulder = { 90, 0, -92 },
+	RightElbow = { 104, 0, 0 },
+	LeftElbow = { 104, 0, 0 },
+	RightHip = { 6, 0, 10 },
+	LeftHip = { 6, 0, -10 },
+	RightKnee = { -12, 0, 0 },
+	LeftKnee = { -12, 0, 0 },
+}
+define("TauntFlex", {}, {
+	{ 0.22, FLEX, "Back" },
+	{ 0.5, merge(FLEX, { Root = { 0, 0, 0, 0, -0.18, 0 }, Torso = { -6, 0, 0 }, RightElbow = { 124, 0, 0 }, LeftElbow = { 124, 0, 0 } }) },
+	{ 0.8, merge(FLEX, { Torso = { 2, 0, 0 }, Neck = { -12, 0, 0 }, RightElbow = { 110, 0, 0 }, LeftElbow = { 110, 0, 0 } }) },
+	{ 1.05, merge(FLEX, { Root = { 0, 0, 0, 0, -0.18, 0 }, Torso = { -6, 0, 0 }, RightElbow = { 126, 0, 0 }, LeftElbow = { 126, 0, 0 } }) },
+	{ 1.4, REST },
+})
+Poser.Taunts = { "TauntBeckon", "TauntShrug", "TauntFlex" }
+
+-- Which sequence plays each server move name
+Poser.MoveSequence = {
+	Jab = "Jab",
+	Cross = "Cross",
+	Hook = "Hook",
+	FinisherKick = "FinisherKick",
+	Heavy = "Heavy",
+	ChargedHeavy = "ChargedStrike",
+	Launcher = "Launcher",
+	RushStrike = "RushStrike",
+	ShoulderCharge = "ShoulderCharge",
+	AirKick = "AirKick",
+	Slam = "Slam",
+	Sweep = "Sweep",
+	Grab = "Grab",
+	PropThrow = "PropThrow",
+}
 
 return Poser

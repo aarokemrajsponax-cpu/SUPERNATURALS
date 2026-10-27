@@ -2,6 +2,7 @@
 -- camera sliders on the right. Everything reads and writes through
 -- Client/Settings (which saves to the profile a second after the last change).
 -- Camera sensitivity is only stored here; the camera controller reads it.
+-- "Hold to lock on" switches Settings.lockOnMode between "toggle" and "hold".
 
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
@@ -90,6 +91,18 @@ function SettingsWindow.register()
 				setters[option.key] = function(value)
 					set(value == true)
 				end
+			end
+			-- Lock-on is stored as "toggle" or "hold"
+			local _, setLockMode = Components.toggle("Hold to lock on", Settings.get("lockOnMode") == "hold", function(on)
+				Settings.set("lockOnMode", if on then "hold" else "toggle")
+			end, {
+				Name = "Toggle_lockOnMode",
+				LayoutOrder = #TOGGLES + 2,
+				Description = "Off: press once to lock on, tap to switch",
+				Parent = left,
+			})
+			setters.lockOnMode = function(value)
+				setLockMode(value == "hold")
 			end
 			Components.text({
 				Name = "Note",
