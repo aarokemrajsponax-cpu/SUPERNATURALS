@@ -8,6 +8,18 @@
 
 local Schema = {}
 
+-- The book's document ids, so saved lore progress only keeps ids that exist
+local Archive = require(script.Parent.Parent.Content.Archive)
+local LORE_FILES: { [string]: boolean } = {}
+local LORE_DOCUMENTS: { [string]: boolean } = {}
+for id in Archive.Files do
+	LORE_FILES[id] = true
+	LORE_DOCUMENTS[id] = true
+end
+for _, chapter in Archive.Chapters do
+	LORE_DOCUMENTS[chapter.id] = true
+end
+
 -- Bump this when the shape changes, and add a MIGRATIONS step below
 Schema.VERSION = 1
 
@@ -33,6 +45,8 @@ Schema.Config = {
 	MaxFurnitureCount = 9999,
 	MaxXp = 1e9,
 	MaxTextLength = 100,
+	-- The Archive remembers which page of a document you were on, up to this
+	MaxLorePage = 99,
 
 	-- DataStore
 	StoreName = "SupernaturalsProfiles_v1",
@@ -113,6 +127,8 @@ export type Profile = {
 	base: { floor: string, wall: string, lighting: string, access: string, capacity: number, items: { BaseItem } },
 	daily: { day: number, progress: { [string]: number }, claimed: { [string]: boolean }, loginStreak: number },
 	tutorial: { done: { [string]: boolean }, welcomed: boolean },
+	-- The Archive: recovered files, documents read, and where the reader left off
+	lore: { found: { [string]: boolean }, read: { [string]: boolean }, last: string, page: number },
 	settings: Settings,
 	-- Last known game pass ownership by pass key (Roblox is asked again on join)
 	passes: { [string]: boolean },
@@ -223,6 +239,17 @@ local function stringSet(value: any): { [string]: boolean }
 	return result
 end
 
+-- stringSet keeping only the ids listed in `known`
+local function knownSet(value: any, known: { [string]: boolean }): { [string]: boolean }
+	local result = {}
+	for key in stringSet(value) do
+		if known[key] then
+			result[key] = true
+		end
+	end
+	return result
+end
+
 -- The strings of an array, at most `limit`. `keepLast` keeps the newest end.
 local function stringList(value: any, limit: number, keepLast: boolean?, unique: boolean?): { string }
 	local result = {}
@@ -285,6 +312,7 @@ local DEFAULT = {
 	base = { floor = "Oak", wall = "Plaster", lighting = "Warm", access = "Everyone", capacity = 1, items = {} },
 	daily = { day = 0, progress = {}, claimed = {}, loginStreak = 0 },
 	tutorial = { done = {}, welcomed = false },
+	lore = { found = {}, read = {}, last = "", page = 0 },
 	settings = defaultSettings(),
 	passes = {},
 	receipts = {},
@@ -482,7 +510,24 @@ local function repair(source: { [any]: any }): Profile
 	profile.tutorial.done = stringSet(tutorial.done)
 	profile.tutorial.welcomed = tutorial.welcomed == true
 
-	profile.settings = Schema.sanitizeSettings(source.settings, nil)
+	-- Lore: only ids the Archive has (a file must be found before it can be read)
+	local lore = asTable(source.lore)
+	local found = knownSet(lore.found, LORE_FILES)
+	local read = {}
+	for id in knownSet(lore.read, LORE_DOCUMENTS) do
+		if not LORE_FILES[id] or found[id] then
+			read[id] = true
+		end
+	end
+	local last = if typeof(lore.last) == "string" and read[lore.last] then lore.last else ""
+	profile.lore = {
+		found = found,
+		read = read,
+		last = last,
+		page = if last ~= "" then integer(lore.page, 0, config.MaxLorePage, 0) else 0,
+	}
+
+	profile.settings =Schema.sanitizeSettings(source.settings, nil)
 	profile.passes = stringSet(source.passes)
 	profile.receipts = stringList(source.receipts, config.MaxReceipts, true)
 	profile.rewardLog = numberList(source.rewardLog, config.MaxRewardLog)

@@ -23,6 +23,7 @@ local ORDER = {
 	"DummyService",
 	"MatchService",
 	"ProgressionService",
+	"LoreService",
 	"AdminEventService",
 	"OwnerService",
 }

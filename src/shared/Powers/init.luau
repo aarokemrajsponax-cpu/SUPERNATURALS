@@ -179,7 +179,9 @@ function Powers.basicFor(powerId: string?, degree: number?, formId: string?, kin
 		return nil
 	end
 	if formId and formId ~= "" then
-		local form = def.abilities[formId]
+		-- The form at this degree (Shapeshifter forms evolve through degreeScaling)
+		local form = (if degree and Powers.validDegree(powerId :: string, degree) then Powers.abilityFor(powerId :: string, formId, degree) else nil)
+			or def.abilities[formId]
 		local formBasic = form and form.form and form.form.basic
 		if formBasic and formBasic[kind] then
 			return formBasic[kind]
@@ -308,7 +310,8 @@ function Powers.combatProfile(powerId: string?, degree: number?, formId: string?
 		merge(profile, degreeDef.stats)
 	end
 	if formId and formId ~= "" then
-		local form = def.abilities[formId]
+		-- The form at this degree (Shapeshifter forms evolve through degreeScaling)
+		local form = (if degreeDef then Powers.abilityFor(powerId, formId, level) else nil) or def.abilities[formId]
 		if form and form.form then
 			merge(profile, form.form.stats)
 		end

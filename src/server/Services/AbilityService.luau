@@ -108,6 +108,19 @@ end
 
 -- Is this ability usable by this fighter right now? Returns (def, reason).
 -- `basic` is set when it stands in for the Light or Heavy attack.
+-- What this use costs: the definition's cost, unless the power module says
+-- otherwise with costFor (Shapeshifter: changing back from a form is free)
+local function costOf(fighter, runtime, def): number
+	local module = runtime.module
+	if module and module.costFor then
+		local ok, cost = pcall(module.costFor, fighter, runtime, def)
+		if ok and typeof(cost) == "number" and cost == cost and cost >= 0 then
+			return cost
+		end
+	end
+	return def.cost or 0
+end
+
 function AbilityService:_validate(fighter, abilityId: string, basic: string?)
 	local runtime = fighter.power
 	if not runtime then
@@ -145,7 +158,7 @@ function AbilityService:_validate(fighter, abilityId: string, basic: string?)
 		if runtime.ult + 1e-6 < ULTIMATE.Max then
 			return nil, "charge"
 		end
-	elseif runtime.resource + 1e-6 < (def.cost or 0) then
+	elseif runtime.resource + 1e-6 < costOf(fighter, runtime, def) then
 		return nil, "resource"
 	end
 	return def, nil
@@ -208,8 +221,11 @@ function AbilityService:use(fighter, abilityId: string, aim: any?, opts: { basic
 	-- Pay
 	if abilityId == runtime.ultimate and not basic then
 		runtime.ult = 0
-	elseif (def.cost or 0) > 0 then
-		self.services.PowerService:spend(fighter, def.cost)
+	else
+		local cost = costOf(fighter, runtime, def)
+		if cost > 0 then
+			self.services.PowerService:spend(fighter, cost)
+		end
 	end
 	self.services.PowerService:setCooldown(fighter, abilityId, time + self.services.PowerService:cooldownFor(fighter, def))
 	FighterState.dropProtection(fighter.state, time)

@@ -148,6 +148,8 @@ Protocol.ProgressAction = {
 	StartLesson = "StartLesson", -- (lessonId) tutorial lesson in the training ground
 	StopLesson = "StopLesson",
 	Welcome = "Welcome", -- the new-player welcome was seen
+	FindLore = "FindLore", -- (fileId) a recovered file was picked up (LoreService)
+	ReadLore = "ReadLore", -- (documentId, page?) a book document was shown (LoreService)
 }
 
 -- Client -> server, through Remotes.SettingsRequest: (settings table, sanitized on the server)
