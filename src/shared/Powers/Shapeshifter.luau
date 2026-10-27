@@ -35,7 +35,7 @@ end
 return {
 	id = "Shapeshifter",
 	name = "Animal Shapeshifter",
-	icon = "🐺",
+	icon = "SHP",
 	tagline = "One body, many beasts",
 	description = "Turn into a wolf, hawk, bear and more. Each animal moves, fights and defends its own way. Primal drains while you hold a form, so pick your moment.",
 	style = "Adaptive · any range",
@@ -111,7 +111,7 @@ return {
 		-- Forms -------------------------------------------------------------------------
 		WolfForm = {
 			name = "Wolf",
-			icon = "🐺",
+			icon = "WLF",
 			description = "Fast pursuit and a quick bite combo. Heavy is a pounce-bite. Dodges stay safe longer. Fragile against heavy hitters.",
 			kind = "Form",
 			minDegree = 1,
@@ -148,7 +148,7 @@ return {
 		},
 		HawkForm = {
 			name = "Hawk",
-			icon = "🦅",
+			icon = "HWK",
 			description = "Light and floaty: huge jumps, a slow glide and a diving strike on Heavy. Evade by staying airborne. Takes extra damage.",
 			kind = "Form",
 			minDegree = 1,
@@ -188,7 +188,7 @@ return {
 		},
 		BearForm = {
 			name = "Bear",
-			icon = "🐻",
+			icon = "BR",
 			description = "Big, slow and tough: takes less damage and knockback, guards well. Heavy rears up and slams. A large, easy target.",
 			kind = "Form",
 			minDegree = 1,
@@ -229,7 +229,7 @@ return {
 		},
 		CheetahForm = {
 			name = "Cheetah",
-			icon = "🐆",
+			icon = "CHT",
 			description = "The fastest form, with bursts of speed that strike on contact. Long dodges, little health. Hard to catch, easy to break.",
 			kind = "Form",
 			minDegree = 1,
@@ -265,7 +265,7 @@ return {
 		},
 		CrocodileForm = {
 			name = "Crocodile",
-			icon = "🐊",
+			icon = "CRC",
 			description = "Low and armoured with an iron guard. Heavy is a death-roll grab: mash to break free. Slow on its feet.",
 			kind = "Form",
 			minDegree = 2,
@@ -295,7 +295,7 @@ return {
 		},
 		PhoenixForm = {
 			name = "Phoenix",
-			icon = "🔥",
+			icon = "PHX",
 			description = "A firebird: soaring jumps, burning claws and a rising fire nova on Heavy. Very fragile and drains Primal fast.",
 			kind = "Form",
 			minDegree = 3,
@@ -325,7 +325,7 @@ return {
 		-- Animal attacks (Light/Heavy while in a form) ----------------------------------
 		WolfBite = {
 			name = "Bite",
-			icon = "🦷",
+			icon = "BT",
 			description = "Quick snapping bites. Every third bite in a row tears harder.",
 			kind = "Melee",
 			minDegree = 1,
@@ -349,7 +349,7 @@ return {
 		},
 		WolfPounce = {
 			name = "Pounce",
-			icon = "🐾",
+			icon = "PN",
 			description = "Leaps forward and bites whoever it lands on. A missed pounce leaves the wolf open.",
 			kind = "Dash",
 			minDegree = 1,
@@ -383,7 +383,7 @@ return {
 		},
 		HawkTalon = {
 			name = "Talon Rake",
-			icon = "🪶",
+			icon = "TL",
 			description = "Fast raking talons, in the air or on the ground.",
 			kind = "Melee",
 			minDegree = 1,
@@ -405,7 +405,7 @@ return {
 		},
 		HawkDive = {
 			name = "Dive",
-			icon = "⤵️",
+			icon = "DV",
 			description = "Folds its wings and dives down and forward, striking where it lands. Best from high up.",
 			kind = "Dash",
 			minDegree = 1,
@@ -447,7 +447,7 @@ return {
 		},
 		BearMaul = {
 			name = "Maul",
-			icon = "🐾",
+			icon = "ML",
 			description = "Wide, heavy paw swipes that chew through guard.",
 			kind = "Melee",
 			minDegree = 1,
@@ -469,7 +469,7 @@ return {
 		},
 		BearSlam = {
 			name = "Bear Slam",
-			icon = "💥",
+			icon = "SL",
 			description = "Rears up and slams both paws down in front. Slow to start, so step back or jump.",
 			kind = "Area",
 			minDegree = 1,
@@ -504,7 +504,7 @@ return {
 		},
 		CheetahSwipe = {
 			name = "Swipe",
-			icon = "🐾",
+			icon = "SW",
 			description = "Very fast claw swipes.",
 			kind = "Melee",
 			minDegree = 1,
@@ -526,7 +526,7 @@ return {
 		},
 		CheetahBurst = {
 			name = "Burst",
-			icon = "💨",
+			icon = "BS",
 			description = "A burst of top speed that strikes the first foe it meets, then a short rush of haste. A miss leaves it open.",
 			kind = "Dash",
 			minDegree = 1,
@@ -563,7 +563,7 @@ return {
 		},
 		CrocSnap = {
 			name = "Snap",
-			icon = "🦷",
+			icon = "SN",
 			description = "A crushing snap of the jaws. Slow, but it bites deep into guard.",
 			kind = "Melee",
 			minDegree = 2,
@@ -584,7 +584,7 @@ return {
 		},
 		DeathRoll = {
 			name = "Death Roll",
-			icon = "🌀",
+			icon = "DR",
 			description = "Clamps onto someone in front and rolls. Beats blocking; a dodge avoids it and the victim can mash to break free.",
 			kind = "Grab",
 			minDegree = 2,
@@ -610,7 +610,7 @@ return {
 		},
 		CinderRake = {
 			name = "Cinder Rake",
-			icon = "🔥",
+			icon = "CR",
 			description = "Burning talons that leave a short burn.",
 			kind = "Melee",
 			minDegree = 3,
@@ -632,7 +632,7 @@ return {
 		},
 		PhoenixNova = {
 			name = "Fire Nova",
-			icon = "☀️",
+			icon = "NV",
 			description = "Rises on a column of flame, then bursts into a ring of fire that burns. A warning shows first: dodge or get clear.",
 			kind = "Area",
 			minDegree = 3,
@@ -660,7 +660,7 @@ return {
 		-- Ultimate ---------------------------------------------------------------------------
 		PrimalAscendancy = {
 			name = "Primal Ascendancy",
-			icon = "🌕",
+			icon = "ULT",
 			description = "ULTIMATE. Wolf, hawk and bear spirits rise around you, then a colossal spirit beast crashes down in front. Perfect timing negates it.",
 			kind = "Ultimate",
 			minDegree = 1,

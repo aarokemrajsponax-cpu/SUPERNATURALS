@@ -117,21 +117,21 @@ local FUR = Enum.Material.Fabric
 local SMOOTH = Enum.Material.SmoothPlastic
 
 local PALETTES: { [string]: { [string]: any } } = {
-	Wolf = { base = rgb(112, 104, 94), dark = rgb(64, 58, 52), light = rgb(198, 188, 170), eye = rgb(214, 160, 62), nose = rgb(30, 27, 26), claw = rgb(58, 52, 46), material = FUR },
+	Wolf = { base = rgb(128, 120, 108), dark = rgb(84, 77, 70), light = rgb(206, 196, 178), eye = rgb(214, 160, 62), nose = rgb(30, 27, 26), claw = rgb(58, 52, 46), material = FUR },
 	SpectralWolf = {
 		base = rgb(128, 166, 212), dark = rgb(74, 100, 156), light = rgb(204, 224, 246), eye = rgb(206, 240, 255), nose = rgb(60, 80, 130), claw = rgb(170, 200, 236),
 		material = SMOOTH, see = 0.2, glowEyes = true,
 	},
-	Hawk = { base = rgb(128, 86, 52), dark = rgb(70, 46, 30), light = rgb(226, 208, 176), beak = rgb(96, 90, 84), cere = rgb(228, 186, 72), eye = rgb(32, 24, 20), feet = rgb(222, 184, 80), claw = rgb(36, 32, 30), material = FUR },
-	Eagle = { base = rgb(84, 58, 38), dark = rgb(52, 36, 24), light = rgb(236, 232, 222), beak = rgb(232, 180, 58), cere = rgb(232, 190, 70), eye = rgb(40, 30, 18), feet = rgb(232, 186, 66), claw = rgb(34, 30, 28), material = FUR, whiteHead = true },
-	StormEagle = { base = rgb(62, 70, 88), dark = rgb(36, 40, 52), light = rgb(198, 208, 224), beak = rgb(172, 178, 190), cere = rgb(150, 160, 178), eye = rgb(170, 214, 255), feet = rgb(150, 156, 168), claw = rgb(30, 32, 38), glow = STORM, material = FUR, whiteHead = true, glowEyes = true },
+	Hawk = { base = rgb(140, 96, 60), dark = rgb(86, 58, 38), light = rgb(226, 208, 176), beak = rgb(96, 90, 84), cere = rgb(228, 186, 72), eye = rgb(32, 24, 20), feet = rgb(222, 184, 80), claw = rgb(36, 32, 30), material = FUR },
+	Eagle = { base = rgb(98, 70, 48), dark = rgb(64, 46, 32), light = rgb(236, 232, 222), beak = rgb(232, 180, 58), cere = rgb(232, 190, 70), eye = rgb(40, 30, 18), feet = rgb(232, 186, 66), claw = rgb(34, 30, 28), material = FUR, whiteHead = true },
+	StormEagle = { base = rgb(88, 98, 120), dark = rgb(58, 64, 82), light = rgb(198, 208, 224), beak = rgb(172, 178, 190), cere = rgb(150, 160, 178), eye = rgb(170, 214, 255), feet = rgb(150, 156, 168), claw = rgb(30, 32, 38), glow = STORM, material = FUR, whiteHead = true, glowEyes = true },
 	Phoenix = { base = rgb(206, 78, 32), dark = rgb(136, 36, 22), light = rgb(255, 184, 84), beak = rgb(255, 214, 150), cere = rgb(255, 200, 110), eye = rgb(255, 236, 170), feet = rgb(150, 50, 26), claw = rgb(60, 24, 18), glow = FLAME, material = SMOOTH, glowEyes = true },
-	Bear = { base = rgb(96, 68, 44), dark = rgb(58, 40, 26), light = rgb(150, 116, 84), eye = rgb(24, 18, 14), nose = rgb(26, 22, 20), claw = rgb(206, 196, 176), material = FUR },
-	DireBear = { base = rgb(82, 66, 52), dark = rgb(44, 34, 27), light = rgb(170, 154, 134), eye = rgb(30, 20, 14), nose = rgb(24, 20, 18), claw = rgb(222, 212, 192), material = FUR, grizzled = true },
-	MythicBear = { base = rgb(58, 46, 38), dark = rgb(32, 26, 22), light = rgb(116, 94, 74), eye = rgb(255, 190, 100), nose = rgb(22, 18, 16), claw = rgb(230, 214, 180), glow = AMBER, material = FUR, glowEyes = true, grizzled = true },
+	Bear = { base = rgb(120, 86, 56), dark = rgb(80, 58, 40), light = rgb(166, 132, 96), eye = rgb(24, 18, 14), nose = rgb(26, 22, 20), claw = rgb(206, 196, 176), material = FUR },
+	DireBear = { base = rgb(104, 86, 68), dark = rgb(68, 54, 42), light = rgb(176, 160, 138), eye = rgb(30, 20, 14), nose = rgb(24, 20, 18), claw = rgb(222, 212, 192), material = FUR, grizzled = true },
+	MythicBear = { base = rgb(84, 68, 56), dark = rgb(56, 44, 36), light = rgb(128, 106, 86), eye = rgb(255, 190, 100), nose = rgb(22, 18, 16), claw = rgb(230, 214, 180), glow = AMBER, material = FUR, glowEyes = true, grizzled = true },
 	Cheetah = { base = rgb(206, 162, 94), dark = rgb(42, 34, 28), light = rgb(238, 224, 194), eye = rgb(214, 166, 60), nose = rgb(44, 32, 28), claw = rgb(70, 60, 50), material = FUR, spots = true },
-	Panther = { base = rgb(36, 35, 40), dark = rgb(22, 22, 25), light = rgb(64, 62, 68), eye = rgb(196, 206, 74), nose = rgb(20, 20, 22), claw = rgb(60, 58, 60), material = FUR, rosettes = true },
-	Crocodile = { base = rgb(80, 90, 54), dark = rgb(48, 56, 34), light = rgb(180, 168, 116), eye = rgb(206, 190, 76), teeth = rgb(228, 222, 200), nose = rgb(40, 46, 30), claw = rgb(44, 48, 34), material = Enum.Material.Slate },
+	Panther = { base = rgb(52, 51, 58), dark = rgb(34, 34, 38), light = rgb(80, 78, 86), eye = rgb(196, 206, 74), nose = rgb(24, 24, 26), claw = rgb(70, 68, 70), material = SMOOTH, rosettes = true },
+	Crocodile = { base = rgb(104, 116, 70), dark = rgb(68, 78, 48), light = rgb(186, 174, 122), eye = rgb(206, 190, 76), teeth = rgb(228, 222, 200), nose = rgb(40, 46, 30), claw = rgb(44, 48, 34), material = Enum.Material.Slate },
 }
 
 -- Body plan, size and how it moves
@@ -402,11 +402,12 @@ end
 local function ear(rig, boneName: string, x: number, y: number, z: number, height: number, width: number, tilt: number, tone: any, inner: any)
 	local side = if x < 0 then -1 else 1
 	local frame = at(x, y, z, -8, 0, -tilt * side)
-	rig:piece(boneName, "Wedge", Vector3.new(0.14, height, width / 2), frame * at(0, 0, 0, 0, 90, 0) * CFrame.new(0, 0, width / 4), tone)
-	rig:piece(boneName, "Wedge", Vector3.new(0.14, height, width / 2), frame * at(0, 0, 0, 0, -90, 0) * CFrame.new(0, 0, width / 4), tone)
+	rig:piece(boneName, "Wedge", Vector3.new(0.14, height, width / 2), frame * at(0, 0, 0, 0, 90, 0) * CFrame.new(0, 0, -width / 4), tone)
+	rig:piece(boneName, "Wedge", Vector3.new(0.14, height, width / 2), frame * at(0, 0, 0, 0, -90, 0) * CFrame.new(0, 0, -width / 4), tone)
 	if inner then
-		rig:piece(boneName, "Wedge", Vector3.new(0.06, height * 0.7, width * 0.3), frame * CFrame.new(0, -height * 0.1, -0.06) * at(0, 0, 0, 0, 90, 0) * CFrame.new(0, 0, width * 0.15), inner)
-		rig:piece(boneName, "Wedge", Vector3.new(0.06, height * 0.7, width * 0.3), frame * CFrame.new(0, -height * 0.1, -0.06) * at(0, 0, 0, 0, -90, 0) * CFrame.new(0, 0, width * 0.15), inner)
+		local inside = frame * CFrame.new(0, -height * 0.12, -0.06)
+		rig:piece(boneName, "Wedge", Vector3.new(0.06, height * 0.66, width * 0.3), inside * at(0, 0, 0, 0, 90, 0) * CFrame.new(0, 0, -width * 0.15), inner)
+		rig:piece(boneName, "Wedge", Vector3.new(0.06, height * 0.66, width * 0.3), inside * at(0, 0, 0, 0, -90, 0) * CFrame.new(0, 0, -width * 0.15), inner)
 	end
 end
 
@@ -500,8 +501,9 @@ local function buildWolf(rig)
 	rig:piece("Body", "Ball", Vector3.one * 1.7, CFrame.new(0, 0.04, 0.15), "base")
 	rig:piece("Body", "Ball", Vector3.one * 1.55, CFrame.new(0, 0.14, 1.05), "base")
 	-- The darker saddle along the back
-	rig:piece("Body", "Ball", Vector3.one * 1.5, CFrame.new(0, 0.32, -0.5), "dark")
-	rig:piece("Body", "Ball", Vector3.one * 1.32, CFrame.new(0, 0.33, 0.45), "dark")
+	for _, spine in { { -1.15, 0.66, 0.95 }, { -0.6, 0.6, 0.95 }, { -0.05, 0.46, 0.9 }, { 0.5, 0.45, 0.85 }, { 1.0, 0.5, 0.8 } } do
+		rig:piece("Body", "Ball", Vector3.one * spine[3], CFrame.new(0, spine[2], spine[1]), "dark")
+	end
 	rig:piece("Body", "Ball", Vector3.one * 1.7, CFrame.new(0, -0.02, -0.4), "base")
 	-- Pale chest ruff and belly
 	rig:piece("Body", "Ball", Vector3.one * 1.35, CFrame.new(0, -0.3, -1.25), "light")
@@ -531,29 +533,29 @@ local function buildWolf(rig)
 	rig:piece("Jaw", "Block", Vector3.new(0.42, 0.16, 0.66), CFrame.new(0, -0.02, -0.36), "light")
 	rig:piece("Jaw", "Block", Vector3.new(0.3, 0.06, 0.5), CFrame.new(0, 0.07, -0.4), rgb(150, 70, 66), { material = SMOOTH })
 
-	local front = { top = 0.78, topY = 0.05, upper = 1.05, upperD = 0.46, knee = 1.0, lower = 0.85, lowerD = 0.32, ankle = 0.86, paw = Vector3.new(0.4, 0.2, 0.5), toes = 3, tuft = 0.5, low = "base", pawTone = "dark" }
+	local front = { top = 0.78, topY = 0.05, upper = 1.05, upperD = 0.46, knee = 1.0, lower = 0.85, lowerD = 0.32, ankle = 0.86, paw = Vector3.new(0.4, 0.2, 0.5), toes = 3, tuft = 0.5, low = "base" }
 	leg(rig, "LegFL", "Body", Vector3.new(-0.5, -0.25, -0.95), front)
 	leg(rig, "LegFR", "Body", Vector3.new(0.5, -0.25, -0.95), front)
-	local back = { top = 1.0, topY = -0.18, upper = 1.3, upperD = 0.52, upperZ = 0.12, upperPitch = -14, knee = 1.3, kneeZ = 0.3, lower = 0.8, lowerD = 0.3, lowerPitch = 12, ankle = 0.76, paw = Vector3.new(0.38, 0.2, 0.48), toes = 3, low = "base", pawTone = "dark" }
+	local back = { top = 1.0, topY = -0.18, upper = 1.3, upperD = 0.52, upperZ = 0.12, upperPitch = -14, knee = 1.3, kneeZ = 0.3, lower = 0.8, lowerD = 0.3, lowerPitch = 12, ankle = 0.76, paw = Vector3.new(0.38, 0.2, 0.48), toes = 3, low = "base" }
 	leg(rig, "LegBL", "Body", Vector3.new(-0.5, -0.05, 1.1), back)
 	leg(rig, "LegBR", "Body", Vector3.new(0.5, -0.05, 1.1), back)
 	tail(rig, "Body", Vector3.new(0, 0.45, 1.7), {
-		{ pitch = 32, length = 0.9, from = 0.5, to = 0.62 },
-		{ pitch = 14, length = 0.9, from = 0.64, to = 0.56 },
-		{ pitch = 6, length = 0.55, from = 0.48, to = 0.34, tone = if spectral then "light" else "dark" },
+		{ pitch = 32, length = 0.9, from = 0.52, to = 0.66, balls = 3 },
+		{ pitch = 14, length = 0.9, from = 0.68, to = 0.6, balls = 3 },
+		{ pitch = 6, length = 0.6, from = 0.52, to = 0.36, balls = 3, tone = if spectral then "light" else "dark" },
 	})
 end
 
 local function buildBear(rig)
 	local mythic = rig.id == "MythicBear"
 	local grizzled = rig.palette.grizzled
-	rig:bone("Body", nil, CFrame.new(0, 2.75, 0))
-	rig:piece("Body", "Ball", Vector3.one * 2.9, CFrame.new(0, 0.25, -0.85), "base")
-	rig:piece("Body", "Ball", Vector3.one * 2.7, CFrame.new(0, -0.1, 0.25), "base")
-	rig:piece("Body", "Ball", Vector3.one * 2.55, CFrame.new(0, 0.05, 1.3), "base")
-	rig:piece("Body", "Ball", Vector3.one * 2.0, CFrame.new(0, -0.45, -1.35), "base")
+	rig:bone("Body", nil, CFrame.new(0, 3.0, 0))
+	rig:piece("Body", "Ball", Vector3.one * 2.75, CFrame.new(0, 0.25, -0.85), "base")
+	rig:piece("Body", "Ball", Vector3.one * 2.45, CFrame.new(0, 0.0, 0.25), "base")
+	rig:piece("Body", "Ball", Vector3.one * 2.4, CFrame.new(0, 0.1, 1.3), "base")
+	rig:piece("Body", "Ball", Vector3.one * 1.9, CFrame.new(0, -0.35, -1.4), "base")
 	-- The shoulder hump: the bear's silhouette
-	rig:piece("Body", "Ball", Vector3.one * 2.1, CFrame.new(0, 0.78, -0.9), if grizzled then "light" else "base")
+	rig:piece("Body", "Ball", Vector3.one * 2.1, CFrame.new(0, 0.78, -0.9), "base")
 	rig:piece("Body", "Ball", Vector3.one * 1.9, CFrame.new(0, 0.55, 0.35), "base")
 	rig:piece("Body", "Ball", Vector3.one * 1.65, CFrame.new(0, 0.55, -2.0), "base")
 	rig:piece("Body", "Ball", Vector3.one * 0.6, CFrame.new(0, 0.5, 2.55), "dark")
@@ -588,10 +590,10 @@ local function buildBear(rig)
 	rig:piece("Jaw", "Block", Vector3.new(0.5, 0.06, 0.6), CFrame.new(0, 0.14, -0.5), rgb(140, 64, 60), { material = SMOOTH })
 
 	local claws = if rig.id == "Bear" then 0.3 else 0.42
-	local front = { top = 1.3, topY = 0.1, upper = 1.3, upperD = 0.98, knee = 1.25, lower = 0.8, lowerD = 0.85, ankle = 0.78, paw = Vector3.new(0.98, 0.38, 1.15), toes = 4, claws = claws, low = "dark", pawTone = "dark" }
+	local front = { top = 1.25, topY = 0.1, upper = 1.4, upperD = 0.95, knee = 1.4, lower = 0.95, lowerD = 0.82, ankle = 0.92, paw = Vector3.new(0.98, 0.38, 1.15), toes = 4, claws = claws, low = "dark", pawTone = "dark" }
 	leg(rig, "LegFL", "Body", Vector3.new(-0.9, -0.55, -1.3), front)
 	leg(rig, "LegFR", "Body", Vector3.new(0.9, -0.55, -1.3), front)
-	local back = { top = 1.6, topY = -0.1, topZ = 0.1, upper = 1.45, upperD = 0.98, upperZ = 0.08, knee = 1.45, kneeZ = 0.12, lower = 0.8, lowerD = 0.82, ankle = 0.78, paw = Vector3.new(0.95, 0.38, 1.2), toes = 4, claws = claws * 0.7, low = "dark", pawTone = "dark" }
+	local back = { top = 1.55, topY = -0.1, topZ = 0.1, upper = 1.6, upperD = 0.95, upperZ = 0.08, knee = 1.6, kneeZ = 0.12, lower = 0.95, lowerD = 0.8, ankle = 0.92, paw = Vector3.new(0.95, 0.38, 1.2), toes = 4, claws = claws * 0.7, low = "dark", pawTone = "dark" }
 	leg(rig, "LegBL", "Body", Vector3.new(-0.95, -0.35, 1.45), back)
 	leg(rig, "LegBR", "Body", Vector3.new(0.95, -0.35, 1.45), back)
 
@@ -814,11 +816,11 @@ local function buildBird(rig)
 	if phoenix then
 		-- Long trailing plumes that curl at the ends
 		for index = -1, 1 do
-			local frame = ang(-6, index * 14, 0) * CFrame.new(0, 0, tailLength)
+			local frame = CFrame.new(0, 0, tailLength * 0.8) * ang(-38, index * 16, 0)
 			for step = 0, 2 do
-				frame = frame * ang(-10 - step * 6, 0, 0)
-				rig:piece("Tail", "Block", Vector3.new(0.2 - step * 0.03, 0.05, 0.95), frame * CFrame.new(0, 0, 0.45), if step == 2 then "glow" else "light", { glow = step == 2 })
-				frame = frame * CFrame.new(0, 0, 0.9)
+				frame = frame * ang(-8 - step * 8, 0, 0)
+				rig:piece("Tail", "Block", Vector3.new(0.2 - step * 0.03, 0.05, 0.8), frame * CFrame.new(0, 0, 0.38), if step == 2 then "glow" else "light", { glow = step == 2 })
+				frame = frame * CFrame.new(0, 0, 0.76)
 			end
 		end
 	end
@@ -903,13 +905,13 @@ local function poseQuad(rig, dt: number)
 	local gallop = spec.gallopAt ~= nil and gait > spec.gallopAt
 	local offsets = spec.offsets
 	local p = anim.phase
-	local swing = if heavy then 26 else (if gallop then 46 else 34)
-	local lift = if heavy then 30 else 48
+	local swing = (if heavy then 26 else (if gallop then 40 else 32)) * math.min(moving, 1.1)
+	local lift = (if heavy then 30 else 46) * math.min(1, moving)
 	local legPhase = if gallop then { 0, 0.35, math.pi, math.pi + 0.35 } else offsets
-	legSwing(rig, poses, "LegFL", p + legPhase[1], swing * moving, lift * math.min(1, moving), true)
-	legSwing(rig, poses, "LegFR", p + legPhase[2], swing * moving, lift * math.min(1, moving), true)
-	legSwing(rig, poses, "LegBL", p + legPhase[3], swing * moving, lift * math.min(1, moving), false)
-	legSwing(rig, poses, "LegBR", p + legPhase[4], swing * moving, lift * math.min(1, moving), false)
+	legSwing(rig, poses, "LegFL", p + legPhase[1], swing, lift, true)
+	legSwing(rig, poses, "LegFR", p + legPhase[2], swing, lift, true)
+	legSwing(rig, poses, "LegBL", p + legPhase[3], swing, lift, false)
+	legSwing(rig, poses, "LegBR", p + legPhase[4], swing, lift, false)
 
 	local breathe = math.sin(anim.t * 1.7) * 0.03
 	local bob = (if gallop then 0.16 else 0.08) * math.abs(math.sin(p)) * math.min(1, moving)
@@ -1098,7 +1100,8 @@ local function poseBird(rig, dt: number)
 	local fold = anim.fold
 	anim.wingPhase = (anim.wingPhase or 0) + dt * lerp(2.5, 14, anim.flap)
 	local beat = math.sin(anim.wingPhase) * lerp(4, 38, anim.flap) * (1 - fold)
-	local bodyPitch = lerp(-6, 0, fold)
+	-- Perched upright; level in the air
+	local bodyPitch = lerp(-32, 0, fold)
 	local bodyY = (1 - fold) * 0.4 + math.sin(anim.t * 2) * 0.02
 	local bodyZ = 0
 	idleLook(anim, dt, true)
@@ -1109,9 +1112,10 @@ local function poseBird(rig, dt: number)
 	-- Walking: a slight hop from foot to foot
 	local walk = math.sin(anim.phase) * 22 * moving * fold
 	local spread = 1 - fold
-	local wingYaw = lerp(0, 82, fold)
+	local wingYaw = lerp(0, 78, fold)
 	local wingTilt = lerp(0, 72, fold)
-	local handYaw = lerp(0, 14, fold)
+	-- Folded wingtips lift to cross over the tail instead of dragging
+	local handYaw = lerp(0, -26, fold)
 	local dihedral = 6 * spread
 	local name, u = actionOf(rig)
 	if name then
@@ -1151,11 +1155,13 @@ local function poseBird(rig, dt: number)
 		end
 	end
 	poses.Body = CFrame.new(0, bodyY, bodyZ) * ang(bodyPitch, 0, 0)
-	poses.Head = ang(headPitch, headYaw, 0)
+	-- In the air the neck stretches forward instead of sitting upright
+	poses.Head = CFrame.new(0, -0.5 * spread, -0.45 * spread) * ang(headPitch, headYaw, 0)
 	poses.WingL = ang(0, wingYaw, 0) * ang(wingTilt, 0, 0) * ang(0, 0, -(dihedral + beat))
 	poses.WingR = ang(0, -wingYaw, 0) * ang(wingTilt, 0, 0) * ang(0, 0, dihedral + beat)
-	poses.WingL2 = ang(0, handYaw, 0) * ang(0, 0, beat * 0.5)
-	poses.WingR2 = ang(0, -handYaw, 0) * ang(0, 0, -beat * 0.5)
+	-- Folding slides the hand over the arm, so a perched bird's wings end near its tail
+	poses.WingL2 = CFrame.new(0.8 * fold, 0.05 * fold, 0) * ang(0, handYaw, 0) * ang(0, 0, -beat * 0.5)
+	poses.WingR2 = CFrame.new(-0.8 * fold, 0.05 * fold, 0) * ang(0, -handYaw, 0) * ang(0, 0, beat * 0.5)
 	poses.Tail = ang(tailPitch, 0, 0)
 	poses.LegL = ang(legPitch + walk, 0, 0)
 	poses.LegR = ang(legPitch - walk, 0, 0)
