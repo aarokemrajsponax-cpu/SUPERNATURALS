@@ -1220,7 +1220,8 @@ check("a Hard CPU uses the new moves (grabs, sweeps, sprints, charges, launchers
 	end
 	local flip = 0
 	local cpus = {}
-	while os.clock() - started < 15 and universalSeen() < 3 do
+	-- The CPU rolls its choices at random, so watch long enough to see a real variety
+	while os.clock() - started < 30 and universalSeen() < 3 do
 		-- (a knocked-out CPU comes back as a new fighter)
 		for _, participant in practice.participants do
 			if participant.dummy and participant.dummy.fighter then
@@ -1250,7 +1251,8 @@ check("a Hard CPU uses the new moves (grabs, sweeps, sprints, charges, launchers
 			for record in cpus do
 				mine = mine or attack.attacker == record.model
 			end
-			if mine and attack.move == "Grab" or attack.move == "Sweep" or attack.move == "ChargedHeavy" or attack.move == "Launcher" or attack.move == "RushStrike" or attack.move == "ShoulderCharge" then
+			local move = attack.move
+			if mine and (move == "Grab" or move == "Sweep" or move == "ChargedHeavy" or move == "Launcher" or move == "RushStrike" or move == "ShoulderCharge") then
 				seen[attack.move] = true
 			end
 		end

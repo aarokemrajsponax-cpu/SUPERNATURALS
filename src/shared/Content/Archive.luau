@@ -78,14 +78,33 @@ Archive.Chapters = {
 		},
 	},
 	{
+		id = "memo_hall_beneath",
+		title = "Memorandum 4: The Hall Beneath",
+		kind = "memo",
+		meta = "The Meridian Institute. Restricted. August 1980.",
+		blocks = {
+			"TO: Dr. I. Varga, Ms. I. Duarte",
+			"FROM: Office of the Director",
+			"RE: Excavation under the bowl",
+			"1. At a depth of forty-one metres the survey drill entered open air. The cavity below has since been surveyed by lamp. It is not a cavity. It is a hall: roughly one hundred and ten metres on each side, columns in rows, a vaulted ceiling broken open at the centre, and a raised dais directly beneath the place where the Lantern rests.",
+			"2. The stone is worked. The joints are finer than anything our masons could cut. There are inscriptions in a script none of our consultants recognise. Carbon dating of the mortar has been attempted three times and has returned three different answers, none of them possible.",
+			"3. Eight statues stand around the dais, each roughly six times the height of a man. They depict eight figures. One lifts a broken stone above his head. One draws a sword from a cloak that seems to come apart. One is becoming an animal. The rest are described in the attached survey and I will not describe them here.",
+			"4. Dr. Varga's proposed programmes were drafted before this survey. I have read both documents side by side. I would like Dr. Varga to read them side by side as well, and then to come and see me.",
+			"5. The Lantern did not fall into the valley. Construction will proceed on that understanding: we are not building around it. We are building in a place that was built for it.",
+			{ signed = "{{                    }}, Director" },
+			{ figure = "hall_survey", caption = "Lamp survey of the hall, first descent. The eight bays around the dais are numbered in the surveyor's hand." },
+		},
+	},
+	{
 		id = "letter_duarte",
 		title = "A Letter Never Sent",
 		kind = "letter",
 		meta = "Ines Duarte, chief architect, to her sister. Undated, around 1981.",
 		blocks = {
 			"Dear Lú,",
-			"I can't tell you where I am, which you'll hate, so I'll tell you what I'm doing instead, which you'll love. I am building a valley. Inside a building. With a sky.",
-			"Yes, really. They gave me a mountain of money and a single instruction, *make them forget they're indoors*, and so we are raising four walls taller than the cathedral back home, and roofing them in steel and glass, and underneath we are laying earth one truckload at a time. There will be grass. There will be a pond. There will be trees, birch and pine and a few maples because I insisted, because I want something to turn red in October even if October never comes in here.",
+			"I can't tell you where I am, which you'll hate, so I'll tell you what I'm doing instead, which you'll love. I am building a valley. Inside a hall. With a sky.",
+			"I should say I am finishing a hall. Somebody started it a very long time ago and built it better than I ever could: columns as wide as our kitchen, a vault so high the lamps don't reach it, and floors so level my instruments are embarrassed. They gave me a mountain of money and a single instruction, *make them forget they're underground*, and so we are roofing the broken vault in steel and glass to let the daylight down, and laying earth one truckload at a time across the great court. There will be grass. There will be a pond. There will be trees, birch and pine and a few maples because I insisted, because I want something to turn red in October even if October never comes in here.",
+			"The statues watch us work. My crew won't eat lunch with their backs to them. I don't blame them. I've started saying good morning.",
 			"Something strange, and then I'll stop. We planted the first trees on Tuesday. By Friday they were taller than me. The botanist says it's the light from the centre of the site, and she says it like she's reporting the weather, so I suppose I should be calm about it.",
 			"But one of them, the maple nearest the middle, is growing at an angle. Leaning in. Every morning I check it with a level, and every morning it's leaned a little further, toward the place where they keep the thing we're not allowed to name.",
 			"I asked the botanist if trees can be curious. She didn't laugh. That's the part I keep thinking about.",
@@ -490,6 +509,7 @@ Archive.Files = {
 -- shapes in a pencil, blueprint or photo style, or a small 3D scene in a
 -- ViewportFrame). `style` says which.
 Archive.Figures = {
+	hall_survey = { style = "blueprint", description = "A surveyor's plan of a square colonnaded hall: rows of column dots, a broken vault outline at the centre, a raised square dais in the middle, eight numbered bays arranged around the dais, and a small note 'lamp survey, 1st descent'." },
 	valley_sketch = { style = "pencil", description = "A pencil sketch of a shallow bowl in a valley seen from the west rim, contour lines, a small elongated crystal at the centre with faint radiating strokes, hand-written labels 'rim (glassed)', 'object', '40 m'." },
 	exposure_chart = { style = "blueprint", description = "A graph: growth on the vertical axis, distance from the Lantern on the horizontal (1 m, 3 m, 10 m). A steep curve near the source, a small spiral doodle beside the 1 m point." },
 	garden_plan = { style = "blueprint", description = "Plan view of the Garden: rectangular walls, the pond, curving paths, tree dots, the Lantern at the centre, one tree circled in pencil with an arrow showing it leaning toward the centre." },
