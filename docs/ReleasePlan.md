@@ -99,3 +99,16 @@ Kept current as issues are found:
 - [ ] Arenas still open-air; the owner requires everything indoors (Wave 2).
 - [ ] combat_test "a Hard CPU uses the new moves" failed once (randomness suspected; verify).
 - [ ] Not yet run in Studio: physics, animation, network replication, real purchases, DataStores.
+
+## Update, 27 Oct 21:00 UTC: the owner's Studio review
+The owner tested in Studio and photographed the result. Priorities now, in order:
+1. Visual overhaul in one direction (docs/ArtDirection.md, "The Sanctum"): the lobby becomes the
+   Hall of the Eight (ancient imperial hall plus restored Meridian technology), with colossal
+   statues redesigned from scratch, plus a full interface redesign (selection screens first),
+   typography and alignment.
+2. First-time guidance (docs/DesignResearch.md section 4).
+3. Combat feel (the client half of Fighting System v2).
+4. Results and a premium replay viewer.
+5. Finish Shapeshifter, Corruption, Syntax and Admin Powers, and the Archive book.
+Then: the Commissary shop and monetization flows, sound, and owner center v2 / Admin Abuse v2.
+Anomalies, chambers, bases and the season pass come after those if the week's capacity allows.
