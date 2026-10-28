@@ -1023,6 +1023,83 @@ FIGURES.garden_plan = function(canvas, w, h, rng)
 	titleBlock(canvas, P(0.79, 0.66), { "THE GARDEN", "PLAN 1:500", "ARCH. COPY" })
 end
 
+-- The hall beneath the bowl, surveyed by lamp on the first descent
+FIGURES.hall_survey = function(canvas, w, h, rng)
+	local line = C.BlueLine
+	local hand = rgb(214, 222, 234)
+	local side = math.min(h - 22, w * 0.52)
+	local a = Vector2.new(14, (h - side) / 2)
+	local b = a + Vector2.new(side, side)
+	local center = (a + b) / 2
+	box(canvas, a, b, 1.6, line, 0.05)
+	box(canvas, a + Vector2.new(4, 4), b - Vector2.new(4, 4), 1, line, 0.45)
+	-- two colonnades of column dots
+	for ringIndex, inset in { side * 0.09, side * 0.17 } do
+		local count = if ringIndex == 1 then 11 else 8
+		local lo, hi = a + Vector2.new(inset, inset), b - Vector2.new(inset, inset)
+		for k = 0, count do
+			local t = k / count
+			local x = lo.X + (hi.X - lo.X) * t
+			local y = lo.Y + (hi.Y - lo.Y) * t
+			for _, p in { Vector2.new(x, lo.Y), Vector2.new(x, hi.Y), Vector2.new(lo.X, y), Vector2.new(hi.X, y) } do
+				disc(canvas, p, if ringIndex == 1 then 2.6 else 2, line, if ringIndex == 1 then 0.05 else 0.25)
+			end
+		end
+	end
+	-- the vault overhead (dashed), broken open on one side
+	local vault = side * 0.3
+	local arc = ellipse(center, vault, vault, 56)
+	for index = 1, #arc - 1, 2 do
+		local angle = (index - 1) / 56 * math.pi * 2
+		if angle < 3.75 or angle > 4.55 then
+			stroke(canvas, arc[index], arc[index + 1], 1.2, line, 0.15)
+		end
+	end
+	for _, angle in { 3.75, 4.55 } do
+		local edge = center + Vector2.new(math.cos(angle), math.sin(angle)) * vault
+		local out = Vector2.new(math.cos(angle), math.sin(angle))
+		polyline(canvas, { edge - out * 5, edge + Vector2.new(-out.Y, out.X) * 3, edge + out * 5 }, 1, line, 0.2)
+	end
+	-- eight bays round the dais, numbered in the surveyor's hand
+	for k = 0, 7 do
+		local divide = (k + 0.5) / 8 * math.pi * 2 - math.pi / 2
+		local d = Vector2.new(math.cos(divide), math.sin(divide))
+		stroke(canvas, center + d * side * 0.11, center + d * side * 0.27, 1, line, 0.6)
+		local angle = k / 8 * math.pi * 2 - math.pi / 2
+		local spot = center + Vector2.new(math.cos(angle), math.sin(angle)) * side * 0.2
+		figureText(canvas, tostring(k + 1), spot, TYPE.Hand, 14, hand, "Center", 0.05)
+	end
+	-- the dais, with the Lantern star where the crystal stands
+	local dais = side * 0.08
+	box(canvas, center - Vector2.new(dais, dais), center + Vector2.new(dais, dais), 1.5, line, 0)
+	box(canvas, center - Vector2.new(dais - 3, dais - 3), center + Vector2.new(dais - 3, dais - 3), 1, line, 0.4)
+	for _, rotation in { 0, 45 } do
+		make("Frame", {
+			Name = "Star",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(center.X, center.Y),
+			Size = UDim2.fromOffset(6, 6),
+			Rotation = rotation,
+			BackgroundColor3 = line,
+			BorderSizePixel = 0,
+			Parent = canvas,
+		})
+	end
+	-- the surveyor's note, the scale and the title block
+	local column = b.X + 26
+	figureText(canvas, "lamp survey, 1st descent", Vector2.new(column, a.Y + 14), TYPE.Hand, 14, hand, "Left", 0.05)
+	sketch(canvas, { Vector2.new(column, a.Y + 26), Vector2.new(math.min(w - 8, column + 150), a.Y + 27) }, rng, hand, { passes = 1, thickness = 1, alpha = 0.35, jitter = 0.4 })
+	local scaleY = b.Y - 6
+	local unit = math.min(30, (w - column - 60) / 4)
+	for k = 0, 3 do
+		fill(canvas, column + k * unit, scaleY - 3, unit, 5, line, if k % 2 == 0 then 0.1 else 0.75)
+	end
+	box(canvas, Vector2.new(column, scaleY - 3), Vector2.new(column + unit * 4, scaleY + 2), 1, line, 0.2)
+	figureText(canvas, "0", Vector2.new(column, scaleY - 15), TYPE.Mono, 14, line, "Center", 0.2)
+	figureText(canvas, "20 m", Vector2.new(column + unit * 4, scaleY - 15), TYPE.Mono, 14, line, "Center", 0.2)
+	titleBlock(canvas, Vector2.new(column, a.Y + 40), { "HALL BENEATH", "DEPTH 41 M", "AUG. 1980" })
+end
+
 local SIGILS: { (canvas: Frame, c: Vector2, r: number, color: Color3) -> () } = {
 	-- ATLAS: a rising bar
 	function(canvas, c, r, color)
@@ -2511,14 +2588,19 @@ local function build(body: Frame, _api)
 			Position = UDim2.fromOffset(0, item.y),
 			Size = UDim2.fromOffset(state.geo.textW, item.h),
 			Selectable = true,
+			SelectionImageObject = (function()
+				local outline = make("Frame", { Name = "Focus", Position = UDim2.fromOffset(-4, 0), Size = UDim2.new(1, 8, 1, 0), BackgroundTransparency = 1 })
+				make("UIStroke", { Color = C.Bronze, Thickness = 2, Parent = outline })
+				return outline
+			end)(),
 			Parent = content,
 		})
 	end
 
 	local function hover(row: TextButton, title: TextLabel)
 		row.MouseEnter:Connect(function()
-			title.TextColor3 = C.Red
-			row.BackgroundTransparency = 0.95
+			title.TextColor3 = C.BronzeInk
+			row.BackgroundTransparency = 0.96
 		end)
 		row.MouseLeave:Connect(function()
 			title.TextColor3 = C.Ink
@@ -2531,7 +2613,7 @@ local function build(body: Frame, _api)
 		local W = state.geo.textW
 		local doc = item.doc
 		local numberW = px(36 * s)
-		local titleSize, numberSize = px(15 * s), px(12 * s)
+		local titleSize, numberSize = px(16 * s), px(14 * s)
 		local row = rowButton(content, "Entry_" .. doc.id, item)
 		label(row, item.number, 0, 0, numberW - px(12 * s), item.h, TYPE.Serif, numberSize, C.InkSoft, Enum.TextXAlignment.Right)
 		local folio = displayNumber(doc)
@@ -2550,16 +2632,16 @@ local function build(body: Frame, _api)
 		local s = state.geo.scale
 		local W = state.geo.textW
 		local numberW = px(36 * s)
-		local titleSize = px(15 * s)
+		local titleSize = px(16 * s)
 		local file = Archive.Files[item.id]
 		local doc = state.book.docById[item.id]
 		if doc then
 			local row = rowButton(content, "File_" .. item.id, item)
-			label(row, tostring(item.number), 0, 0, numberW - px(12 * s), item.h, TYPE.Serif, px(12 * s), C.InkSoft, Enum.TextXAlignment.Right)
+			label(row, tostring(item.number), 0, 0, numberW - px(12 * s), item.h, TYPE.Serif, px(14 * s), C.InkSoft, Enum.TextXAlignment.Right)
 			local folio = displayNumber(doc)
 			local folioW = math.ceil(measure(folio, TYPE.Serif, titleSize)) + 4
 			local isNew = not state.read[item.id]
-			local badgeW = if isNew then px(38 * s) else 0
+			local badgeW = if isNew then px(52 * s) else 0
 			local titleW = math.min(math.ceil(measure(doc.title, TYPE.Serif, titleSize)) + 6, W - numberW - folioW - badgeW - 24)
 			local title = label(row, doc.title, numberW, 0, titleW, item.h, TYPE.Serif, titleSize, C.Ink, Enum.TextXAlignment.Left, true)
 			local x = numberW + titleW + 6
@@ -2568,14 +2650,14 @@ local function build(body: Frame, _api)
 					Name = "NewBadge",
 					AnchorPoint = Vector2.new(0, 0.5),
 					Position = UDim2.new(0, x, 0.5, 0),
-					Size = UDim2.fromOffset(badgeW - 6, px(17 * s)),
-					Rotation = -5,
+					Size = UDim2.fromOffset(badgeW - 8, px(22 * s)),
+					Rotation = -4,
 					BackgroundTransparency = 1,
 					Parent = row,
 				})
-				make("UIStroke", { Color = C.Red, Thickness = 1.3, Transparency = 0.1, Parent = badge })
+				make("UIStroke", { Color = C.Bronze, Thickness = 1.3, Transparency = 0.05, Parent = badge })
 				corner(badge, 2)
-				label(badge, "NEW", 0, 0, badgeW - 6, px(17 * s), TYPE.SerifBold, px(9 * s), C.Red, Enum.TextXAlignment.Center)
+				label(badge, "NEW", 0, 0, badgeW - 8, px(22 * s), TYPE.UiBold, px(14 * s), C.BronzeInk, Enum.TextXAlignment.Center)
 				x += badgeW
 			end
 			leaders(row, x, W - folioW - 6, titleSize, item.h)
@@ -2587,9 +2669,9 @@ local function build(body: Frame, _api)
 		else
 			-- Not found yet: only the hint, faded, behind a small lock
 			local row = make("Frame", { Name = "Locked_" .. item.id, BackgroundTransparency = 1, Position = UDim2.fromOffset(0, item.y), Size = UDim2.fromOffset(W, item.h), Parent = content })
-			lockIcon(row, numberW - px(19 * s), item.h / 2, px(13 * s), C.InkFaded)
+			lockIcon(row, numberW - px(19 * s), item.h / 2, px(15 * s), C.InkFaded)
 			local hint = if file and typeof(file.hint) == "string" then file.hint else "Somewhere in the station."
-			label(row, hint, numberW, 0, W - numberW, item.h, TYPE.SerifItalic, px(13.5 * s), C.InkFaded, Enum.TextXAlignment.Left, true)
+			label(row, hint, numberW, 0, W - numberW, item.h, TYPE.SerifItalic, px(14 * s), C.InkFaded, Enum.TextXAlignment.Left, true)
 		end
 	end
 
@@ -2598,14 +2680,15 @@ local function build(body: Frame, _api)
 		local W = state.geo.textW
 		local total = #Archive.FileOrder
 		local found = state.book.foundCount
-		label(content, `{found} of {total} recovered`, 0, item.y, W, px(20 * s), TYPE.SerifItalic, px(13 * s), C.InkSoft, Enum.TextXAlignment.Center)
+		label(content, `{found} of {total} recovered`, 0, item.y, W, px(22 * s), TYPE.SerifItalic, px(14 * s), C.InkSoft, Enum.TextXAlignment.Center)
 		local box = px(8 * s)
 		local spacing = px(6 * s)
 		local rowW = total * box + (total - 1) * spacing
 		for index = 1, total do
-			local square = fill(content, math.floor((W - rowW) / 2) + (index - 1) * (box + spacing), item.y + px(26 * s), box, box, C.Ink, if index <= found then 0.15 else 1)
+			local square = fill(content, math.floor((W - rowW) / 2) + (index - 1) * (box + spacing), item.y + px(28 * s), box, box, C.Bronze, if index <= found then 0.05 else 1)
 			square.Name = "Progress"
-			make("UIStroke", { Color = C.InkSoft, Thickness = 1, Transparency = 0.3, Parent = square })
+			square.Rotation = 45
+			make("UIStroke", { Color = C.Bronze, Thickness = 1, Transparency = 0.2, Parent = square })
 		end
 	end
 
@@ -2880,25 +2963,37 @@ local function build(body: Frame, _api)
 	end
 
 	-- Controls --------------------------------------------------------------------------------
+	-- Interface pieces follow the Sanctum panels: graphite plates with a bronze
+	-- hairline, square corners, Builder Sans labels and bronze key caps.
+	local function selectionOutline(): Frame
+		local outline = make("Frame", {
+			Name = "Focus",
+			Position = UDim2.fromOffset(-3, -3),
+			Size = UDim2.new(1, 6, 1, 6),
+			BackgroundTransparency = 1,
+		})
+		make("UIStroke", { Color = C.Ivory, Thickness = 2, Parent = outline })
+		return outline
+	end
+
 	local function keycap(parent: Instance, order: number): (Frame, TextLabel)
 		local cap = make("Frame", {
 			Name = "Keycap",
 			LayoutOrder = order,
-			Size = UDim2.fromOffset(28, 22),
-			BackgroundColor3 = C.BarText,
-			BackgroundTransparency = 0.9,
+			Size = UDim2.fromOffset(32, 24),
+			BackgroundColor3 = C.Graphite,
 			BorderSizePixel = 0,
 			Parent = parent,
 		})
-		corner(cap, 5)
-		make("UIStroke", { Color = C.BarText, Thickness = 1, Transparency = 0.55, Parent = cap })
+		corner(cap, 2)
+		make("UIStroke", { Color = C.Bronze, Thickness = 1, Transparency = 0.2, Parent = cap })
 		local text = make("TextLabel", {
 			Name = "Key",
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
-			FontFace = Theme.Faces.Bold,
-			TextSize = 11,
-			TextColor3 = C.BarText,
+			FontFace = TYPE.UiBold.face,
+			TextSize = 14,
+			TextColor3 = C.Accent,
 			Text = "",
 			TextWrapped = true,
 			Parent = cap,
@@ -2910,30 +3005,35 @@ local function build(body: Frame, _api)
 		local holder = make("Frame", { Name = "Chevron", LayoutOrder = order, Size = UDim2.fromOffset(10, 16), BackgroundTransparency = 1, Parent = parent })
 		local tipX = if pointsLeft then 2 else 8
 		local backX = if pointsLeft then 8 else 2
-		stroke(holder, Vector2.new(backX, 2), Vector2.new(tipX, 8), 2, C.BarText, 0.1)
-		stroke(holder, Vector2.new(tipX, 8), Vector2.new(backX, 14), 2, C.BarText, 0.1)
+		stroke(holder, Vector2.new(backX, 2), Vector2.new(tipX, 8), 2, C.Ivory, 0.05)
+		stroke(holder, Vector2.new(tipX, 8), Vector2.new(backX, 14), 2, C.Ivory, 0.05)
 	end
 
+	local quick = TweenInfo.new(0.12, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 	local function barButton(parent: Instance, name: string, text: string, side: string?, onPress: () -> ()): (TextButton, TextLabel?)
-		local textW = math.ceil(measure(text, TYPE.Serif, 15)) + 6
-		local width = 28 + textW + (if side then 10 + 8 + 28 + 8 else 0)
+		local caption = string.upper(text)
+		local textW = math.ceil(measure(caption, TYPE.UiBold, 16)) + 6
+		local width = 32 + textW + (if side == "key" then 10 + 32 elseif side then 10 + 10 + 32 + 10 else 0)
 		local button = make("TextButton", {
 			Name = name,
 			Text = "",
 			AutoButtonColor = false,
-			BackgroundColor3 = C.BarText,
-			BackgroundTransparency = 1,
+			BackgroundColor3 = C.Graphite,
+			BackgroundTransparency = 0.06,
 			Size = UDim2.fromOffset(width, CONFIG.ControlsHeight),
 			Selectable = true,
+			SelectionImageObject = selectionOutline(),
 			Parent = parent,
 		})
-		corner(button, 8)
+		corner(button, 2)
+		local hairline = make("UIStroke", { Color = C.Bronze, Thickness = 1, Transparency = 0.55, Parent = button })
+		local scale = make("UIScale", { Parent = button })
 		make("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 			VerticalAlignment = Enum.VerticalAlignment.Center,
 			SortOrder = Enum.SortOrder.LayoutOrder,
-			Padding = UDim.new(0, 8),
+			Padding = UDim.new(0, 10),
 			Parent = button,
 		})
 		local key: TextLabel? = nil
@@ -2947,47 +3047,51 @@ local function build(body: Frame, _api)
 			LayoutOrder = 3,
 			BackgroundTransparency = 1,
 			Size = UDim2.fromOffset(textW, 22),
-			FontFace = Theme.Faces.SemiBold,
-			TextSize = 15,
-			TextColor3 = C.BarText,
-			Text = text,
+			FontFace = TYPE.UiBold.face,
+			TextSize = 16,
+			TextColor3 = C.Ivory,
+			Text = caption,
 			TextWrapped = true,
 			Parent = button,
 		})
-		if side == "right" then
+		if side == "right" or side == "key" then
 			local _, k = keycap(button, 4)
 			key = k
+		end
+		if side == "right" then
 			chevron(button, 5, false)
 		end
 		button.MouseEnter:Connect(function()
 			if button.Active then
-				button.BackgroundTransparency = 0.9
+				tween(hairline, quick, { Transparency = 0.15 })
+				tween(button, quick, { BackgroundColor3 = shade(C.Graphite, 1.35) })
 			end
 		end)
 		button.MouseLeave:Connect(function()
-			button.BackgroundTransparency = 1
+			tween(hairline, quick, { Transparency = 0.55 })
+			tween(button, quick, { BackgroundColor3 = C.Graphite })
 		end)
 		button.Activated:Connect(function()
 			if button.Active then
+				scale.Scale = 0.98
+				tween(scale, TweenInfo.new(0.08, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Scale = 1 })
 				onPress()
 			end
 		end)
 		return button, key
 	end
 
+	-- Disabled controls fade to 45% and stop answering
 	function controls.setEnabled(button: TextButton, enabled: boolean)
 		button.Active = enabled
-		button.AutoButtonColor = false
 		for _, item in button:GetDescendants() do
 			if item:IsA("TextLabel") then
-				item.TextTransparency = if enabled then 0 else 0.65
+				item.TextTransparency = if enabled then 0 else 0.55
 			elseif item:IsA("Frame") and item.Name == "Stroke" then
-				item.BackgroundTransparency = if enabled then 0.1 else 0.7
+				item.BackgroundTransparency = if enabled then 0.05 else 0.6
 			end
 		end
-		if not enabled then
-			button.BackgroundTransparency = 1
-		end
+		button.BackgroundTransparency = if enabled then 0.06 else 0.45
 	end
 
 	local function refreshKeys()
@@ -3047,7 +3151,22 @@ local function build(body: Frame, _api)
 		gradient(leather, { shade(C.Leather, 1.12), C.Leather, shade(C.Leather, 0.8) }, 90)
 		local tooling = make("Frame", { Name = "Tooling", Position = UDim2.fromOffset(5, 5), Size = UDim2.new(1, -10, 1, -10), BackgroundTransparency = 1, ZIndex = 2, Parent = leather })
 		corner(tooling, 7)
-		make("UIStroke", { Color = C.Gold, Thickness = 1, Transparency = 0.62, Parent = tooling })
+		make("UIStroke", { Color = C.Bronze, Thickness = 1, Transparency = 0.55, Parent = tooling })
+		-- bronze corner pieces, as on a bound codex
+		for _, spot in { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } } do
+			local piece = make("Frame", {
+				Name = "CornerPiece",
+				AnchorPoint = Vector2.new(spot[1], spot[2]),
+				Position = UDim2.fromScale(spot[1], spot[2]),
+				Size = UDim2.fromOffset(22, 22),
+				BackgroundColor3 = C.Bronze,
+				BorderSizePixel = 0,
+				ZIndex = 2,
+				Parent = leather,
+			})
+			corner(piece, 3)
+			gradient(piece, { C.BronzeLight, C.Bronze, shade(C.Bronze, 0.75) }, 45)
+		end
 		-- The page block's edges peeking out around the open pages
 		local pagesW = if geo.single then geo.pageW else geo.pageW * 2
 		for step = 2, 1, -1 do
@@ -3194,7 +3313,7 @@ local function build(body: Frame, _api)
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 			VerticalAlignment = Enum.VerticalAlignment.Center,
 			SortOrder = Enum.SortOrder.LayoutOrder,
-			Padding = UDim.new(0, 6),
+			Padding = UDim.new(0, 12),
 			Parent = middle,
 		})
 		local contents = barButton(middle, "Contents", "Contents", nil, function()
@@ -3205,58 +3324,20 @@ local function build(body: Frame, _api)
 			Name = "Indicator",
 			LayoutOrder = 2,
 			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(if geo.single then 132 else 150, 22),
-			FontFace = Theme.Faces.Medium,
-			TextSize = 13,
-			TextColor3 = C.BarText,
-			TextTransparency = 0.35,
+			Size = UDim2.fromOffset(170, 22),
+			FontFace = TYPE.Ui.face,
+			TextSize = 14,
+			TextColor3 = C.IvorySoft,
 			Text = "",
 			TextTruncate = Enum.TextTruncate.AtEnd,
+			-- phones show the folio on the page itself; the bar keeps its room for buttons
+			Visible = not geo.single,
 			Parent = middle,
 		})
-		local closeTextW = math.ceil(measure("Close", TYPE.Serif, 15)) + 6
-		local close = make("TextButton", {
-			Name = "Close",
-			LayoutOrder = 3,
-			Text = "",
-			AutoButtonColor = false,
-			BackgroundColor3 = C.BarText,
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(closeTextW + 28 + 8 + 28, CONFIG.ControlsHeight),
-			Selectable = true,
-			Parent = middle,
-		})
-		corner(close, 8)
-		make("UIListLayout", {
-			FillDirection = Enum.FillDirection.Horizontal,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
-			VerticalAlignment = Enum.VerticalAlignment.Center,
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			Padding = UDim.new(0, 8),
-			Parent = close,
-		})
-		make("TextLabel", {
-			Name = "Text",
-			LayoutOrder = 1,
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(closeTextW, 22),
-			FontFace = Theme.Faces.SemiBold,
-			TextSize = 15,
-			TextColor3 = C.BarText,
-			Text = "Close",
-			TextWrapped = true,
-			Parent = close,
-		})
-		local _, closeKey = keycap(close, 2)
-		close.MouseEnter:Connect(function()
-			close.BackgroundTransparency = 0.9
-		end)
-		close.MouseLeave:Connect(function()
-			close.BackgroundTransparency = 1
-		end)
-		close.Activated:Connect(function()
+		local close, closeKey = barButton(middle, "Close", "Close", "key", function()
 			Shell.close()
 		end)
+		close.LayoutOrder = 3
 		controls.prev, controls.prevKey = prev, prevKey
 		controls.next, controls.nextKey = nextButton, nextKey
 		controls.contents = contents
@@ -3408,7 +3489,7 @@ function ArchiveWindow.register()
 		-- Opened from the lectern in the Lounge, not the dock
 		nav = false,
 		size = CONFIG.WindowSize,
-		accent = C.Gold,
+		accent = C.Accent,
 		build = build,
 	})
 end

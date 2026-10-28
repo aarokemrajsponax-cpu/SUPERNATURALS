@@ -845,10 +845,14 @@ function abilities.BanHammer(ctx)
 	local me = ctx.fighter
 	local origin = ctx:origin()
 	local floor = aimedFloor(ctx, def.range, 10)
+	-- The hammer swings along this line; everyone draws it the same way
+	local facing = Hitbox.flatDirection(floor - origin) or ctx.direction
 	-- Everyone who could be caught gets the timing bar
 	ctx:telegraph(ctx:inSphere(floor, def.pullRadius + 4, 8), ctx:activeAt())
 	local stopWindup = ctx:lastingFx("BanHammerWindup", def.startup + 0.25, {
 		position = floor,
+		facing = facing,
+		reach = def.hammerReach,
 		radius = def.radius,
 		pullRadius = def.pullRadius,
 		startup = def.startup,
@@ -893,15 +897,15 @@ function abilities.BanHammer(ctx)
 	end
 	pulling = false
 
-	-- Down it comes: Admin lands on the ring and the hammer falls with them
 	ctx:stopDash()
 	local hang = services.StatusService:get(me, "Gravity")
 	if hang and hang.sourceId == me.id then
 		ctx:clearStatus(me, "Gravity")
 	end
 	local from = ctx:origin()
-	ctx:teleport(floor + UP * 3, { maxDistance = def.range + 12, facing = ctx.direction })
-	ctx:fx("BanHammerSlam", { position = floor, radius = def.radius, from = from })
+	-- Down it comes: Admin lands holding the grip and the head strikes the ring's centre
+	ctx:teleport(floor - facing * def.hammerReach + UP * 3, { maxDistance = def.range + 12, facing = facing })
+	ctx:fx("BanHammerSlam", { position = floor, facing = facing, reach = def.hammerReach, radius = def.radius, from = from })
 	for _, target in ctx:inSphere(floor, def.radius, 6) do
 		local direction = awayFrom(floor, target) or ctx.direction
 		ctx:hit(target, bounded(target, direction, def), { direction = direction, origin = floor })

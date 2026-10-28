@@ -229,9 +229,38 @@ local function claim(motor: Motor6D)
 	tokens[motor] = (tokens[motor] or 0) + 1
 end
 
--- Sequence driver state (declared here so the pose functions can defer to it)
-local states: { [Model]: any } = {}
+-- Sequence driver state (declared here so the pose functions can defer to it).
+-- Keyed by an id kept in an attribute on the character, for the same reason as
+-- the rest poses above; each state remembers its model.
+local states: { [string]: any } = {}
 local stopTrack: (Model, boolean) -> ()
+local KEY_ATTRIBUTE = "SNPoseKey"
+local nextKey = 0
+
+-- A stable key for a character (a copied model gets its own)
+local function keyOf(character: Model): string
+	local key = character:GetAttribute(KEY_ATTRIBUTE)
+	if typeof(key) == "string" then
+		local state = states[key]
+		if state == nil or state.model == character then
+			return key
+		end
+	end
+	nextKey += 1
+	key = "p" .. nextKey
+	character:SetAttribute(KEY_ATTRIBUTE, key)
+	return key
+end
+Poser.keyOf = keyOf
+
+local function stateOf(character: Model?): any
+	if not character then
+		return nil
+	end
+	local key = character:GetAttribute(KEY_ATTRIBUTE)
+	local state = if typeof(key) == "string" then states[key] else nil
+	return if state and state.model == character then state else nil
+end
 
 -- Goes into a pose over `inTime`, holds it, then eases back over `outTime`
 function Poser.play(character: Model?, poseName: string, inTime: number, hold: number, outTime: number)
@@ -267,7 +296,7 @@ function Poser.hold(character: Model?, poseName: string)
 		return
 	end
 	character:SetAttribute(HOLD_PREFIX .. poseName, true)
-	if states[character] then
+	if stateOf(character) then
 		return
 	end
 	local pose = Poser.Poses[poseName]
@@ -287,7 +316,7 @@ function Poser.release(character: Model?, poseName: string)
 		return
 	end
 	character:SetAttribute(HOLD_PREFIX .. poseName, nil)
-	if states[character] then
+	if stateOf(character) then
 		return
 	end
 	local pose = Poser.Poses[poseName]
@@ -494,11 +523,11 @@ end
 -- Ends the running sequence. settle = true puts the body back at rest (or in its
 -- held poses); false leaves the joints where they are for a tween to take over.
 stopTrack = function(character: Model, settle: boolean)
-	local state = states[character]
+	local state = stateOf(character)
 	if not state then
 		return
 	end
-	states[character] = nil
+	states[state.key] = nil
 	if not settle or not character.Parent then
 		return
 	end
@@ -589,8 +618,11 @@ function Poser.sequence(character: Model?, name: string, speed: number?, options
 		end
 	end
 
-	local previous = states[character]
+	local key = keyOf(character)
+	local previous = stateOf(character)
 	local state = {
+		key = key,
+		model = character,
 		sequence = sequence,
 		times = times,
 		holdAt = holdAt,
@@ -618,7 +650,7 @@ function Poser.sequence(character: Model?, name: string, speed: number?, options
 			end
 		end
 	end
-	states[character] = state
+	states[key] = state
 	ensureDriver()
 	local length = times[#times]
 	return length / rate
@@ -626,7 +658,7 @@ end
 
 -- Lets a move that pauses (holdAt) carry on: the charge swings, the fighter gets up
 function Poser.advance(character: Model?)
-	local state = character and states[character]
+	local state = stateOf(character)
 	if state then
 		state.released = true
 	end
@@ -634,11 +666,8 @@ end
 
 -- Ends whatever sequence plays on the character, easing back to rest
 function Poser.stop(character: Model?)
-	if not character then
-		return
-	end
-	local state = states[character]
-	if not state then
+	local state = stateOf(character)
+	if not character or not state then
 		return
 	end
 	stopTrack(character, false)
@@ -655,13 +684,13 @@ end
 
 -- Name of the sequence playing on the character (nil when none)
 function Poser.playing(character: Model?): string?
-	local state = character and states[character]
+	local state = stateOf(character)
 	return if state then state.sequence.name else nil
 end
 
 -- Hitstop: freezes the character's sequence for a moment
 function Poser.freeze(character: Model?, duration: number)
-	local state = character and states[character]
+	local state = stateOf(character)
 	if state then
 		state.frozenUntil = math.max(state.frozenUntil, os.clock() + duration)
 	end
@@ -696,10 +725,11 @@ step = function(dt: number)
 	local now = os.clock()
 	local scale = if now < timeScaleUntil then timeScale else 1
 	local any = false
-	for character, state in states do
+	for key, state in states do
 		any = true
+		local character = state.model
 		if not character.Parent then
-			states[character] = nil
+			states[key] = nil
 			continue
 		end
 		if now < state.frozenUntil then

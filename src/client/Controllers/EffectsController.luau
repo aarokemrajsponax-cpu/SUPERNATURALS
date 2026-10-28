@@ -69,11 +69,12 @@ local LIGHT_BY_STEP = { "Jab", "Cross", "Hook", "FinisherKick" }
 -- The local player's previews, by attack kind, so the server's echo can be skipped
 local predicted: { [string]: { family: string, at: number } } = {}
 local lastPrediction: { name: string, at: number }? = nil
--- Per fighter (weak keys: cosmetic memory only)
-local tauntCount: { [Model]: number } = setmetatable({}, { __mode = "k" }) :: any
-local downedPose: { [Model]: string } = setmetatable({}, { __mode = "k" }) :: any
-local grabHolds: { [Model]: { back: boolean } } = setmetatable({}, { __mode = "k" }) :: any
-local chargeFx: { [Model]: { Instance } } = {}
+-- Per fighter, keyed by Poser.keyOf (cleared when the fighter leaves)
+local tauntCount: { [string]: number } = {}
+local downedPose: { [string]: string } = {}
+local grabHolds: { [string]: { back: boolean } } = {}
+local chargeFx: { [string]: { Instance } } = {}
+local keyOf = Poser.keyOf
 
 local shields: { [Model]: BasePart } = {}
 local overheads: { [Model]: { gui: BillboardGui, setHealth: (number, Color3?) -> (), setGuard: (number, Color3?) -> (), status: TextLabel } } = {}
@@ -332,12 +333,12 @@ end
 
 -- The charge glow at the fist: grows while held, gone on release, feint or hit
 function EffectsController:_chargeGlow(model: Model, on: boolean, duration: number?)
-	local existing = chargeFx[model]
+	local existing = chargeFx[keyOf(model)]
 	if existing then
 		for _, item in existing do
 			item:Destroy()
 		end
-		chargeFx[model] = nil
+		chargeFx[keyOf(model)] = nil
 	end
 	if not on then
 		return
@@ -373,7 +374,7 @@ function EffectsController:_chargeGlow(model: Model, on: boolean, duration: numb
 		motes.Parent = attachment
 		TweenService:Create(motes, TweenInfo.new(length), { Rate = 45 }):Play()
 	end
-	chargeFx[model] = items
+	chargeFx[keyOf(model)] = items
 	-- Never outlives the longest possible charge
 	Debris:AddItem(attachment, length + 1)
 end
@@ -709,7 +710,7 @@ function EffectsController:_onGrab(data)
 		if root and typeof(data.direction) == "Vector3" then
 			back = flat(data.direction):Dot(flat(root.CFrame.LookVector)) < -0.3
 		end
-		grabHolds[attacker] = { back = back }
+		grabHolds[keyOf(attacker)] = { back = back }
 		self:_chargeGlow(victim, false)
 		Poser.sequence(attacker, "ClinchHold", 1, { holdFor = hold + 0.4 })
 		Poser.sequence(victim, "Clinched", 1, { holdFor = hold + 0.4 })
@@ -721,8 +722,8 @@ function EffectsController:_onGrab(data)
 		end
 		self:_feel(involved, if root and victimRoot then flat(victimRoot.Position - root.Position) else nil, 0.8, false)
 	elseif phase == "Throw" then
-		local held = grabHolds[attacker]
-		grabHolds[attacker] = nil
+		local held = grabHolds[keyOf(attacker)]
+		grabHolds[keyOf(attacker)] = nil
 		Poser.sequence(attacker, if held and held.back then "ThrowBack" else "ThrowForward")
 		if victim then
 			Poser.sequence(victim, "Thrown")
@@ -732,7 +733,7 @@ function EffectsController:_onGrab(data)
 			Vfx.sound("HeavySwing", root)
 		end
 	elseif phase == "Tech" then
-		grabHolds[attacker] = nil
+		grabHolds[keyOf(attacker)] = nil
 		Poser.sequence(attacker, "TechBreak")
 		Poser.freeze(attacker, 0.06)
 		local point = nil
@@ -752,7 +753,7 @@ function EffectsController:_onGrab(data)
 		end
 		self:_feel(involved, nil, 0.9, false)
 	elseif phase == "Whiff" then
-		grabHolds[attacker] = nil
+		grabHolds[keyOf(attacker)] = nil
 		-- A broken hold lets both go; a plain miss already stumbles in the Grab move
 		if victim then
 			if Poser.playing(attacker) == "ClinchHold" then
@@ -814,8 +815,8 @@ end
 
 -- The next taunt for a fighter (they take turns)
 function EffectsController:_taunt(model: Model, duration: number): string
-	local count = (tauntCount[model] or 0) + 1
-	tauntCount[model] = count
+	local count = (tauntCount[keyOf(model)] or 0) + 1
+	tauntCount[keyOf(model)] = count
 	local name = Poser.Taunts[(count - 1) % #Poser.Taunts + 1]
 	Poser.sequence(model, name, 1.4 / math.max(0.3, duration))
 	return name
@@ -904,7 +905,7 @@ function EffectsController:_onMotion(data)
 		self:_chargeGlow(fighter, false)
 		local side = pushSide(fighter, direction)
 		local pose = if side == "Back" then "Front" else "Back"
-		downedPose[fighter] = pose
+		downedPose[keyOf(fighter)] = pose
 		Poser.sequence(fighter, "Knockdown" .. pose, 1, { holdFor = duration + 0.3 })
 		task.delay(0.34, function()
 			local current = rootOf(fighter)
@@ -923,7 +924,7 @@ function EffectsController:_onMotion(data)
 		end
 	elseif motion == "TechRoll" then
 		local sequence, mirror = "TechRollBack", false
-		local pose = downedPose[fighter] or "Back"
+		local pose = downedPose[keyOf(fighter)] or "Back"
 		if pose == "Front" then
 			sequence = "TechRollForward"
 		elseif root and direction then
@@ -1045,7 +1046,7 @@ function EffectsController:_watchFighter(model: Instance)
 		local started = model:GetAttribute(Attribute.ChargeStart)
 		if started == nil then
 			self:_chargeGlow(model, false)
-		elseif not chargeFx[model] then
+		elseif not chargeFx[keyOf(model)] then
 			self:_chargeGlow(model, true, math.max(0.1, Combat.Heavy.Charge.Max - (now() - started)))
 		end
 	end))
@@ -1063,6 +1064,8 @@ function EffectsController:_watchFighter(model: Instance)
 		end
 		self:_setShield(model, false)
 		self:_chargeGlow(model, false)
+		local key = keyOf(model)
+		tauntCount[key], downedPose[key], grabHolds[key] = nil, nil, nil
 		local overhead = overheads[model]
 		if overhead then
 			overhead.gui:Destroy()

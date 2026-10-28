@@ -13,10 +13,14 @@ local Client = require("./smoke/Client")
 local t = Client.load(process.args[1] or "build/e2.rbxl")
 local Engine, world, roblox = t.Engine, t.world, t.roblox
 local game = t.game
-local Instance, Vector3, CFrame, Enum = world.Instance, roblox.Vector3, roblox.CFrame, roblox.Enum
+local Instance, Vector3, Vector2, CFrame, Enum = world.Instance, roblox.Vector3, roblox.Vector2, roblox.CFrame, roblox.Enum
 
 local workspace = world.workspace
-local CollectionService = game:GetService("CollectionService")
+-- Properties the stand-in engine has no defaults for
+local UserInputService = game:GetService("UserInputService")
+UserInputService.TouchEnabled = false
+UserInputService.KeyboardEnabled = true
+local CollectionService = world.services.CollectionService
 local Lighting = game:GetService("Lighting")
 
 local function step(frames: number, dt: number?)
@@ -369,7 +373,11 @@ t.check("lock-on: Z locks the enemy in view, tap again lets go, hold mode, pause
 	local look = workspace.CurrentCamera.CFrame.LookVector
 	local toward = (foe.HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).Unit
 	assert(look:Dot(toward) > 0.8, "the camera frames the target")
-	assert(Camera:lockDirection() ~= nil, "the character faces the target")
+	local direction = Camera:lockDirection()
+	if not direction then
+		print("DEBUG", Camera:isLocked(), Camera:getLockTarget(), me.HumanoidRootPart.Position, foe.HumanoidRootPart.Position, workspace.CurrentCamera.CameraType, t.client("UI.Shell").getMode())
+	end
+	assert(direction ~= nil, "the character faces the target")
 	-- A second enemy: a tap switches to it
 	local other = rig("Other", Vector3.new(6, 3, -10))
 	press("SNLock", KEY)
@@ -402,6 +410,8 @@ end)
 
 t.check("every CombatEvent kind and field is handled, for the local player and others", function()
 	respawn()
+	-- The local player's own previews are fresh for 0.6 s (their echo is skipped)
+	t.task.wait(0.7)
 	local camera = workspace.CurrentCamera
 	local moves = { "Jab", "Cross", "Hook", "FinisherKick", "Heavy", "ChargedHeavy", "Launcher", "RushStrike", "ShoulderCharge", "AirKick", "Slam", "Sweep", "Grab", "PropThrow" }
 	for index, move in moves do
@@ -657,9 +667,7 @@ end)
 
 t.check("touch: a tidy right-side cluster, 44 px or more, clear of the jump button and the HUD", function()
 	local ui = t.startUI()
-	roblox.implementMethod("UserInputService", "GetLastInputType", function()
-		return Enum.UserInputType.Touch
-	end)
+	Engine.lastInputType = Enum.UserInputType.Touch
 	local Shell = t.client("UI.Shell")
 	local Hud = t.client("UI.Hud")
 	local touch = world.localPlayer.PlayerGui:FindFirstChild("SNTouchControls")

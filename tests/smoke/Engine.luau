@@ -209,6 +209,29 @@ roblox.implementMethod("BasePart", "SetNetworkOwner", function() end)
 roblox.implementMethod("ParticleEmitter", "Emit", function() end)
 roblox.implementMethod("Sound", "Play", function() end)
 roblox.implementMethod("Sound", "Stop", function() end)
+-- Text measuring for code that lays text out itself (the Archive book): an
+-- estimate from each font's average character width, wrapped at spaces
+local CHAR_WIDTH = {
+	RobotoMono = 0.455, Code = 0.5, SpecialElite = 0.575, Kalam = 0.27, PatrickHand = 0.28,
+	Merriweather = 0.41, Michroma = 0.47, Jura = 0.43, Bodoni = 0.4,
+}
+roblox.implementMethod("TextService", "GetTextSize", function(_, text, size, font, frameSize)
+	local perChar = (CHAR_WIDTH[font and font.Name or ""] or 0.45) * size
+	local limit = if frameSize then frameSize.X else math.huge
+	local lines, widest, current = 1, 0, 0
+	for word in string.gmatch(tostring(text), "%S+") do
+		local width = (utf8.len(word) or #word) * perChar
+		local add = if current > 0 then width + perChar else width
+		if current > 0 and current + add > limit then
+			lines += 1
+			widest = math.max(widest, current)
+			current = width
+		else
+			current += add
+		end
+	end
+	return roblox.Vector2.new(math.max(widest, current), lines * size)
+end)
 roblox.implementMethod("Humanoid", "ChangeState", function() end)
 roblox.implementMethod("Humanoid", "MoveTo", function() end)
 
@@ -609,8 +632,10 @@ event("GuiObject", "SelectionLost")
 roblox.implementMethod("GuiService", "GetGuiInset", function()
 	return roblox.Vector2.new(0, 58), roblox.Vector2.new(0, 0)
 end)
+-- Tests can pretend to be on touch or a gamepad: Engine.lastInputType = Enum.UserInputType.Touch
+Engine.lastInputType = nil :: any
 roblox.implementMethod("UserInputService", "GetLastInputType", function()
-	return roblox.Enum.UserInputType.Keyboard
+	return Engine.lastInputType or roblox.Enum.UserInputType.Keyboard
 end)
 roblox.implementMethod("UserInputService", "IsKeyDown", function()
 	return false

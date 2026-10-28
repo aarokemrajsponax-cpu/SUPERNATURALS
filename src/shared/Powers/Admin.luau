@@ -481,6 +481,8 @@ return {
 			-- Upward speed of the leap, and the share of gravity felt while it hangs in the air
 			leap = 40,
 			hang = 0.2,
+			-- Admin lands holding the hammer's grip, this far back from where its head strikes
+			hammerReach = 7,
 			damage = 28,
 			hitstun = 1.1,
 			knockback = 120,

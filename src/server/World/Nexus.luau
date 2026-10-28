@@ -1,59 +1,67 @@
--- The Nexus: THE GARDEN of Meridian Station, the lobby everyone spawns into.
--- One enormous indoor habitat hall: four layered walls (concrete plinth,
--- ribbed panels, a service catwalk, a glass observation gallery) under a
--- steel truss vault glazed with glass, and inside it the valley the Meridian
--- Institute grew to keep its volunteers calm: grass, groves, a pond with
--- reeds. The Lantern floats in its containment ring at the centre, the eight
--- programme exhibits stand in an arc to the north, and five bulkhead gates
--- lead off to the station's wings. Around the hall: the Training Wing (a
--- walled building round the training ground ArenaService builds at
--- (-90, 0, 0)), the Lounge on the north wall with the Archive on its lectern
--- and Dr. Varga's study behind a bookshelf, the Calibration Chamber where
--- powers are chosen, the Enhancement Bay by the Commissary, the scorched
--- corner where Door 09 stays shut (its antechamber is reached by a
--- maintenance crawlspace), and ten recovered files hidden for explorers.
--- Holiday decorations and the luxury car use spots on the plaza
--- (SeasonalDecor/Build.luau KEEP_CLEAR), so those stay open, and everything
+-- The Nexus: the HALL OF THE EIGHT, the lobby everyone spawns into (the look is
+-- set by docs/ArtDirection.md). A colossal ancient hall under Kestrel Valley:
+-- walls of warm travertine with a colonnade of fluted ivory columns along the
+-- north and south sides, high clerestory windows, and a broken stone vault the
+-- Meridian Institute roofed in steel and glass. The Lantern rests in a bronze
+-- ring on the central dais, inside a ring of eight statue bays where The Eight
+-- stand (Statues.luau carves the figures), and bronze meridian lines run out
+-- through the gaps between the bays to every door. The Institute planted the
+-- court around them as the Garden: grass, groves and a pond. Off the hall: the
+-- Lounge behind the north colonnade (Dr. Varga's study hides behind its
+-- library), the Calibration Chamber, the Enhancement Bay and the Commissary's
+-- stores, the Training Wing beyond the west portal, and the sealed Door 09,
+-- whose antechamber is reached through a maintenance crawlspace. Ten recovered
+-- files are hidden around it all. Holiday decorations and the luxury car use
+-- spots in the court (SeasonalDecor/Build.luau KEEP_CLEAR), and everything
 -- overhead ignores raycasts so decorations still land on the floor.
 
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Powers = require(ReplicatedStorage.Shared.Powers)
 
 local Nexus = {}
 
 local rgb = Color3.fromRGB
 local M = Enum.Material
 
--- Palette: warm concrete and off-white painted steel (dominant), graphite
--- steel and the valley's greens (secondary), the Lantern's teal and warm
--- lamp amber as the only accents. The Lounge adds oak, leather and linen.
-local CONCRETE = rgb(164, 160, 152)
-local CONCRETE_DARK = rgb(124, 121, 115)
-local PANEL = rgb(200, 201, 196)
-local PANEL_SHADE = rgb(180, 183, 180)
-local PAVING = rgb(172, 168, 160)
-local PAVING_DARK = rgb(104, 104, 102)
-local PAVING_LIGHT = rgb(198, 194, 186)
-local STEEL = rgb(84, 90, 95)
-local STEEL_DARK = rgb(50, 54, 58)
-local STEEL_LIGHT = rgb(150, 156, 160)
-local GLASS = rgb(170, 196, 200)
-local AMBER = rgb(226, 166, 64)
-local TEAL = rgb(126, 220, 208)
-local SCREEN = rgb(14, 26, 30)
-local SCREEN_TEXT = rgb(172, 226, 214)
-local SIGN_TEXT = rgb(226, 230, 226)
-local LAMP = rgb(255, 196, 140)
-local DAYLIGHT = rgb(255, 238, 214)
-local WOOD = rgb(128, 90, 60)
-local WOOD_DARK = rgb(78, 56, 40)
-local WOOD_FLOOR = rgb(146, 104, 70)
-local LEATHER = rgb(140, 86, 52)
-local VELVET = rgb(58, 84, 70)
+-- Materials (docs/ArtDirection.md section 3): { colour, material, MaterialVariant, colour spread }.
+-- About 85% is the ancient layer (stone, bronze, a little gold); the Meridian
+-- layer is brass, glass and thin cool light.
+local KINDS = {
+	marble = { rgb(232, 225, 211), M.Marble, "SN_IvoryMarble", 0.03 },
+	travertine = { rgb(203, 187, 160), M.Limestone, "SN_Travertine", 0.025 },
+	recess = { rgb(172, 157, 134), M.Limestone, "SN_Travertine", 0.02 },
+	dark = { rgb(78, 74, 69), M.Slate, "SN_DarkStone", 0.04 },
+	darker = { rgb(61, 59, 58), M.Basalt, "SN_DarkStone", 0.03 },
+	bronze = { rgb(140, 106, 63), M.Metal, "SN_Bronze", 0.02 },
+	bronzeLight = { rgb(181, 139, 79), M.Metal, "SN_Bronze", 0.02 },
+	gold = { rgb(217, 178, 95), M.Foil, "SN_GoldLeaf", 0 },
+	brass = { rgb(168, 138, 85), M.Metal, nil, 0.02 },
+	steel = { rgb(72, 70, 66), M.Metal, nil, 0.02 },
+	lapis = { rgb(31, 43, 74), M.Fabric, nil, 0.03 },
+	wood = { rgb(118, 84, 58), M.Wood, nil, 0.05 },
+	woodDark = { rgb(74, 54, 40), M.Wood, nil, 0.04 },
+}
+
+local MARBLE = KINDS.marble[1]
+local BRONZE = KINDS.bronze[1]
+local BRASS = KINDS.brass[1]
+local LAPIS = KINDS.lapis[1]
+local GLASS = rgb(196, 210, 214)
+local HOLO = rgb(221, 235, 255)
+local IVORY_TEXT = rgb(237, 230, 214)
+local CARVED = rgb(112, 92, 66)
+local LAMP = rgb(255, 202, 150)
+local WARM_SPOT = rgb(255, 214, 166)
+local WOOD = KINDS.wood[1]
+local WOOD_DARK = KINDS.woodDark[1]
+local WOOD_FLOOR = rgb(140, 100, 68)
+local LEATHER = rgb(128, 76, 46)
 local LINEN = rgb(214, 202, 180)
-local RUST = rgb(168, 86, 58)
-local MUSTARD = rgb(198, 160, 82)
-local PLASTER = rgb(198, 186, 168)
-local STONE = rgb(122, 118, 112)
+local RUST = rgb(150, 72, 50)
+local MUSTARD = rgb(186, 148, 76)
+local SCREEN = rgb(21, 20, 16)
 local BARK = rgb(86, 68, 52)
 local MOSS = rgb(88, 104, 56)
 local LEAVES = { rgb(70, 98, 50), rgb(84, 110, 56), rgb(62, 86, 46) }
@@ -61,7 +69,8 @@ local AUTUMN = { rgb(150, 100, 56), rgb(132, 84, 48), rgb(160, 124, 66) }
 local NEEDLES = { rgb(46, 70, 52), rgb(54, 78, 56), rgb(42, 62, 48) }
 
 local FONT_SANS = "rbxasset://fonts/families/BuilderSans.json"
-local FONT_TECH = "rbxasset://fonts/families/Michroma.json"
+local FONT_DISPLAY = "rbxasset://fonts/families/AccanthisADFStd.json"
+local FONT_CARVED = "rbxasset://fonts/families/RomanAntique.json"
 local FONT_MONO = "rbxasset://fonts/families/RobotoMono.json"
 
 -- Small decoration: no shadow. Foliage and glow: no shadow or collision either.
@@ -70,41 +79,80 @@ local SMALL = { CastShadow = false }
 local GHOST = { CastShadow = false, CanCollide = false }
 local LEAFY = { CanCollide = false }
 local OVERHEAD = { CanCollide = false, CanQuery = false }
-local OVERHEAD_SMALL = { CanCollide = false, CanQuery = false, CastShadow = false }
 
-Nexus.Radius = 44
-
--- The hall: inner faces of the walls at +-HALF, the vault springing from WALL_TOP
+-- The hall: inner faces of the walls at +-HALF; the vault springs from VAULT_SPRING
 local HALF = 180
-local WALL_TOP = 84
--- Columns (and the vault's ribs) stand at these offsets along every wall
-local COLUMNS = { -140, -100, -60, -20, 20, 60, 100, 140 }
+local VAULT_SPRING = 84.5
+local VAULT_CROWN = 120
+-- Columns (and the vault's stone ribs) stand on these lines; windows and doors sit between them
+local COLUMN_XS = { -140, -100, -60, -20, 20, 60, 100, 140 }
+local BAY_XS = { -160, -120, -80, -40, 0, 40, 80, 120, 160 }
+-- The colonnade stands this far in front of the north and south walls
+local COLONNADE = 16
+local SHAFT = 7
+-- The paved sanctum round the dais, and the ring of statue bays at its edge
+local SANCTUM = 78
+local BAY_RADIUS = 88
+local BAY_ANGLES = {
+	StrongDude = -112.5,
+	Ghost = -67.5,
+	Shapeshifter = -22.5,
+	MachineMaster = 22.5,
+	Syntax = 67.5,
+	Corruption = 112.5,
+	Admin = 157.5,
+	Grandmaster = -157.5,
+}
+local CODENAMES = {
+	StrongDude = { "ATLAS", "Strong Dude", "I" },
+	Ghost = { "VEIL", "The Ghost", "II" },
+	Shapeshifter = { "CHIMERA", "Animal Shapeshifter", "III" },
+	MachineMaster = { "FURNACE", "Machine Master", "IV" },
+	Syntax = { "LATTICE", "Syntax", "V" },
+	Corruption = { "ECLIPSE", "Corruption", "VI" },
+	Admin = { "WARDEN", "Admin Powers", "VII" },
+	Grandmaster = { "THE EIGHTH", "The Grandmaster", "VIII" },
+}
+-- Programme colours, for the holograms and the mastery wall (the only place they appear in the world)
+local PROGRAMME_COLORS = {
+	{ "ATLAS", rgb(255, 150, 72) },
+	{ "VEIL", rgb(150, 226, 255) },
+	{ "CHIMERA", rgb(156, 212, 112) },
+	{ "FURNACE", rgb(92, 182, 255) },
+	{ "LATTICE", rgb(112, 230, 172) },
+	{ "ECLIPSE", rgb(178, 98, 222) },
+	{ "WARDEN", rgb(236, 204, 122) },
+	{ "EIGHTH", rgb(200, 190, 170) },
+}
 
--- The gateways: bulkhead doors in the walls (the Training Wing's is in its own
--- building). `position` is the middle of the doorway at floor level and
--- `facing` points into the hall; `angle` is the direction from the Lantern.
+Nexus.Radius = SANCTUM
+
+-- Where the Training Wing stands, beyond the west portal (Config Match.TrainingGround.Center must match)
+Nexus.TrainingCenter = Vector3.new(-236, 0, 0)
+
+-- The gateways: bronze doors in the walls. `position` is the middle of the
+-- doorway at floor level and `facing` points into the hall; `angle` is the
+-- direction of its meridian line from the Lantern.
 Nexus.Gates = {
-	{ id = "Battle", name = "Test Chambers", sector = "Sector 3", angle = 0, color = rgb(214, 104, 78), action = "Window:Play", prompt = "Find a fight", position = Vector3.new(HALF, 0, 0), facing = Vector3.new(-1, 0, 0) },
-	{ id = "Training", name = "Training Wing", sector = "Sector 2", angle = 180, color = rgb(86, 182, 190), action = "Travel:Training", prompt = "Go to training", position = Vector3.new(-60, 0, 0), facing = Vector3.new(1, 0, 0), open = true },
-	{ id = "Homes", name = "Residential Wing", sector = "Sector 6", angle = -90, color = rgb(228, 172, 96), action = "Base:Home", prompt = "Go to your base", position = Vector3.new(0, 0, -HALF), facing = Vector3.new(0, 0, 1) },
-	{ id = "Market", name = "Commissary", sector = "Sector 5", angle = 66, color = rgb(136, 190, 118), action = "Window:Shop", prompt = "Open the shop", position = Vector3.new(80, 0, HALF), facing = Vector3.new(0, 0, -1) },
-	{ id = "Watch", name = "Observation Deck", sector = "Sector 4", angle = 24, color = rgb(136, 146, 226), action = "Window:Watch", prompt = "Watch a match", position = Vector3.new(HALF, 0, 80), facing = Vector3.new(-1, 0, 0) },
+	{ id = "Battle", name = "Test Chambers", sector = "Sector 3", angle = 0, color = rgb(196, 112, 84), action = "Window:Play", prompt = "Find a fight", position = Vector3.new(HALF, 0, 0), facing = Vector3.new(-1, 0, 0) },
+	{ id = "Training", name = "Training Wing", sector = "Sector 2", angle = 180, color = rgb(112, 168, 170), action = "Travel:Training", prompt = "Go to training", position = Vector3.new(-HALF, 0, 0), facing = Vector3.new(1, 0, 0), open = true },
+	{ id = "Homes", name = "Residential Wing", sector = "Sector 6", angle = -90, color = rgb(214, 170, 104), action = "Base:Home", prompt = "Go to your base", position = Vector3.new(0, 0, -HALF), facing = Vector3.new(0, 0, 1) },
+	{ id = "Market", name = "Commissary", sector = "Sector 5", angle = 90, color = rgb(150, 182, 120), action = "Window:Shop", prompt = "Open the shop", position = Vector3.new(0, 0, HALF), facing = Vector3.new(0, 0, -1) },
+	{ id = "Watch", name = "Observation Deck", sector = "Sector 4", angle = 45, color = rgb(146, 150, 210), action = "Window:Watch", prompt = "Watch a match", position = Vector3.new(120, 0, HALF), facing = Vector3.new(0, 0, -1) },
 }
 
--- The eight programmes, in the order they began (the exhibits stand west to east in it)
-local PROGRAMMES = {
-	{ id = "StrongDude", codename = "ATLAS", name = "Strong Dude", note = "Subject T. Reyne. Strength scaling without limit.", color = rgb(255, 150, 72) },
-	{ id = "Ghost", codename = "VEIL", name = "The Ghost", note = "Subject R. Takeda. Unseen when watched. Short displacement.", color = rgb(150, 226, 255) },
-	{ id = "Shapeshifter", codename = "CHIMERA", name = "Animal Shapeshifter", note = "Subject Dr. N. Okafor. Wolf, hawk, bear. A fourth, once.", color = rgb(156, 212, 112) },
-	{ id = "MachineMaster", codename = "FURNACE", name = "Machine Master", note = "Subject D. Malhotra. Cold blue flame. Machines build themselves.", color = rgb(92, 182, 255) },
-	{ id = "Syntax", codename = "LATTICE", name = "Syntax", note = "Subject P. Lind. Reads the station as text, and edits it.", color = rgb(112, 230, 172) },
-	{ id = "Corruption", codename = "ECLIPSE", name = "Corruption", note = "Subject record redacted. Test halted. See Door 09.", color = rgb(178, 98, 222) },
-	{ id = "Admin", codename = "WARDEN", name = "Admin Powers", note = "Not a subject. The station's own command protocol.", color = rgb(236, 204, 122) },
-	{ id = "Grandmaster", name = "The Grandmaster", note = "Groundskeeper. Declined. Do not ask again.", color = rgb(150, 172, 160) },
-}
-Nexus.Programmes = PROGRAMMES
+-- The rooms the other meridian lines lead to
+local LOUNGE_DOOR = Vector3.new(-120, 0, -HALF)
+local CALIBRATION_DOOR = Vector3.new(120, 0, -HALF)
+local DOOR_09 = Vector3.new(-120, 0, HALF)
+local ENHANCEMENT_DOOR = Vector3.new(40, 0, HALF)
+local STORES_DOOR = Vector3.new(-40, 0, HALF)
+local CRAWLSPACE = Vector3.new(-80, 0, HALF)
 
 -- Building blocks ------------------------------------------------------------------------
+
+-- Every stone part varies a little in tone; seeded at the start of each build so builds repeat
+local tone = Random.new(17)
 
 local function part(parent: Instance, props: { [string]: any }): BasePart
 	local instance = Instance.new(props.ClassName or "Part") :: BasePart
@@ -134,16 +182,55 @@ local function block(parent: Instance, name: string, size: Vector3, cframe: CFra
 	return part(parent, props)
 end
 
+-- No two pieces the same: nudge the value and warmth a little
+local function vary(color: Color3, random: Random, amount: number?): Color3
+	local spread = amount or 0.05
+	local value = 1 + random:NextNumber(-spread, spread)
+	local warmth = random:NextNumber(-0.012, 0.012)
+	return Color3.new(
+		math.clamp(color.R * value + warmth, 0, 1),
+		math.clamp(color.G * value, 0, 1),
+		math.clamp(color.B * value - warmth, 0, 1)
+	)
+end
+
+local function pick(list: { Color3 }, random: Random): Color3
+	return list[random:NextInteger(1, #list)]
+end
+
+-- Gives a part one of the hall's materials (colour, material, variant, bronze's faint sheen)
+local function dress(made: BasePart, kind: string): BasePart
+	local spec = KINDS[kind]
+	made.Color = if spec[4] > 0 then vary(spec[1], tone, spec[4]) else spec[1]
+	made.Material = spec[2]
+	if spec[3] then
+		made.MaterialVariant = spec[3]
+	end
+	if spec[2] == M.Metal then
+		made.Reflectance = 0.05
+	end
+	return made
+end
+
+local function stone(parent: Instance, name: string, kind: string, size: Vector3, cframe: CFrame, extra: { [string]: any }?): BasePart
+	return dress(block(parent, name, size, cframe, MARBLE, M.Marble, extra), kind)
+end
+
+-- An axis-aligned box in `f`'s space, given by its extents
+local function box(parent: Instance, name: string, kind: string, f: CFrame, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, extra: { [string]: any }?): BasePart
+	return stone(parent, name, kind, Vector3.new(x1 - x0, y1 - y0, z1 - z0), f * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), extra)
+end
+
 -- A cylinder standing along the Y axis of `cframe` (Roblox cylinders run along X)
-local function cylinder(parent: Instance, name: string, cframe: CFrame, height: number, diameter: number, color: Color3, material: Enum.Material, extra: { [string]: any }?): BasePart
+local function cylinder(parent: Instance, name: string, kind: string, cframe: CFrame, height: number, diameter: number, extra: { [string]: any }?): BasePart
 	local props = if extra then table.clone(extra) else {}
 	props.Shape = Enum.PartType.Cylinder
-	return block(parent, name, Vector3.new(height, diameter, diameter), cframe * CFrame.Angles(0, 0, math.rad(90)), color, material, props)
+	return stone(parent, name, kind, Vector3.new(height, diameter, diameter), cframe * CFrame.Angles(0, 0, math.rad(90)), props)
 end
 
 -- A round slab whose top is at `top`
-local function disc(parent: Instance, name: string, top: Vector3, diameter: number, thickness: number, color: Color3, material: Enum.Material, extra: { [string]: any }?): BasePart
-	return cylinder(parent, name, CFrame.new(top - Vector3.new(0, thickness / 2, 0)), thickness, diameter, color, material, extra)
+local function disc(parent: Instance, name: string, kind: string, top: Vector3, diameter: number, thickness: number, extra: { [string]: any }?): BasePart
+	return cylinder(parent, name, kind, CFrame.new(top - Vector3.new(0, thickness / 2, 0)), thickness, diameter, extra)
 end
 
 local function ball(parent: Instance, name: string, center: Vector3, diameter: number, color: Color3, material: Enum.Material, extra: { [string]: any }?): BasePart
@@ -166,22 +253,6 @@ local function cornerWedge(parent: Instance, name: string, size: Vector3, cframe
 	return block(parent, name, size, cframe, color, material, props)
 end
 
--- No two pieces the same: nudge the value and warmth a little (seeded, so builds repeat)
-local function vary(color: Color3, random: Random, amount: number?): Color3
-	local spread = amount or 0.05
-	local value = 1 + random:NextNumber(-spread, spread)
-	local warmth = random:NextNumber(-0.012, 0.012)
-	return Color3.new(
-		math.clamp(color.R * value + warmth, 0, 1),
-		math.clamp(color.G * value, 0, 1),
-		math.clamp(color.B * value - warmth, 0, 1)
-	)
-end
-
-local function pick(list: { Color3 }, random: Random): Color3
-	return list[random:NextInteger(1, #list)]
-end
-
 local function light(parent: Instance, color: Color3, range: number, brightness: number, shadows: boolean?): PointLight
 	local point = Instance.new("PointLight")
 	point.Color = color
@@ -202,17 +273,6 @@ local function spotLight(parent: Instance, face: Enum.NormalId, color: Color3, r
 	spot.Shadows = shadows == true
 	spot.Parent = parent
 	return spot
-end
-
-local function surfaceLight(parent: Instance, face: Enum.NormalId, color: Color3, range: number, brightness: number, angle: number?): SurfaceLight
-	local glow = Instance.new("SurfaceLight")
-	glow.Face = face
-	glow.Color = color
-	glow.Range = range
-	glow.Brightness = brightness
-	glow.Angle = angle or 90
-	glow.Parent = parent
-	return glow
 end
 
 local function emitter(parent: Instance, props: { [string]: any }): ParticleEmitter
@@ -243,23 +303,11 @@ local function facingCentre(position: Vector3): CFrame
 end
 
 -- A beam from `a` to `b` (its length along local Z)
-local function strut(parent: Instance, name: string, a: Vector3, b: Vector3, width: number, height: number, color: Color3, material: Enum.Material, extra: { [string]: any }?): BasePart
-	return block(parent, name, Vector3.new(width, height, (b - a).Magnitude), lookAt((a + b) / 2, b), color, material, extra)
+local function strut(parent: Instance, name: string, kind: string, a: Vector3, b: Vector3, width: number, height: number, extra: { [string]: any }?): BasePart
+	return stone(parent, name, kind, Vector3.new(width, height, (b - a).Magnitude), lookAt((a + b) / 2, b), extra)
 end
 
--- A round pipe or cable from `a` to `b`
-local function pipe(parent: Instance, name: string, a: Vector3, b: Vector3, diameter: number, color: Color3, material: Enum.Material, extra: { [string]: any }?): BasePart
-	local props = if extra then table.clone(extra) else {}
-	props.Shape = Enum.PartType.Cylinder
-	return block(parent, name, Vector3.new((b - a).Magnitude, diameter, diameter), lookAt((a + b) / 2, b) * CFrame.Angles(0, math.rad(90), 0), color, material, props)
-end
-
--- An axis-aligned box in `frame`'s space, given by its extents
-local function box(parent: Instance, name: string, frame: CFrame, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, color: Color3, material: Enum.Material, extra: { [string]: any }?): BasePart
-	return block(parent, name, Vector3.new(x1 - x0, y1 - y0, z1 - z0), frame * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), color, material, extra)
-end
-
--- Text on a part face. `glow` makes it self-lit (screens and backlit signs).
+-- Text on a part face. `glow` makes it self-lit (screens and the Meridian displays).
 local function surface(target: BasePart, face: Enum.NormalId, pixelsPerStud: number, glow: boolean?): SurfaceGui
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Sign"
@@ -303,38 +351,50 @@ local function frame(gui: Instance, area: { number }, color: Color3, transparenc
 	return panel
 end
 
--- A status screen: a title over lines of readout that scroll slowly upward
--- (WorldFx moves the label; it loops because the lines are written twice).
--- `size` is the face's size in studs, so the type stays the same on every screen.
-local function readout(screen: BasePart, face: Enum.NormalId, size: Vector2, title: string, lines: { string }, accent: Color3)
+-- A Meridian display: warm graphite with a bronze hairline, a title in the
+-- display face and rows of cool readout that scroll slowly upward (WorldFx
+-- moves the rows; they loop because they are written twice). `size` is the
+-- face's size in studs, so the type stays the same on every screen.
+local function readout(screen: BasePart, face: Enum.NormalId, size: Vector2, title: string, rows: { string })
 	local pixelsPerStud = 40
 	local gui = surface(screen, face, pixelsPerStud, true)
 	frame(gui, { 0, 0, 1, 1 }, SCREEN)
-	frame(gui, { 0.06, 0.08, 0.012, 0.13 }, accent)
-	line(gui, title, { 0.1, 0.06, 0.84, 0.17 }, accent, FONT_TECH, Enum.FontWeight.Regular, 30)
-	local clip = frame(gui, { 0.06, 0.3, 0.88, 0.62 }, SCREEN, 1)
+	local border = Instance.new("UIStroke")
+	border.Color = BRONZE
+	border.Transparency = 0.4
+	border.Thickness = 2
+	border.Parent = frame(gui, { 0.03, 0.04, 0.94, 0.92 }, SCREEN, 1)
+	line(gui, title, { 0.07, 0.07, 0.86, 0.17 }, IVORY_TEXT, FONT_DISPLAY, Enum.FontWeight.Regular, 40)
+	local clip = frame(gui, { 0.07, 0.3, 0.86, 0.6 }, SCREEN, 1)
 	clip.ClipsDescendants = true
-	-- Five rows show at once; the rows are written twice so the scroll loops cleanly
-	local rowHeight = math.floor(size.Y * pixelsPerStud * 0.62 / 5)
-	local rows = Instance.new("Frame")
-	rows.Name = "Readout"
-	rows.BackgroundTransparency = 1
-	rows.Size = UDim2.new(1, 0, 0, rowHeight * #lines * 2)
-	rows:SetAttribute("Scroll", rowHeight * #lines)
-	for index = 0, #lines * 2 - 1 do
+	-- Five rows show at once
+	local rowHeight = math.floor(size.Y * pixelsPerStud * 0.6 / 5)
+	local list = Instance.new("Frame")
+	list.Name = "Readout"
+	list.BackgroundTransparency = 1
+	list.Size = UDim2.new(1, 0, 0, rowHeight * #rows * 2)
+	list:SetAttribute("Scroll", rowHeight * #rows)
+	for index = 0, #rows * 2 - 1 do
 		local row = Instance.new("TextLabel")
 		row.BackgroundTransparency = 1
 		row.Position = UDim2.new(0, 0, 0, index * rowHeight)
 		row.Size = UDim2.new(1, 0, 0, rowHeight)
-		row.Text = lines[index % #lines + 1]
+		row.Text = rows[index % #rows + 1]
 		row.FontFace = Font.new(FONT_MONO, Enum.FontWeight.Regular)
-		row.TextSize = math.floor(rowHeight * 0.62)
-		row.TextColor3 = SCREEN_TEXT
+		row.TextSize = math.floor(rowHeight * 0.6)
+		row.TextColor3 = HOLO
 		row.TextXAlignment = Enum.TextXAlignment.Left
 		row.TextTruncate = Enum.TextTruncate.AtEnd
-		row.Parent = rows
+		row.Parent = list
 	end
-	rows.Parent = clip
+	list.Parent = clip
+	return gui
+end
+
+-- An inscription cut into stone: Roman Antique capitals, shadowed into the face
+local function carve(target: BasePart, face: Enum.NormalId, text: string, pixelsPerStud: number, color: Color3?)
+	local gui = surface(target, face, pixelsPerStud, false)
+	line(gui, text, { 0.03, 0.14, 0.94, 0.72 }, color or CARVED, FONT_CARVED, Enum.FontWeight.Regular, 400, Enum.TextXAlignment.Center)
 	return gui
 end
 
@@ -353,8 +413,8 @@ local function prompt(parent: Instance, actionText: string, objectText: string, 
 	return proximity
 end
 
--- A recovered file: tagged for LoreService, with a prompt that picks it up and a faint blink
-local function loreFile(target: BasePart, fileId: string, objectText: string)
+-- A recovered file: tagged for LoreService, with a prompt that picks it up
+local function loreFile(target: BasePart, fileId: string, objectText: string): ProximityPrompt
 	CollectionService:AddTag(target, "SNLoreTerminal")
 	target:SetAttribute("LoreId", fileId)
 	local proximity = prompt(target, "Read", objectText, "Lore:" .. fileId, 0.4, 8)
@@ -362,38 +422,72 @@ local function loreFile(target: BasePart, fileId: string, objectText: string)
 	return proximity
 end
 
+-- The Lantern star: two squares at 45 degrees. `cf`'s Y axis is the face it lies on.
+local function lanternStar(parent: Instance, cf: CFrame, size: number, thickness: number, kind: string)
+	stone(parent, "Star", kind, Vector3.new(size, thickness, size), cf, SMALL)
+	stone(parent, "Star", kind, Vector3.new(size, thickness, size), cf * CFrame.Angles(0, math.pi / 4, 0), SMALL)
+end
+
+-- The Meridian order: a dark square plinth, a chamfered base with a bronze
+-- ring, a fluted shaft (twelve fillets set proud), and a capital of ring, disc
+-- and abacus. `base` is the floor point; `height` is the top of the abacus.
+local function column(parent: Instance, base: CFrame, height: number)
+	local half = SHAFT / 2
+	box(parent, "ColumnPlinth", "dark", base, -half - 1.2, half + 1.2, 0, 1.6, -half - 1.2, half + 1.2)
+	disc(parent, "ColumnBase", "marble", (base * CFrame.new(0, 2.8, 0)).Position, SHAFT + 1.6, 1.2)
+	disc(parent, "ColumnRing", "bronze", (base * CFrame.new(0, 3.2, 0)).Position, SHAFT + 0.5, 0.4, SMALL)
+	local shaftTop = height - 3.4
+	local shaftHeight = shaftTop - 3.2
+	cylinder(parent, "ColumnShaft", "marble", base * CFrame.new(0, 3.2 + shaftHeight / 2, 0), shaftHeight, SHAFT)
+	for index = 1, 12 do
+		local angle = (index - 0.5) / 12 * math.pi * 2
+		stone(parent, "Flute", "marble", Vector3.new(0.3, shaftHeight - 1.4, 0.6), base * CFrame.new(math.cos(angle) * (half + 0.02), 3.2 + shaftHeight / 2, math.sin(angle) * (half + 0.02)) * CFrame.Angles(0, -angle, 0), SMALL)
+	end
+	disc(parent, "ColumnRing", "bronze", (base * CFrame.new(0, shaftTop + 0.4, 0)).Position, SHAFT + 0.5, 0.4, SMALL)
+	disc(parent, "Capital", "marble", (base * CFrame.new(0, shaftTop + 1.9, 0)).Position, SHAFT + 1.9, 1.5)
+	box(parent, "Abacus", "marble", base, -half - 1.4, half + 1.4, shaftTop + 1.9, height, -half - 1.4, half + 1.4)
+end
+
+-- Architrave, frieze and cornice from x0 to x1 in `f` (front -Z), starting at `y`.
+-- Returns the frieze, for an inscription.
+local function entablature(parent: Instance, f: CFrame, x0: number, x1: number, y: number, zFront: number, zBack: number): BasePart
+	box(parent, "Architrave", "marble", f, x0, x1, y, y + 3, zFront + 0.5, zBack)
+	local frieze = box(parent, "Frieze", "travertine", f, x0, x1, y + 3, y + 7.2, zFront + 0.9, zBack)
+	box(parent, "Cornice", "marble", f, x0 - 1.4, x1 + 1.4, y + 7.2, y + 9.2, zFront - 0.8, zBack)
+	return frieze
+end
+
+-- A brass wall lamp: a bracket and a warm glass shade, lighting a pool of the wall
+local function sconce(parent: Instance, f: CFrame, x: number, y: number)
+	box(parent, "SconceBracket", "brass", f, x - 0.3, x + 0.3, y - 1.4, y, -1.2, 0, SMALL)
+	local shade = block(parent, "SconceShade", Vector3.new(1.1, 1.5, 1.1), f * CFrame.new(x, y + 0.5, -1.2), rgb(255, 226, 182), M.Glass, { CastShadow = false, CanCollide = false, Transparency = 0.3 })
+	light(shade, LAMP, 22, 1.1)
+end
+
 -- Terrain ---------------------------------------------------------------------------------
 
 local GROUND_Y = -1
--- Terrain stays inside this square, clear of the wall plinths
+-- Terrain stays inside this square, clear of the walls
 local INNER = 178
 
--- Gentle mounds: { x, z, radius, height }. Wide and low, so they read as a
--- landscaped valley floor under the roof, never as balls.
-local MOUNDS = {
-	{ -150, -96, 40, 5 },
-	{ -96, -100, 34, 3 },
-	{ 124, -100, 42, 5 },
-	{ 34, -140, 28, 3 },
-	{ 128, 116, 40, 4.5 },
-	{ 36, 128, 28, 3 },
-	{ -144, 74, 36, 4 },
-	{ -24, 152, 30, 3 },
-	{ -158, -8, 26, 3 },
-}
+-- Gentle mounds in the Garden, between the routes and behind the statue bays: { x, z, radius, height }
+local MOUNDS = {}
+for index = 0, 7 do
+	local angle = 22.5 + index * 45
+	if index ~= 3 then
+		local spot = polar(angle, 132)
+		table.insert(MOUNDS, { spot.X, spot.Z, 26 + (index % 3) * 3, 3 + (index % 2) * 1.5 })
+	end
+end
 
--- The pond south-west of the plaza: an ellipse inside a rectangular basin
-local POND = { x = -72, z = 112, a = 26, b = 17, level = -1.8 }
+-- The pond in the west-south-west of the Garden
+local POND = { x = -136, z = 64, a = 24, b = 15, level = -1.8 }
 
--- Worn footpaths through the planted areas: { width, points (x, z) }
+-- Worn garden footpaths: { width, points (x, z) }
 local FOOTPATHS = {
-	{ 6, { { -37, -45 }, { -52, -76 }, { -66, -104 }, { -73, -124 }, { -73, -135 } } }, -- the exhibit walk up to the Lounge stairs
-	{ 5, { { -40, 38 }, { -44, 70 }, { -40, 92 }, { -36, 118 } } }, -- plaza down to the pond
-	{ 4, { { -38, 120 }, { -52, 136 }, { -76, 138 }, { -100, 132 }, { -112, 116 } } }, -- round the pond's south bank
-	{ 4, { { -112, 116 }, { -136, 104 }, { -150, 64 }, { -152, 30 } } }, -- toward the back of the Training Wing
-	{ 4, { { -152, 30 }, { -154, -40 }, { -146, -70 } } },
-	{ 5, { { 48, -38 }, { 96, -46 }, { 130, -82 }, { 146, -128 }, { 150, -164 } } }, -- out to the scorched corner
-	{ 4, { { 118, -150 }, { 122, -172 } } }, -- the crawlspace's grate
+	{ 4, { { -96, 40 }, { -110, 58 }, { -114, 80 }, { -136, 86 }, { -158, 78 }, { -162, 58 } } }, -- round the pond
+	{ 4, { { 92, -30 }, { 108, -46 }, { 112, -60 } } }, -- into the grove behind CHIMERA
+	{ 4, { { -86, -98 }, { -104, -112 } } },
 }
 
 local function hillTop(hill, x: number, z: number): number?
@@ -403,7 +497,6 @@ local function hillTop(hill, x: number, z: number): number?
 	if d2 >= radius * radius then
 		return nil
 	end
-	-- A smooth bump (cosine falloff) rather than a spherical cap
 	return GROUND_Y + hill[4] * (0.5 + 0.5 * math.cos(math.pi * math.sqrt(d2) / radius))
 end
 
@@ -419,18 +512,6 @@ local function groundAt(x: number, z: number): number
 	return y
 end
 
-local function fillPath(terrain: Terrain, width: number, points)
-	for index = 1, #points - 1 do
-		local a = Vector3.new(points[index][1], 0, points[index][2])
-		local b = Vector3.new(points[index + 1][1], 0, points[index + 1][2])
-		local middle = (a + b) / 2
-		local length = (b - a).Magnitude + width * 0.4
-		local top = math.max(groundAt(a.X, a.Z), groundAt(middle.X, middle.Z), groundAt(b.X, b.Z))
-		terrain:FillBlock(lookAt(middle, b) + Vector3.new(0, top - 1.9, 0), Vector3.new(width, 4, length), M.Ground)
-		terrain:FillCylinder(CFrame.new(b.X, groundAt(b.X, b.Z) - 1.9, b.Z), 4, width / 2, M.Ground)
-	end
-end
-
 local function buildTerrain(): boolean
 	local terrain = workspace:FindFirstChildOfClass("Terrain")
 	if not terrain then
@@ -438,7 +519,6 @@ local function buildTerrain(): boolean
 	end
 	local ok, err = pcall(function()
 		local random = Random.new(23)
-		-- The valley floor, in tiles around the pond's basin
 		local floorY = GROUND_Y - 6.5
 		local function floor(x0: number, x1: number, z0: number, z1: number)
 			local columns, rows = math.ceil((x1 - x0) / 90), math.ceil((z1 - z0) / 90)
@@ -449,48 +529,54 @@ local function buildTerrain(): boolean
 				end
 			end
 		end
-		local px0, px1, pz0, pz1 = POND.x - 30, POND.x + 30, POND.z - 21, POND.z + 21
+		local px0, px1, pz0, pz1 = POND.x - 28, POND.x + 28, POND.z - 19, POND.z + 19
 		floor(-INNER, INNER, -INNER, pz0)
 		floor(-INNER, INNER, pz1, INNER)
 		floor(-INNER, px0, pz0, pz1)
 		floor(px1, INNER, pz0, pz1)
 
-		-- Pond: a muddy basin, water in an oval, banks shaping it
-		terrain:FillBlock(CFrame.new(POND.x, -9.5, POND.z), Vector3.new(60, 9, 42), M.Mud)
-		for _, offset in { 0, -10, 10 } do
-			terrain:FillCylinder(CFrame.new(POND.x + offset, (POND.level - 5) / 2, POND.z), POND.level + 5, if offset == 0 then 17 else 14, M.Water)
+		-- Pond: a muddy basin, water in an oval, banks shaping it, a sandy margin
+		terrain:FillBlock(CFrame.new(POND.x, -9.5, POND.z), Vector3.new(56, 9, 38), M.Mud)
+		for _, offset in { 0, -9, 9 } do
+			terrain:FillCylinder(CFrame.new(POND.x + offset, (POND.level - 5) / 2, POND.z), POND.level + 5, if offset == 0 then 15 else 12.5, M.Water)
 		end
 		for index = 0, 7 do
 			local t = index / 8 * math.pi * 2
 			local edge = Vector3.new(POND.x + math.cos(t) * POND.a, floorY, POND.z + math.sin(t) * POND.b)
 			local normal = Vector3.new(math.cos(t) / POND.a, 0, math.sin(t) / POND.b).Unit
 			local center = edge + normal * 12
-			terrain:FillBlock(lookAt(center, center + normal) - Vector3.new(0, 0.06, 0), Vector3.new(34, 13, 24), M.Grass)
+			terrain:FillBlock(lookAt(center, center + normal) - Vector3.new(0, 0.06, 0), Vector3.new(32, 13, 24), M.Grass)
 		end
-		for index = 0, 23 do
-			local t = index / 24 * math.pi * 2
+		for index = 0, 21 do
+			local t = index / 22 * math.pi * 2
 			local scale = random:NextNumber(1.0, 1.06)
 			local center = Vector3.new(POND.x + math.cos(t) * POND.a * scale, GROUND_Y - 0.6, POND.z + math.sin(t) * POND.b * scale)
-			terrain:FillCylinder(CFrame.new(center), 1, random:NextNumber(2.4, 3.4), if index % 6 == 0 then M.Ground else M.Sand)
+			terrain:FillCylinder(CFrame.new(center), 1, random:NextNumber(2.2, 3.2), if index % 5 == 0 then M.Ground else M.Sand)
 		end
 
-		-- Mounds: stacked low discs following the bump, leafier grass on the crowns
+		-- Mounds: stacked low discs following a smooth bump, leafier grass on the crowns
 		for _, hill in MOUNDS do
 			local x, z, radius, height = hill[1], hill[2], hill[3], hill[4]
 			for step = 1, 4 do
 				local share = step / 4
 				local ring = radius * math.acos(2 * share - 1) / math.pi
-				local top = GROUND_Y + height * share
-				terrain:FillCylinder(CFrame.new(x, top - 2, z), 4, ring, if step == 4 and height >= 4 then M.LeafyGrass else M.Grass)
+				terrain:FillCylinder(CFrame.new(x, GROUND_Y + height * share - 2, z), 4, ring, if step == 4 then M.LeafyGrass else M.Grass)
 			end
 		end
-
 		for _, path in FOOTPATHS do
-			fillPath(terrain, path[1], path[2])
+			local width, points = path[1], path[2]
+			for index = 1, #points - 1 do
+				local a = Vector3.new(points[index][1], 0, points[index][2])
+				local b = Vector3.new(points[index + 1][1], 0, points[index + 1][2])
+				local top = math.max(groundAt(a.X, a.Z), groundAt(b.X, b.Z))
+				terrain:FillBlock(lookAt((a + b) / 2, b) + Vector3.new(0, top - 1.9, 0), Vector3.new(width, 4, (b - a).Magnitude + width * 0.4), M.Ground)
+			end
 		end
-		-- Leafy, flowering patches where the planting is thickest
-		for _, spot in { { -120, -70 }, { 96, -150 }, { 150, 60 }, { -120, 150 }, { 20, 100 }, { -150, 120 } } do
-			terrain:FillCylinder(CFrame.new(spot[1], groundAt(spot[1], spot[2]) - 1.95, spot[2]), 4, random:NextNumber(9, 14), M.LeafyGrass)
+		-- Moss gathers in the damp at the foot of the colonnades
+		for x = -150, 150, 50 do
+			for _, z in { -156, 156 } do
+				terrain:FillCylinder(CFrame.new(x + random:NextNumber(-10, 10), GROUND_Y - 1.95, z), 4, random:NextNumber(6, 10), M.LeafyGrass)
+			end
 		end
 	end)
 	if not ok then
@@ -499,7 +585,7 @@ local function buildTerrain(): boolean
 	return ok
 end
 
--- The hall: walls, roof and the light rigs -----------------------------------------------
+-- The hall: walls, colonnades, clerestory and vault -------------------------------------
 
 -- Each wall's frame: its middle on the inner face at floor level, -Z into the hall, X along it
 local WALL_CENTRES = {
@@ -513,21 +599,23 @@ local function wallFrame(side: string): CFrame
 	return lookAt(WALL_CENTRES[side], Vector3.zero)
 end
 
--- Openings cut into the walls: { side, at (world position), width, sill, top }.
--- Gates take a 20-wide slot; the study door and the crawlspace are smaller.
+-- Openings cut into the walls: { side, at (world position), width, sill, top }
 local OPENINGS = {
-	{ side = "North", at = Vector3.new(-114, 0, -HALF), width = 8, sill = 8, top = 20 }, -- Varga's study, behind the Lounge's bookshelf
-	{ side = "North", at = Vector3.new(160, 0, -HALF), width = 20, sill = -7, top = 20 }, -- Door 09
-	{ side = "North", at = Vector3.new(120, 0, -HALF), width = 5, sill = -7, top = 6.5 }, -- the maintenance crawlspace
+	{ side = "North", at = LOUNGE_DOOR, width = 14, sill = -7, top = 22 },
+	{ side = "North", at = Vector3.new(-160, 0, -HALF), width = 14, sill = 4, top = 20 }, -- the Lounge's windows
+	{ side = "North", at = Vector3.new(-80, 0, -HALF), width = 14, sill = 4, top = 20 },
+	{ side = "North", at = CALIBRATION_DOOR, width = 14, sill = -7, top = 22 },
+	{ side = "South", at = DOOR_09, width = 14, sill = -7, top = 22 },
+	{ side = "South", at = ENHANCEMENT_DOOR, width = 14, sill = -7, top = 22 },
+	{ side = "South", at = STORES_DOOR, width = 8, sill = -7, top = 13 },
+	{ side = "South", at = CRAWLSPACE, width = 5, sill = -7, top = 6 },
 }
 for _, gate in Nexus.Gates do
-	if not gate.open then
-		local side = if gate.facing.X < 0 then "East" elseif gate.facing.X > 0 then "West" elseif gate.facing.Z > 0 then "North" else "South"
-		table.insert(OPENINGS, { side = side, at = gate.position, width = 20, sill = -7, top = 20 })
-	end
+	local side = if gate.facing.X < 0 then "East" elseif gate.facing.X > 0 then "West" elseif gate.facing.Z > 0 then "North" else "South"
+	table.insert(OPENINGS, { side = side, at = gate.position, width = 14, sill = -7, top = 22 })
 end
 
--- Stretches of the wall between openings: those that reach above `y0` and below `y1` cut it
+-- Stretches of the wall between openings: an opening reaching above `y0` and below `y1` cuts it
 local function wallRuns(openings, y0: number, y1: number): { { number } }
 	local cuts = {}
 	for _, opening in openings do
@@ -551,120 +639,106 @@ local function wallRuns(openings, y0: number, y1: number): { { number } }
 	return result
 end
 
--- Lengths of wall the Lounge covers (no column footings poke into it)
-local function insideLounge(side: string, x: number): boolean
-	return side == "North" and x > -130 and x < -50
-end
-
-local function buildWall(folder: Instance, side: string, random: Random)
+local function buildWall(folder: Instance, side: string)
 	local model = Instance.new("Model")
 	model.Name = "Wall" .. side
 	local f = wallFrame(side)
+	local colonnade = side == "North" or side == "South"
 	local openings = {}
 	for _, opening in OPENINGS do
 		if opening.side == side then
-			local x = f:PointToObjectSpace(opening.at).X
-			table.insert(openings, { x = x, width = opening.width, sill = opening.sill, top = opening.top })
+			table.insert(openings, { x = f:PointToObjectSpace(opening.at).X, width = opening.width, sill = opening.sill, top = opening.top })
 		end
 	end
-	local function inOpening(x: number, y: number, margin: number): boolean
+	local function nearOpening(x: number, margin: number): boolean
 		for _, opening in openings do
-			if math.abs(x - opening.x) < opening.width / 2 + margin and y > opening.sill and y < opening.top then
+			if math.abs(x - opening.x) < opening.width / 2 + margin then
 				return true
 			end
 		end
 		return false
 	end
 
-	-- Concrete plinth, a step proud of the panels, with a chamfered top
-	for _, run in wallRuns(openings, -7, 8) do
-		box(model, "Plinth", f, run[1], run[2], -7, 8, -1, 4, vary(CONCRETE, random, 0.02), M.Concrete)
-		wedge(model, "PlinthChamfer", Vector3.new(run[2] - run[1], 0.8, 1), f * CFrame.new((run[1] + run[2]) / 2, 8.4, -0.5), vary(CONCRETE, random, 0.02), M.Concrete, SMALL)
+	-- Dark skirting, the travertine wall (cut by the doors below 30), and lintels and sills round the openings
+	for _, run in wallRuns(openings, -1, 3) do
+		box(model, "Skirting", "dark", f, run[1], run[2], -1, 3, -0.6, 3)
 	end
-	-- Lintels over the small openings that don't reach the panels
+	for _, run in wallRuns(openings, 3, 30) do
+		box(model, "Wall", "travertine", f, run[1], run[2], 3, 30, 0, 3)
+	end
+	box(model, "Wall", "travertine", f, -HALF, HALF, 30, 60, 0, 3)
 	for _, opening in openings do
-		if opening.top < 8 then
-			box(model, "Plinth", f, opening.x - opening.width / 2, opening.x + opening.width / 2, opening.top, 8, -1, 4, vary(CONCRETE, random, 0.02), M.Concrete)
+		local x0, x1 = opening.x - opening.width / 2, opening.x + opening.width / 2
+		if opening.top < 30 then
+			box(model, "Lintel", "travertine", f, x0, x1, opening.top, 30, 0, 3)
+		end
+		if opening.sill > 3 then
+			box(model, "Sill", "travertine", f, x0, x1, 3, opening.sill, 0, 3)
+			box(model, "SillStone", "marble", f, x0 - 0.6, x1 + 0.6, opening.sill - 0.5, opening.sill, -0.8, 3)
 		end
 	end
-	-- Lower panel field in two courses (the doorways cut the first), with ribs
-	for _, run in wallRuns(openings, 8, 20) do
-		box(model, "Panel", f, run[1], run[2], 8, 20, 0, 2, vary(PANEL, random, 0.015), M.Metal)
-	end
-	box(model, "Panel", f, -HALF, HALF, 20, 33, 0, 2, vary(PANEL, random, 0.015), M.Metal)
-	for index, column in { -HALF, table.unpack(COLUMNS) } do
-		for _, step in { 10, 20, 30 } do
-			local x = column + step
-			if not inOpening(x, 10, 1) and not (index == 1 and step == 10) then
-				box(model, "Rib", f, x - 0.4, x + 0.4, 8.6, 32.6, -0.4, 0, PANEL_SHADE, M.Metal, SMALL)
+
+	if colonnade then
+		-- The colonnade: eight fluted columns carrying an entablature over a deep ambulatory
+		for _, x in COLUMN_XS do
+			column(model, f * CFrame.new(x, 0, -COLONNADE), 46.5)
+		end
+		box(model, "Architrave", "marble", f, -176, 176, 46.5, 49.5, -20.3, -11.7)
+		box(model, "Frieze", "travertine", f, -176, 176, 49.5, 53.7, -19.9, -12.1)
+		box(model, "Cornice", "marble", f, -177, 177, 53.7, 55.7, -21.4, 0)
+		box(model, "AmbulatoryCeiling", "recess", f, -176, 176, 47, 48.4, -12.1, 0, SMALL)
+		box(model, "AmbulatoryFloor", "dark", f, -176, 176, -0.6, 0.05, -21.2, 0)
+		for _, x in { -150, -90, -30, 30, 90, 150 } do
+			sconce(model, f, x, 13)
+		end
+	else
+		-- Giant pilasters and the entablature on the wall face, with darker recessed bays between
+		for _, x in COLUMN_XS do
+			if not nearOpening(x, 4) then
+				box(model, "PilasterBase", "dark", f, x - 3.9, x + 3.9, -1, 3.2, -2.2, 0)
+				box(model, "Pilaster", "marble", f, x - 3, x + 3, 3.2, 44.6, -1.5, 0)
+				box(model, "PilasterCapital", "marble", f, x - 3.9, x + 3.9, 44.6, 46.5, -2.4, 0)
+			end
+		end
+		entablature(model, f, -177, 177, 46.5, -2.2, 0)
+		for index, x in BAY_XS do
+			if index % 2 == 0 and not nearOpening(x, 2) then
+				box(model, "RecessPanel", "recess", f, x - 12, x + 12, 6, 40, -0.15, 0, SMALL)
+				sconce(model, f, x, 16)
 			end
 		end
 	end
 
-	-- The service catwalk: plate deck, fascia, railing, and brackets at each column
-	box(model, "Catwalk", f, -173, 173, 33, 33.6, -6, 0, STEEL, M.DiamondPlate)
-	box(model, "CatwalkFascia", f, -173, 173, 32.2, 33.6, -6.3, -5.7, STEEL_DARK, M.Metal, SMALL)
-	box(model, "Handrail", f, -173, 173, 36.9, 37.2, -5.95, -5.65, STEEL_LIGHT, M.Metal, SMALL)
-	box(model, "MidRail", f, -173, 173, 35.1, 35.3, -5.92, -5.68, STEEL_LIGHT, M.Metal, SMALL)
-	for x = -170, 170, 20 do
-		box(model, "RailPost", f, x - 0.15, x + 0.15, 33.6, 37.2, -5.95, -5.65, STEEL_LIGHT, M.Metal, SMALL)
+	-- The clerestory: tall windows between the column lines, a bronze mullion in each
+	box(model, "ClerestorySill", "marble", f, -HALF, HALF, 60, 62, -0.8, 3)
+	box(model, "ClerestoryHead", "marble", f, -HALF, HALF, 80, 82, -0.6, 3)
+	local at = -HALF
+	for _, x in BAY_XS do
+		box(model, "ClerestoryPier", "travertine", f, at, x - 7, 62, 80, 0, 3)
+		box(model, "ClerestoryGlass", "marble", f, x - 7, x + 7, 62, 80, 1.6, 1.9, { CastShadow = false, Transparency = 0.6 }).Material = M.Glass
+		box(model, "ClerestoryMullion", "bronze", f, x - 0.3, x + 0.3, 62, 80, 1.1, 1.6, SMALL)
+		at = x + 7
 	end
-	-- Service runs under the catwalk: a big pale water main, a teal coolant line and a cable tray
-	local round = { CastShadow = false, Shape = Enum.PartType.Cylinder }
-	block(model, "Pipe", Vector3.new(2 * HALF - 14, 1.6, 1.6), f * CFrame.new(0, 30.8, -1.4), STEEL_LIGHT, M.Metal, round)
-	block(model, "Pipe", Vector3.new(2 * HALF - 14, 1.0, 1.0), f * CFrame.new(0, 31.4, -3.1), rgb(72, 112, 106), M.Metal, round)
-	box(model, "CableTray", f, -173, 173, 29.2, 29.6, -5.4, -3.8, STEEL_DARK, M.Metal, SMALL)
-
-	-- Above the catwalk: a course of panels, then the glazed observation gallery
-	box(model, "Panel", f, -HALF, HALF, 33.6, 44, 0, 2, vary(PANEL_SHADE, random, 0.015), M.Metal)
-	box(model, "GallerySill", f, -HALF, HALF, 44, 45, -1, 2, CONCRETE, M.Concrete)
-	box(model, "GalleryGlass", f, -HALF, HALF, 45, 54, 1.4, 1.7, GLASS, M.Glass, { Transparency = 0.45, CastShadow = false })
-	box(model, "GalleryHead", f, -HALF, HALF, 54, 55.2, -1, 10.6, STEEL_DARK, M.Metal)
-	box(model, "GalleryBack", f, -HALF, HALF, 44, 54, 10, 10.6, rgb(150, 140, 126), M.Plaster, SMALL)
-	box(model, "GalleryFloor", f, -HALF, HALF, 43.4, 44.4, 1.7, 10, rgb(96, 90, 84), M.WoodPlanks, SMALL)
-	local strip = box(model, "GalleryLight", f, -HALF, HALF, 53.4, 53.8, 9.6, 10, LAMP, M.Neon, GHOST)
-	strip.Transparency = 0.2
-	for _, x in { -120, 0, 120 } do
-		local fixture = box(model, "GalleryLamp", f, x - 0.5, x + 0.5, 53.2, 53.8, 9.2, 9.8, LAMP, M.Neon, GHOST)
-		light(fixture, LAMP, 22, 1.1)
-	end
-	for _, column in { -HALF, table.unpack(COLUMNS) } do
-		local x = column + 20
-		box(model, "Mullion", f, x - 0.3, x + 0.3, 45, 54, 0.9, 1.4, STEEL_DARK, M.Metal, SMALL)
-	end
-	-- Upper panels up to the crown girder the vault springs from
-	box(model, "Panel", f, -HALF, HALF, 55.2, 80, 0, 2, vary(PANEL, random, 0.015), M.Metal)
-	box(model, "PanelSeam", f, -HALF, HALF, 67.4, 67.8, -0.2, 0, STEEL, M.Metal, SMALL)
-	box(model, "CrownGirder", f, -HALF - 3, HALF + 3, 80, 84, -2, 3, STEEL_DARK, M.Metal)
-
-	-- Columns: a concrete footing and a steel I-section with a cap under the girder
-	for _, x in COLUMNS do
-		if not inOpening(x, 10, 2) then
-			if not insideLounge(side, x) then
-				box(model, "Footing", f, x - 2.5, x + 2.5, -1, 9, -4.5, -1, vary(CONCRETE_DARK, random, 0.02), M.Concrete)
-			end
-			local base = if insideLounge(side, x) then 24 else 9
-			box(model, "ColumnFlange", f, x - 1.7, x + 1.7, base, 80, -3.2, -2.4, STEEL, M.Metal)
-			box(model, "ColumnWeb", f, x - 0.45, x + 0.45, base, 80, -2.4, 0, STEEL, M.Metal, SMALL)
-			box(model, "ColumnCap", f, x - 2.2, x + 2.2, 78.8, 80, -4.4, 0, STEEL_DARK, M.Metal, SMALL)
-			wedge(model, "Bracket", Vector3.new(0.7, 3, 2.8), f * CFrame.new(x, 31.5, -4.6) * CFrame.Angles(0, 0, math.pi), STEEL_DARK, M.Metal, SMALL)
-		end
-	end
+	box(model, "ClerestoryPier", "travertine", f, at, HALF, 62, 80, 0, 3)
+	box(model, "Springing", "marble", f, -HALF - 3, HALF + 3, 82, VAULT_SPRING, -2, 3)
 	model.Parent = folder
 	return model
 end
 
--- The vault: a shallow segmental arch springing from the north and south walls
-local VAULT_RISE = 46
-local VAULT_R = (HALF * HALF + VAULT_RISE * VAULT_RISE) / (2 * VAULT_RISE)
-local VAULT_CY = WALL_TOP + VAULT_RISE - VAULT_R
+-- The vault: a segmental barrel springing from the north and south walls. The
+-- ancient stone ribs are broken in places; the Institute's steel purlins and
+-- glass span everything, and a stone oculus rings the crown over the Lantern.
+local VAULT_R = (HALF * HALF + (VAULT_CROWN - VAULT_SPRING) ^ 2) / (2 * (VAULT_CROWN - VAULT_SPRING))
+local VAULT_CY = VAULT_CROWN - VAULT_R
 local VAULT_MAX = math.asin(HALF / VAULT_R)
-local VAULT_SEGMENTS = 10
-local VAULT_DEPTH = 5
+local VAULT_SEGMENTS = 12
+local RIB_DEPTH = 5
+-- Rib stones that fell long ago: { rib x, first missing segment, last }
+local RIB_BREAKS = { [-60] = { 6, 7 }, [100] = { 5, 7 }, [-140] = { 8, 8 } }
 
 local function arcPoint(x: number, theta: number, out: number?): Vector3
 	local r = VAULT_R + (out or 0)
-	return Vector3.new(x, VAULT_CY + r * math.cos(theta), r * math.sin(theta))
+	return Vector3.new(x, VAULT_CY + r * math.sin(math.pi / 2 - math.abs(theta)), r * math.sin(theta))
 end
 
 -- Height of the vault's underside above (z)
@@ -672,248 +746,159 @@ local function vaultUnderside(z: number): number
 	return VAULT_CY + math.sqrt(VAULT_R * VAULT_R - z * z)
 end
 
-local function buildRoof(folder: Instance)
+local function buildVault(folder: Instance)
 	local model = Instance.new("Model")
 	model.Name = "Vault"
 	local step = 2 * VAULT_MAX / VAULT_SEGMENTS
-	-- Trussed ribs over every column line: two chords and a zigzag web
-	for _, x in COLUMNS do
-		for index = 0, VAULT_SEGMENTS - 1 do
-			local a, b = -VAULT_MAX + index * step, -VAULT_MAX + (index + 1) * step
-			strut(model, "RibChord", arcPoint(x, a), arcPoint(x, b), 1.4, 1.8, STEEL, M.Metal, OVERHEAD)
-			strut(model, "RibChord", arcPoint(x, a, VAULT_DEPTH), arcPoint(x, b, VAULT_DEPTH), 1.0, 1.2, STEEL, M.Metal, OVERHEAD)
-			local low, high = 0.9, VAULT_DEPTH - 0.6
-			if index % 2 == 0 then
-				strut(model, "RibWeb", arcPoint(x, a, low), arcPoint(x, b, high), 0.5, 0.5, STEEL, M.Metal, OVERHEAD)
+	for _, x in COLUMN_XS do
+		local broken = RIB_BREAKS[x]
+		for index = 1, VAULT_SEGMENTS do
+			local a, b = -VAULT_MAX + (index - 1) * step, -VAULT_MAX + index * step
+			if broken and index >= broken[1] and index <= broken[2] then
+				-- Where the stone fell, a steel tie and two clamps carry the line across
+				if index == broken[1] then
+					local far = -VAULT_MAX + broken[2] * step
+					strut(model, "RibTie", "steel", arcPoint(x, a, 2.5), arcPoint(x, far, 2.5), 1.2, 1.2, OVERHEAD)
+					box(model, "RibClamp", "steel", CFrame.new(arcPoint(x, a, 2.5)), -2.6, 2.6, -1.6, 1.6, -0.8, 0.8, OVERHEAD)
+					box(model, "RibClamp", "steel", CFrame.new(arcPoint(x, far, 2.5)), -2.6, 2.6, -1.6, 1.6, -0.8, 0.8, OVERHEAD)
+				end
 			else
-				strut(model, "RibWeb", arcPoint(x, a, high), arcPoint(x, b, low), 0.5, 0.5, STEEL, M.Metal, OVERHEAD)
+				strut(model, "Rib", "travertine", arcPoint(x, a, RIB_DEPTH / 2), arcPoint(x, b, RIB_DEPTH / 2), 4.6, RIB_DEPTH, OVERHEAD)
 			end
 		end
 	end
-	-- Plain arches over the end walls
-	for _, x in { -HALF, HALF } do
-		for index = 0, VAULT_SEGMENTS - 1 do
-			local a, b = -VAULT_MAX + index * step, -VAULT_MAX + (index + 1) * step
-			strut(model, "EndArch", arcPoint(x, a, 1), arcPoint(x, b, 1), 2.4, 2.4, STEEL_DARK, M.Metal, OVERHEAD)
-		end
-	end
-	-- Purlins at every joint and glazing bars between them; together with the
-	-- ribs they throw the lattice of shadows across the valley floor
+	-- Steel purlins at every joint and glazing bars between them, then the glass
 	for index = 0, 2 * VAULT_SEGMENTS do
 		local theta = -VAULT_MAX + index * step / 2
 		local joint = index % 2 == 0
-		local size = if joint then 0.9 else 0.45
-		block(model, if joint then "Purlin" else "GlazingBar", Vector3.new(2 * HALF, size, size), CFrame.new(arcPoint(0, theta, VAULT_DEPTH + 0.6)) * CFrame.Angles(theta, 0, 0), STEEL, M.Metal, OVERHEAD)
+		local size = if joint then 1.0 else 0.5
+		stone(model, if joint then "Purlin" else "GlazingBar", "steel", Vector3.new(2 * HALF, size, size), CFrame.new(arcPoint(0, theta, RIB_DEPTH + 0.5)) * CFrame.Angles(theta, 0, 0), OVERHEAD)
 	end
 	for index = 0, VAULT_SEGMENTS - 1 do
 		local theta = -VAULT_MAX + (index + 0.5) * step
-		local radius = VAULT_R + VAULT_DEPTH + 1.2
-		local chord = 2 * radius * math.sin(step / 2) + 0.2
-		block(model, "RoofGlass", Vector3.new(2 * HALF, 0.25, chord), CFrame.new(arcPoint(0, theta, VAULT_DEPTH + 1.2)) * CFrame.Angles(theta, 0, 0), GLASS, M.Glass, { CanCollide = false, CanQuery = false, CastShadow = false, Transparency = 0.6 })
+		local chord = 2 * (VAULT_R + RIB_DEPTH + 1.1) * math.sin(step / 2) + 0.2
+		local pane = block(model, "RoofGlass", Vector3.new(2 * HALF, 0.25, chord), CFrame.new(arcPoint(0, theta, RIB_DEPTH + 1.1)) * CFrame.Angles(theta, 0, 0), GLASS, M.Glass, { CanCollide = false, CanQuery = false, CastShadow = false, Transparency = 0.62 })
+		pane.Name = "RoofGlass"
 	end
-	-- Glazed lunettes closing the vault over the east and west walls
-	for _, x in { -HALF - 1, HALF + 1 } do
-		for z = -160, 160, 40 do
-			local height = vaultUnderside(math.abs(z) + 8) + VAULT_DEPTH - WALL_TOP
-			block(model, "LunetteGlass", Vector3.new(0.3, height, 40), CFrame.new(x, WALL_TOP + height / 2, z), GLASS, M.Glass, { CanCollide = false, CanQuery = false, CastShadow = false, Transparency = 0.6 })
-			if z < 160 then
-				local mullion = vaultUnderside(z + 20) + VAULT_DEPTH - WALL_TOP
-				block(model, "LunetteMullion", Vector3.new(0.8, mullion, 0.8), CFrame.new(x, WALL_TOP + mullion / 2, z + 20), STEEL_DARK, M.Metal, OVERHEAD)
-			end
+	-- The oculus: a ring of stone at the crown, right over the Lantern
+	for index = 1, 16 do
+		local a, b = (index - 1) / 16 * math.pi * 2, index / 16 * math.pi * 2
+		local y = VAULT_CROWN + RIB_DEPTH + 0.2
+		strut(model, "Oculus", "travertine", Vector3.new(math.cos(a) * 15, y, math.sin(a) * 15), Vector3.new(math.cos(b) * 15, y, math.sin(b) * 15), 3.2, 2.6, OVERHEAD)
+	end
+	-- The lunettes over the east and west walls: a great thermal window between stone
+	for _, x in { -HALF - 1.5, HALF + 1.5 } do
+		for z = -80, 80, 40 do
+			local height = vaultUnderside(math.max(math.abs(z) - 20, 0)) + RIB_DEPTH + 1.2 - VAULT_SPRING
+			block(model, "LunetteGlass", Vector3.new(0.3, height, 40), CFrame.new(x, VAULT_SPRING + height / 2, z), GLASS, M.Glass, { CanCollide = false, CanQuery = false, CastShadow = false, Transparency = 0.55 })
+		end
+		for _, z in { -60, -20, 20, 60 } do
+			local height = vaultUnderside(math.abs(z)) + RIB_DEPTH - VAULT_SPRING
+			box(model, "LunetteMullion", "bronze", CFrame.new(x, VAULT_SPRING + height / 2, z), -0.6, 0.6, -height / 2, height / 2, -0.8, 0.8, OVERHEAD)
+		end
+		for _, edge in { { 100, 140 }, { 140, 180 }, { -140, -100 }, { -180, -140 } } do
+			local inner = math.min(math.abs(edge[1]), math.abs(edge[2]))
+			local height = vaultUnderside(inner) + RIB_DEPTH + 1.2 - VAULT_SPRING
+			box(model, "LunetteStone", "travertine", CFrame.new(x, VAULT_SPRING, 0), -1.5, 1.5, 0, height, edge[1], edge[2], OVERHEAD)
 		end
 	end
 	model.Parent = folder
 end
 
--- Light rigs hung from the ribs over the plaza: a truss with three lamp heads
-local function buildRigs(folder: Instance)
-	for _, spot in { { 40, -40 }, { -40, -40 }, { 40, 44 }, { -40, 44 } } do
-		local model = Instance.new("Model")
-		model.Name = "LightRig"
-		local x, z = spot[1], spot[2]
-		local y = 54
-		block(model, "RigChord", Vector3.new(42, 0.8, 0.8), CFrame.new(x, y, z), STEEL_DARK, M.Metal, OVERHEAD)
-		block(model, "RigChord", Vector3.new(42, 0.5, 0.5), CFrame.new(x, y - 1.6, z), STEEL_DARK, M.Metal, OVERHEAD_SMALL)
-		for _, cx in { x - 20, x + 20 } do
-			local top = vaultUnderside(z)
-			block(model, "RigCable", Vector3.new(0.15, top - y, 0.15), CFrame.new(cx, (top + y) / 2, z), STEEL_DARK, M.Metal, OVERHEAD_SMALL)
-		end
-		for _, dx in { -12, 0, 12 } do
-			local head = block(model, "RigLamp", Vector3.new(1.6, 1.4, 1.6), CFrame.new(x + dx, y - 2.6, z), STEEL, M.Metal, OVERHEAD_SMALL)
-			block(model, "RigLens", Vector3.new(1.2, 0.1, 1.2), CFrame.new(x + dx, y - 3.33, z), DAYLIGHT, M.Neon, OVERHEAD_SMALL)
-			spotLight(head, Enum.NormalId.Bottom, DAYLIGHT, 60, 1.1, 70)
-		end
-		model.Parent = folder
-	end
-end
-
-local function buildEnvelope(folder: Instance)
-	local random = Random.new(11)
+local function buildHall(folder: Instance)
 	for _, side in { "North", "East", "South", "West" } do
-		buildWall(folder, side, random)
+		buildWall(folder, side)
 	end
-	-- Concrete piers in the four corners
 	for _, sx in { -1, 1 } do
 		for _, sz in { -1, 1 } do
-			block(folder, "CornerPier", Vector3.new(7, 85, 7), CFrame.new(sx * (HALF - 3.5), 41.5, sz * (HALF - 3.5)), vary(CONCRETE, random, 0.02), M.Concrete)
+			stone(folder, "CornerPier", "travertine", Vector3.new(7, 86, 7), CFrame.new(sx * (HALF - 3.5), 42, sz * (HALF - 3.5)))
 		end
 	end
-	buildRoof(folder)
-	buildRigs(folder)
+	buildVault(folder)
 end
 
--- The plaza and the Lantern ----------------------------------------------------------------
+-- The sanctum: floor, dais and the Lantern --------------------------------------------------
 
--- A ring of short glowing inlays at `radius`; WorldFx makes them breathe
-local function inlayRing(folder: Instance, radius: number, count: number, fill: number, top: number, width: number, color: Color3)
-	for index = 1, count do
-		local angle = (index - 0.5) / count * math.pi * 2
-		local length = 2 * math.pi * radius / count * fill
-		local inlay = block(folder, "Inlay", Vector3.new(width, 0.05, length), CFrame.new(math.cos(angle) * radius, top + 0.02, math.sin(angle) * radius) * CFrame.Angles(0, -angle, 0), color, M.Neon, { CastShadow = false, CanCollide = false, Transparency = 0.5 })
-		inlay:SetAttribute("Pulse", index * 0.4)
-	end
-end
+-- The meridian lines: from the dais out through the gaps between the statue bays
+local ROUTE_ANGLES = { 0, 45, 90, 135, 180, -135, -90, -45 }
 
-local function bench(folder: Instance, frame: CFrame, random: Random)
-	block(folder, "BenchBase", Vector3.new(5.6, 1.3, 1.6), frame * CFrame.new(0, 0.65, 0), vary(CONCRETE, random, 0.03), M.Concrete)
-	block(folder, "BenchSeat", Vector3.new(6.0, 0.3, 2.0), frame * CFrame.new(0, 1.45, 0), vary(WOOD, random, 0.05), M.WoodPlanks, SMALL)
-end
+local CRYSTAL_HEIGHT = 15
 
-local function planter(folder: Instance, centre: Vector3, random: Random)
-	disc(folder, "Planter", centre + Vector3.new(0, 1.6, 0), 6, 1.8, vary(CONCRETE_DARK, random, 0.03), M.Concrete)
-	disc(folder, "Soil", centre + Vector3.new(0, 1.7, 0), 5.2, 0.2, rgb(72, 56, 42), M.Ground, SMALL)
-	for index = 1, 3 do
-		local angle = index / 3 * math.pi * 2 + random:NextNumber(-0.4, 0.4)
-		ball(folder, "Shrub", centre + Vector3.new(math.cos(angle) * 1.1, 2.4 + random:NextNumber(0, 0.4), math.sin(angle) * 1.1), random:NextNumber(2.2, 2.8), vary(pick(LEAVES, random), random, 0.06), M.LeafyGrass, GHOST)
-	end
-end
-
--- A slim light column: a footing, a post and a warm glowing panel near the top
-local function lightPost(folder: Instance, position: Vector3, random: Random)
-	local f = facingCentre(position)
-	block(folder, "PostFooting", Vector3.new(1.4, 0.5, 1.4), f * CFrame.new(0, 0.25, 0), CONCRETE_DARK, M.Concrete, SMALL)
-	block(folder, "LightPost", Vector3.new(0.7, 9, 0.7), f * CFrame.new(0, 4.75, 0), vary(STEEL, random, 0.03), M.Metal)
-	local panel = block(folder, "PostLamp", Vector3.new(0.4, 2.6, 0.8), f * CFrame.new(0, 8.2, -0.35), LAMP, M.Neon, GHOST)
-	light(panel, LAMP, 18, 0.9)
-end
-
-local function buildPlaza(folder: Instance)
-	local random = Random.new(7)
-	disc(folder, "PlazaRim", Vector3.new(0, 0.02, 0), (Nexus.Radius + 0.8) * 2, 2.4, STEEL_DARK, M.Metal)
-	disc(folder, "Plaza", Vector3.new(0, 0.08, 0), Nexus.Radius * 2, 1, PAVING, M.Pavement)
-	disc(folder, "PlazaBand", Vector3.new(0, 0.12, 0), 60, 0.4, PAVING_DARK, M.Slate)
-	disc(folder, "PlazaInner", Vector3.new(0, 0.16, 0), 48, 0.4, PAVING_LIGHT, M.Granite)
-	inlayRing(folder, 27, 24, 0.72, 0.12, 0.24, TEAL)
-	-- Radial joints in the inner disc
-	for index = 1, 12 do
-		local angle = (index + 0.5) / 12 * math.pi * 2
-		block(folder, "Joint", Vector3.new(11.2, 0.03, 0.14), CFrame.new(math.cos(angle) * 18.2, 0.17, math.sin(angle) * 18.2) * CFrame.Angles(0, -angle, 0), rgb(160, 156, 148), M.Slate, GHOST)
-	end
-	for _, angle in { 140, -140, -42, 45 } do
-		bench(folder, facingCentre(polar(angle, 38.5, 0.08)), random)
-	end
-	for _, angle in { 160, -160, -62 } do
-		planter(folder, polar(angle, 37.5, 0.08), random)
-	end
-	for _, angle in { 12, 54, 126, 168, -168, -126, -54, -12 } do
-		lightPost(folder, polar(angle, 42.4, 0.08), random)
-	end
-end
-
-local CRYSTAL_HEIGHT = 13
-
-local function buildLantern(folder: Instance)
-	local random = Random.new(3)
+local function buildSanctum(folder: Instance)
 	local model = Instance.new("Model")
-	model.Name = "LanternContainment"
-	-- Dais: a graphite deck with hazard marks round its edge, then a raised steel ring
-	disc(model, "Dais", Vector3.new(0, 0.6, 0), 22.8, 0.8, STEEL_DARK, M.DiamondPlate)
-	for index = 1, 16 do
-		local angle = (index - 0.5) / 16 * math.pi * 2
-		block(model, "HazardMark", Vector3.new(0.9, 0.05, 2.0), CFrame.new(math.cos(angle) * 10.8, 0.62, math.sin(angle) * 10.8) * CFrame.Angles(0, -angle + math.rad(35), 0), AMBER, M.SmoothPlastic, GHOST)
+	model.Name = "Sanctum"
+	-- Concentric dark stone and ivory bands, the Lantern star inlaid at the centre
+	disc(model, "SanctumFloor", "dark", Vector3.new(0, 0.04, 0), SANCTUM * 2, 1.4)
+	disc(model, "SanctumBand", "marble", Vector3.new(0, 0.06, 0), 122, 0.3)
+	disc(model, "SanctumFloor", "dark", Vector3.new(0, 0.08, 0), 116, 0.3)
+	disc(model, "SanctumBand", "marble", Vector3.new(0, 0.1, 0), 68, 0.3)
+	disc(model, "SanctumCourt", "darker", Vector3.new(0, 0.12, 0), 63, 0.3)
+	lanternStar(model, CFrame.new(0, 0.07, 0), 36, 0.14, "marble")
+	for _, angle in ROUTE_ANGLES do
+		local radians = math.rad(angle)
+		local length = SANCTUM - 15.5
+		stone(model, "MeridianLine", "bronzeLight", Vector3.new(0.6, 0.06, length), CFrame.new(math.cos(radians) * (15.5 + length / 2), 0.17, math.sin(radians) * (15.5 + length / 2)) * CFrame.Angles(0, -radians + math.pi / 2, 0), GHOST)
 	end
-	disc(model, "DaisRing", Vector3.new(0, 1.2, 0), 17.2, 0.6, STEEL, M.Metal)
-	-- A glass-panelled railing round the dais
-	for index = 1, 12 do
-		local a, b = (index - 1) / 12 * math.pi * 2, index / 12 * math.pi * 2
-		local pa, pb = Vector3.new(math.cos(a) * 11.0, 0, math.sin(a) * 11.0), Vector3.new(math.cos(b) * 11.0, 0, math.sin(b) * 11.0)
-		block(model, "RailPost", Vector3.new(0.35, 3.6, 0.35), CFrame.new(pa + Vector3.new(0, 2.8, 0)), STEEL_LIGHT, M.Metal, SMALL)
-		strut(model, "Rail", pa + Vector3.new(0, 4.6, 0), pb + Vector3.new(0, 4.6, 0), 0.3, 0.3, STEEL_LIGHT, M.Metal, SMALL)
-		strut(model, "RailGlass", pa + Vector3.new(0, 2.85, 0), pb + Vector3.new(0, 2.85, 0), 0.12, 3.1, GLASS, M.Glass, { CastShadow = false, Transparency = 0.6 })
-	end
-	-- The lower emitter: an eight-sided pedestal with a glowing aperture
-	for turn = 0, 1 do
-		block(model, "Emitter", Vector3.new(3.8, 2.4, 3.8), CFrame.new(0, 2.4, 0) * CFrame.Angles(0, turn * math.pi / 4, 0), STEEL, M.Metal)
-	end
-	disc(model, "EmitterCap", Vector3.new(0, 3.9, 0), 4.4, 0.3, STEEL_LIGHT, M.Metal)
-	local aperture = disc(model, "Aperture", Vector3.new(0, 3.98, 0), 2.6, 0.1, TEAL, M.Neon, GHOST)
-	aperture:SetAttribute("Glow", 0.1)
-	-- Four pylons lean in to hold the containment ring and the upper emitter
-	local tops = {}
+	-- The dais: three ivory steps, a ring of gold leaf on the top one
+	disc(model, "Dais", "marble", Vector3.new(0, 1, 0), 31, 1.2)
+	disc(model, "Dais", "marble", Vector3.new(0, 2, 0), 25.5, 1.0)
+	disc(model, "Dais", "marble", Vector3.new(0, 3, 0), 20, 1.0)
+	disc(model, "DaisRing", "gold", Vector3.new(0, 3.03, 0), 20.6, 0.1, SMALL)
+	disc(model, "DaisTop", "marble", Vector3.new(0, 3.06, 0), 19.2, 0.1, SMALL)
+
+	-- The containment: four bronze arms rise from the dais to hold a ring of bronze round the crystal
 	for index = 0, 3 do
 		local angle = math.rad(45 + index * 90)
 		local out = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		local foot = out * 7.4 + Vector3.new(0, 1.2, 0)
-		local knee = out * 6.4 + Vector3.new(0, 13, 0)
-		local top = out * 5.4 + Vector3.new(0, 23.5, 0)
-		tops[index + 1] = top
-		block(model, "PylonFoot", Vector3.new(3, 1.4, 3), CFrame.new(foot + Vector3.new(0, 0.7, 0)) * CFrame.Angles(0, -angle, 0), STEEL_DARK, M.Metal)
-		strut(model, "Pylon", foot + Vector3.new(0, 1.2, 0), knee, 2.0, 2.0, vary(STEEL_LIGHT, random, 0.02), M.Metal)
-		strut(model, "Pylon", knee, top, 1.4, 1.4, vary(STEEL_LIGHT, random, 0.02), M.Metal)
-		-- Clamp on the ring, with an emitter head aimed at the crystal
-		local clamp = lookAt(knee, Vector3.new(0, CRYSTAL_HEIGHT, 0))
-		block(model, "Clamp", Vector3.new(2.6, 2.0, 2.6), clamp, STEEL_DARK, M.Metal)
-		pipe(model, "EmitterHead", (clamp * CFrame.new(0, 0, -1.3)).Position, (clamp * CFrame.new(0, 0, -2.5)).Position, 1.1, STEEL, M.Metal, SMALL)
-		disc(model, "EmitterLens", Vector3.zero, 0.8, 0.12, TEAL, M.Neon, GHOST).CFrame = clamp * CFrame.new(0, 0, -2.58) * CFrame.Angles(0, math.rad(90), 0)
-		-- Cables from the foot down to a port at the edge of the dais
-		local port = out * 9.6
-		block(model, "CablePort", Vector3.new(1.4, 0.5, 1.2), CFrame.new(port + Vector3.new(0, 0.85, 0)) * CFrame.Angles(0, -angle, 0), STEEL, M.Metal, SMALL)
-		pipe(model, "Cable", foot + Vector3.new(0, 0.3, 0) + out * 1.4, port + Vector3.new(0, 1.0, 0), 0.5, rgb(30, 32, 34), M.Rubber, SMALL)
-		block(model, "PortLight", Vector3.new(0.3, 0.1, 0.3), CFrame.new(port + Vector3.new(0, 1.12, 0)), AMBER, M.Neon, GHOST):SetAttribute("Blink", 1.6 + index * 0.3)
+		local foot = out * 8.4 + Vector3.new(0, 3.06, 0)
+		local knee = out * 8.0 + Vector3.new(0, 11.5, 0)
+		local hand = out * 6.6 + Vector3.new(0, CRYSTAL_HEIGHT - 0.4, 0)
+		box(model, "ArmShoe", "bronze", CFrame.new(foot) * CFrame.Angles(0, -angle, 0), -1.2, 1.2, 0, 0.9, -0.9, 0.9)
+		strut(model, "Arm", "bronze", foot + Vector3.new(0, 0.8, 0), knee, 0.9, 0.9)
+		strut(model, "Arm", "bronze", knee, hand, 0.8, 0.8)
+		-- A brass emitter on each arm draws a hairline of light to the crystal
+		local emitterAt = out * 7.9 + Vector3.new(0, 10.6, 0)
+		cylinder(model, "Emitter", "brass", lookAt(emitterAt, Vector3.new(0, CRYSTAL_HEIGHT, 0)) * CFrame.Angles(math.rad(90), 0, 0), 1.2, 0.7, SMALL)
+		local thread = strut(model, "Hairline", "marble", emitterAt, Vector3.new(0, CRYSTAL_HEIGHT, 0), 0.07, 0.07, GHOST)
+		thread.Color = HOLO
+		thread.Material = M.Neon
+		thread.Transparency = 0.45
+		thread:SetAttribute("Pulse", index * 1.3)
 	end
-	-- The containment ring (sixteen pieces) at the crystal's height
 	for index = 1, 16 do
 		local a, b = (index - 1) / 16 * math.pi * 2, index / 16 * math.pi * 2
-		strut(model, "ContainmentRing", Vector3.new(math.cos(a) * 6.2, CRYSTAL_HEIGHT, math.sin(a) * 6.2), Vector3.new(math.cos(b) * 6.2, CRYSTAL_HEIGHT, math.sin(b) * 6.2), 1.3, 0.9, STEEL, M.Metal, SMALL)
+		strut(model, "ContainmentRing", "bronzeLight", Vector3.new(math.cos(a) * 6.6, CRYSTAL_HEIGHT - 0.4, math.sin(a) * 6.6), Vector3.new(math.cos(b) * 6.6, CRYSTAL_HEIGHT - 0.4, math.sin(b) * 6.6), 0.9, 1.1, SMALL)
 	end
-	-- Crown: beams joining the pylon tops, crossed by the frame of the upper emitter
-	for index = 1, 4 do
-		strut(model, "Crown", tops[index], tops[index % 4 + 1], 1.2, 1.2, STEEL_DARK, M.Metal)
-	end
-	strut(model, "CrownCross", tops[1], tops[3], 0.8, 0.8, STEEL_DARK, M.Metal, SMALL)
-	strut(model, "CrownCross", tops[2], tops[4], 0.8, 0.8, STEEL_DARK, M.Metal, SMALL)
-	cylinder(model, "UpperEmitter", CFrame.new(0, 22.4, 0), 2.2, 2.6, STEEL, M.Metal, SMALL)
-	disc(model, "UpperAperture", Vector3.new(0, 21.25, 0), 1.8, 0.1, TEAL, M.Neon, GHOST)
-	-- A brass gyroscope ring turns slowly round the crystal
+	-- An inner ring turns slowly round the crystal, like an instrument still taking readings
 	for index = 1, 12 do
 		local a, b = (index - 1) / 12 * math.pi * 2, index / 12 * math.pi * 2
-		local tilt = CFrame.new(0, CRYSTAL_HEIGHT, 0) * CFrame.Angles(0, 0, math.rad(68))
-		local piece = strut(model, "Gyro", (tilt * CFrame.new(math.cos(a) * 4.3, 0, math.sin(a) * 4.3)).Position, (tilt * CFrame.new(math.cos(b) * 4.3, 0, math.sin(b) * 4.3)).Position, 0.45, 0.45, rgb(178, 148, 98), M.Metal, GHOST)
-		piece:SetAttribute("Spin", 0.25)
+		local tilt = CFrame.new(0, CRYSTAL_HEIGHT, 0) * CFrame.Angles(0, 0, math.rad(70))
+		local piece = strut(model, "Gyro", "bronze", (tilt * CFrame.new(math.cos(a) * 4.6, 0, math.sin(a) * 4.6)).Position, (tilt * CFrame.new(math.cos(b) * 4.6, 0, math.sin(b) * 4.6)).Position, 0.4, 0.4, GHOST)
+		piece:SetAttribute("Spin", 0.22)
 		piece:SetAttribute("SpinPivot", Vector3.new(0, CRYSTAL_HEIGHT, 0))
 	end
-	-- The Lantern: a glassy bipyramid with a bright heart, floating free
+	-- The Lantern: a cool, glassy bipyramid with a bright heart, floating free inside the ring
 	local home = CFrame.new(0, CRYSTAL_HEIGHT, 0) * CFrame.Angles(0, math.rad(45), math.rad(4))
-	local glass = { CanCollide = false, CastShadow = false, Transparency = 0.2, Reflectance = 0.1 }
-	local crystalColor = rgb(132, 214, 206)
-	local crystal = block(model, "NexusCrystal", Vector3.new(3.0, 5.4, 3.0), home, crystalColor, M.Glass, glass)
+	local glass = { CanCollide = false, CastShadow = false, Transparency = 0.18, Reflectance = 0.12 }
+	local crystalColor = rgb(206, 224, 236)
+	local crystal = block(model, "NexusCrystal", Vector3.new(3.2, 6.0, 3.2), home, crystalColor, M.Glass, glass)
 	local pieces = { crystal }
 	for _, y in { 1, -1 } do
 		local flip = if y > 0 then CFrame.new() else CFrame.Angles(0, 0, math.pi)
-		table.insert(pieces, wedge(model, "CrystalTip", Vector3.new(3.0, 2.2, 1.5), home * CFrame.new(0, y * 3.8, -0.75) * flip, crystalColor, M.Glass, glass))
-		table.insert(pieces, wedge(model, "CrystalTip", Vector3.new(3.0, 2.2, 1.5), home * CFrame.new(0, y * 3.8, 0.75) * CFrame.Angles(0, math.pi, 0) * flip, crystalColor, M.Glass, glass))
+		table.insert(pieces, wedge(model, "CrystalTip", Vector3.new(3.2, 2.6, 1.6), home * CFrame.new(0, y * 4.3, -0.8) * flip, crystalColor, M.Glass, glass))
+		table.insert(pieces, wedge(model, "CrystalTip", Vector3.new(3.2, 2.6, 1.6), home * CFrame.new(0, y * 4.3, 0.8) * CFrame.Angles(0, math.pi, 0) * flip, crystalColor, M.Glass, glass))
 	end
-	local core = block(model, "NexusCore", Vector3.new(1.2, 4.6, 1.2), home, rgb(196, 246, 236), M.Neon, { CanCollide = false, CastShadow = false, Transparency = 0.1 })
+	local core = block(model, "NexusCore", Vector3.new(1.3, 5.2, 1.3), home, HOLO, M.Neon, { CanCollide = false, CastShadow = false, Transparency = 0.08 })
 	table.insert(pieces, core)
 	for _, piece in pieces do
 		piece:SetAttribute("Crystal", true)
 	end
-	light(core, rgb(160, 236, 224), 34, 2.2, true)
+	light(core, rgb(208, 226, 255), 44, 2.4, true)
 	emitter(core, {
 		Texture = "rbxasset://textures/particles/sparkles_main.dds",
-		Color = ColorSequence.new(rgb(200, 250, 240)),
+		Color = ColorSequence.new(rgb(226, 238, 255)),
 		LightEmission = 1,
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.5, 0.28), NumberSequenceKeypoint.new(1, 0) }),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(0.5, 0.26), NumberSequenceKeypoint.new(1, 0) }),
 		Transparency = NumberSequence.new(0.25, 1),
 		Lifetime = NumberRange.new(3, 5),
 		Speed = NumberRange.new(0.3, 0.8),
@@ -922,31 +907,47 @@ local function buildLantern(folder: Instance)
 		Drag = 0.6,
 		Rate = 3,
 	})
-	-- The visitor console on the spawn side, and the first recovered file beside it
-	local consoleAt = polar(66, 14.2, 0)
-	-- Front (-Z) to the Lantern: a surface on the top face reads for someone standing at its back
+
+	-- A brass instrument on the spawn side tells visitors what they are looking at;
+	-- the first recovered file waits on it
+	local consoleAt = polar(62, 19.5, 0)
 	local console = lookAt(consoleAt, Vector3.zero)
-	block(model, "ConsoleBase", Vector3.new(3.6, 2.8, 1.6), console * CFrame.new(0, 1.4, -0.3), STEEL, M.Metal)
-	local screen = block(model, "ConsoleScreen", Vector3.new(3.6, 0.25, 2.2), console * CFrame.new(0, 3.1, 0.1) * CFrame.Angles(math.rad(35), 0, 0), STEEL_DARK, M.Metal, SMALL)
-	local gui = surface(screen, Enum.NormalId.Top, 60, true)
+	cylinder(model, "ConsolePost", "brass", console * CFrame.new(0, 1.7, 0), 3.4, 0.9)
+	disc(model, "ConsoleFoot", "dark", (console * CFrame.new(0, 0.5, 0)).Position, 2.6, 0.4)
+	-- Front (-Z) to the Lantern: a surface on its top face reads for someone standing at its back
+	local plate = stone(model, "ConsolePlate", "brass", Vector3.new(3.4, 0.2, 2.2), console * CFrame.new(0, 3.6, 0.1) * CFrame.Angles(math.rad(35), 0, 0), SMALL)
+	local gui = surface(plate, Enum.NormalId.Top, 60, true)
 	frame(gui, { 0, 0, 1, 1 }, SCREEN)
-	line(gui, "THE LANTERN", { 0.07, 0.08, 0.86, 0.22 }, TEAL, FONT_TECH, nil, 40)
-	line(gui, "Found in this valley in 1981. Every power here began in its light.", { 0.07, 0.34, 0.86, 0.36 }, SIGN_TEXT, FONT_SANS, Enum.FontWeight.Medium, 30)
-	line(gui, "Containment stable. Please stay behind the rail.", { 0.07, 0.74, 0.86, 0.18 }, rgb(150, 170, 166), FONT_SANS, nil, 24)
-	local recorder = block(model, "VoiceRecorder", Vector3.new(0.7, 0.25, 1.1), console * CFrame.new(-1.2, 2.93, -0.75) * CFrame.Angles(0, math.rad(20), 0), rgb(40, 42, 44), M.SmoothPlastic, GHOST)
-	block(model, "RecorderLight", Vector3.new(0.12, 0.05, 0.12), recorder.CFrame * CFrame.new(0.2, 0.15, -0.35), rgb(220, 70, 50), M.Neon, GHOST):SetAttribute("Blink", 2.2)
+	line(gui, "THE LANTERN", { 0.07, 0.06, 0.86, 0.24 }, IVORY_TEXT, FONT_DISPLAY, nil, 44)
+	line(gui, "It did not fall. It came home. Every power in this hall began in its light.", { 0.07, 0.34, 0.86, 0.4 }, rgb(185, 176, 160), FONT_SANS, Enum.FontWeight.Medium, 28)
+	line(gui, "Meridian Institute, restored", { 0.07, 0.78, 0.86, 0.14 }, HOLO, FONT_SANS, nil, 22)
+	local recorder = stone(model, "VoiceRecorder", "steel", Vector3.new(0.7, 0.25, 1.1), console * CFrame.new(0.9, 0.35, 0.9) * CFrame.Angles(0, math.rad(20), 0), GHOST)
 	loreFile(recorder, "ajkr_first_entry", "Voice memo")
-	-- Behind a pylon on the far side, where the light reaches but nobody looks: a torn page
-	local page = block(model, "TornPage", Vector3.new(0.9, 0.04, 1.2), CFrame.new(polar(-112, 9.9, 0.64)) * CFrame.Angles(0, 0.7, 0.04), rgb(226, 218, 196), M.SmoothPlastic, GHOST)
+	-- On the dais's lowest step, round the far side where people rarely look: a torn page
+	local page = block(model, "TornPage", Vector3.new(0.9, 0.04, 1.2), CFrame.new(polar(-118, 14, 1.03)) * CFrame.Angles(0, 0.7, 0), rgb(226, 218, 196), M.SmoothPlastic, GHOST)
 	loreFile(page, "lantern_field_note", "A torn page")
+	-- Motes drifting in the light over the sanctum
+	local motes = block(model, "Motes", Vector3.new(90, 30, 90), CFrame.new(0, 30, 0), Color3.new(1, 1, 1), M.SmoothPlastic, { Transparency = 1, CanCollide = false, CanQuery = false, CastShadow = false })
+	emitter(motes, {
+		Texture = "rbxasset://textures/particles/sparkles_main.dds",
+		Color = ColorSequence.new(rgb(255, 240, 214)),
+		LightEmission = 0.6,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.5, 0.12), NumberSequenceKeypoint.new(1, 0) }),
+		Transparency = NumberSequence.new(0.4, 1),
+		Lifetime = NumberRange.new(8, 12),
+		Speed = NumberRange.new(0.1, 0.3),
+		SpreadAngle = Vector2.new(180, 180),
+		Drag = 1,
+		Rate = 6,
+	})
 	model.Parent = folder
 
-	-- Spawn on the plaza south of the Lantern, facing it (the Lounge's warm windows to the left)
+	-- Spawn in the sanctum south of the dais, facing the Lantern, ATLAS and VEIL beyond it
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "NexusSpawn"
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(6, 0.2, 6)
-	spawn.CFrame = CFrame.new(0, 0.3, 21)
+	spawn.CFrame = CFrame.new(0, 0.3, 30)
 	spawn.Transparency = 1
 	spawn.CanCollide = false
 	spawn.CanQuery = false
@@ -956,238 +957,223 @@ local function buildLantern(folder: Instance)
 	return spawn
 end
 
--- Gates: bulkhead doors -------------------------------------------------------------------
+-- The statue bays ---------------------------------------------------------------------------
 
--- A backlit sign: a colour chip, the name in the station's display face, and a subline
-local function gateSign(target: BasePart, face: Enum.NormalId, title: string, subline: string, color: Color3)
-	local gui = surface(target, face, 40, true)
-	frame(gui, { 0, 0, 1, 1 }, rgb(24, 28, 31))
-	frame(gui, { 0.05, 0.2, 0.012, 0.6 }, color)
-	line(gui, string.upper(title), { 0.09, 0.14, 0.86, 0.44 }, SIGN_TEXT, FONT_TECH, nil, 44)
-	line(gui, subline, { 0.09, 0.6, 0.86, 0.26 }, color:Lerp(SIGN_TEXT, 0.35), FONT_SANS, Enum.FontWeight.Medium, 26)
-	return gui
+local statuesModule = script.Parent:FindFirstChild("Statues")
+
+-- A stepped pedestal in dark stone with a bronze inscription band, for a bay whose statue isn't carved yet
+local function emptyPedestal(model: Model, base: CFrame, id: string)
+	local names = CODENAMES[id] or { string.upper(id), id }
+	box(model, "PedestalFoot", "dark", base, -6.5, 6.5, 0, 1.2, -6.5, 6.5)
+	box(model, "Pedestal", "dark", base, -5.4, 5.4, 1.2, 8, -5.4, 5.4)
+	local band = box(model, "PedestalBand", "bronze", base, -5.6, 5.6, 4.6, 6.6, -5.6, 5.6)
+	local gui = surface(band, Enum.NormalId.Front, 40, false)
+	line(gui, names[1], { 0.05, 0.06, 0.9, 0.56 }, rgb(232, 210, 168), FONT_CARVED, nil, 60, Enum.TextXAlignment.Center)
+	line(gui, names[2], { 0.05, 0.62, 0.9, 0.32 }, rgb(214, 190, 150), FONT_SANS, Enum.FontWeight.SemiBold, 30, Enum.TextXAlignment.Center)
+	box(model, "PedestalCap", "marble", base, -6, 6, 8, 9, -6, 6)
 end
 
--- A strip of hazard paint: amber with dark diagonal bands drawn on top
-local function hazardStrip(parent: Instance, size: Vector3, cframe: CFrame)
-	local strip = block(parent, "HazardStrip", size, cframe, AMBER, M.SmoothPlastic, GHOST)
-	local gui = surface(strip, Enum.NormalId.Top, 20, false)
-	local count = math.floor(size.X / 1.6)
-	for index = 0, count do
-		local band = frame(gui, { index / count - 0.02, -0.5, 0.35 / count, 2 }, rgb(36, 36, 36))
-		band.Rotation = 35
+local function buildStatueBays(folder: Instance)
+	local Statues = nil
+	if statuesModule then
+		local ok, result = pcall(require, statuesModule)
+		if ok then
+			Statues = result
+		else
+			warn("[World] Statues didn't load: " .. tostring(result))
+		end
 	end
-	return strip
+	for _, id in Powers.Order do
+		local angle = BAY_ANGLES[id]
+		if angle then
+			local bay = Instance.new("Model")
+			bay.Name = "Bay_" .. id
+			local b = facingCentre(polar(angle, BAY_RADIUS, 0))
+			-- A stepped stone floor, two columns, the niche with a darker recess, and the entablature
+			box(bay, "BayFloor", "dark", b, -14, 14, -1, 1.2, -11, 15)
+			box(bay, "BayStep", "marble", b, -12.2, 12.2, 1.2, 2, -9, 13)
+			for _, x in { -12, 12 } do
+				column(bay, b * CFrame.new(x, 2, -7), 46.5)
+			end
+			box(bay, "NicheWall", "travertine", b, -15.5, 15.5, 2, 48.5, 13, 15.5)
+			box(bay, "NicheRecess", "recess", b, -8.6, 8.6, 2.6, 46, 12.6, 13, SMALL)
+			for _, x in { -14.75, 14.75 } do
+				box(bay, "NicheSide", "travertine", b, x - 0.75, x + 0.75, 2, 48.5, -3, 13)
+			end
+			local frieze = entablature(bay, b, -16.5, 16.5, 48.5, -11.2, 15.5)
+			local names = CODENAMES[id] or { string.upper(id), id, "" }
+			carve(frieze, Enum.NormalId.Front, names[3], 12)
+			lanternStar(bay, b * CFrame.new(0, 42.5, 12.45) * CFrame.Angles(math.rad(-90), 0, 0), 3.6, 0.2, "bronze")
+
+			-- The statue itself (or, until it is carved, its pedestal) faces the Lantern
+			local base = b * CFrame.new(0, 2, 0)
+			local statue = nil
+			if Statues then
+				local ok, result = pcall(Statues.build, id, base)
+				if ok and typeof(result) == "Instance" then
+					statue = result
+				elseif not ok then
+					warn("[World] Statue " .. id .. " didn't build: " .. tostring(result))
+				end
+			end
+			if not statue then
+				statue = Instance.new("Model")
+				emptyPedestal(statue, base, id)
+			end
+			statue.Name = "Statue_" .. id
+			-- Two warm uplights in bronze floor cups, off-axis, unless the statue brought its own
+			if not statue:FindFirstChildWhichIsA("SpotLight", true) then
+				for _, side in { -1, 1 } do
+					local cup = stone(bay, "Uplight", "bronze", Vector3.new(1.2, 0.5, 1.2), b * CFrame.new(side * 6.6, 2.25, -8.4) * CFrame.Angles(math.rad(32), 0, math.rad(-side * 12)), SMALL)
+					spotLight(cup, Enum.NormalId.Top, WARM_SPOT, 44, 2.2, 42)
+				end
+			end
+			statue.Parent = folder
+			bay.Parent = folder
+		end
+	end
+	-- A small brass notice at the Grandmaster's bay
+	local b = facingCentre(polar(BAY_ANGLES.Grandmaster, BAY_RADIUS, 0))
+	local notice = box(folder, "Notice", "brass", b, 8.6, 11.6, 2.4, 4.2, -9.6, -9.4, SMALL)
+	line(surface(notice, Enum.NormalId.Front, 60, false), "Please do not climb the statues. They remember.", { 0.06, 0.1, 0.88, 0.8 }, rgb(60, 44, 28), FONT_SANS, Enum.FontWeight.SemiBold, 22, Enum.TextXAlignment.Center)
+end
+
+-- Portals and doors -------------------------------------------------------------------------
+
+-- A Meridian label beside a door: graphite with a bronze hairline, cool text
+local function doorPlate(parent: Instance, f: CFrame, title: string, subline: string, chip: Color3?)
+	local plate = box(parent, "DoorPlate", "brass", f, 11.4, 15.6, 7, 11.6, -0.3, 0, SMALL)
+	local gui = surface(plate, Enum.NormalId.Front, 50, true)
+	frame(gui, { 0, 0, 1, 1 }, SCREEN)
+	local border = Instance.new("UIStroke")
+	border.Color = BRONZE
+	border.Transparency = 0.4
+	border.Thickness = 2
+	border.Parent = frame(gui, { 0.05, 0.05, 0.9, 0.9 }, SCREEN, 1)
+	if chip then
+		frame(gui, { 0.1, 0.2, 0.025, 0.34 }, chip)
+	end
+	line(gui, title, { 0.16, 0.14, 0.76, 0.44 }, IVORY_TEXT, FONT_DISPLAY, nil, 40)
+	line(gui, subline, { 0.16, 0.6, 0.76, 0.24 }, HOLO, FONT_SANS, Enum.FontWeight.Medium, 26)
+end
+
+-- A monumental doorway: marble surround, a carved frieze, a cornice with a warm
+-- downlight, the Lantern star above, and two bronze leaves (or none, if open).
+-- `f` looks into the hall (-Z) with the wall's face at z = 0.
+local function portal(parent: Instance, f: CFrame, inscription: string, closed: boolean): BasePart
+	box(parent, "Threshold", "dark", f, -9, 9, -0.6, 0.25, -4, 3)
+	box(parent, "Jamb", "marble", f, -10.5, -7, 0, 25.5, -1.6, 0.6)
+	box(parent, "Jamb", "marble", f, 7, 10.5, 0, 25.5, -1.6, 0.6)
+	box(parent, "Lintel", "marble", f, -10.5, 10.5, 22, 25.5, -1.6, 0.6)
+	local frieze = box(parent, "PortalFrieze", "travertine", f, -12, 12, 26, 30, -1.2, 0)
+	carve(frieze, Enum.NormalId.Front, inscription, 30)
+	local cornice = box(parent, "PortalCornice", "marble", f, -13.6, 13.6, 30, 31.8, -3, 0)
+	spotLight(cornice, Enum.NormalId.Bottom, WARM_SPOT, 30, 1.3, 70)
+	lanternStar(parent, f * CFrame.new(0, 35, -0.15) * CFrame.Angles(math.rad(-90), 0, 0), 3.4, 0.3, "bronze")
+	if closed then
+		local leaf = box(parent, "PortalSurface", "bronze", f, -7, 0, 0.25, 22, 0.6, 1.8)
+		box(parent, "DoorLeaf", "bronze", f, 0, 7, 0.25, 22, 0.6, 1.8)
+		for _, x in { -3.5, 3.5 } do
+			stone(parent, "Facet", "bronzeLight", Vector3.new(2.6, 2.6, 0.2), f * CFrame.new(x, 12, 0.5) * CFrame.Angles(0, 0, math.pi / 4), SMALL)
+		end
+		return leaf
+	end
+	return frieze
 end
 
 local function buildGate(folder: Instance, gate)
-	local random = Random.new(#gate.id * 17)
 	local model = Instance.new("Model")
 	model.Name = "Gate_" .. gate.id
-	-- -Z looks into the hall; the wall's face is z = 0
 	local f = lookAt(gate.position, gate.position + gate.facing)
-	local tint = gate.color
-	box(model, "Threshold", f, -8, 8, -0.4, 0.2, -5, 1.5, STEEL, M.DiamondPlate)
-	box(model, "Recess", f, -7, 7, 0, 15, 2.6, 3.6, STEEL_DARK, M.Metal, SMALL)
-	-- Heavy steel surround with chamfered upper corners
-	box(model, "Jamb", f, -10, -6.4, -0.4, 20, -2.4, 1.6, vary(STEEL, random, 0.03), M.Metal)
-	box(model, "Jamb", f, 6.4, 10, -0.4, 20, -2.4, 1.6, vary(STEEL, random, 0.03), M.Metal)
-	box(model, "Header", f, -6.4, 6.4, 14.4, 20, -2.4, 1.6, vary(STEEL, random, 0.03), M.Metal)
-	for _, side in { -1, 1 } do
-		wedge(model, "Chamfer", Vector3.new(1.6, 1.6, 0.9), f * CFrame.new(side * 5.6, 13.6, -1.0) * CFrame.Angles(0, if side > 0 then math.pi / 2 else -math.pi / 2, math.pi), STEEL, M.Metal, SMALL)
-	end
-	-- Status bar under the header, lighting the doorway in the gate's colour
-	local status = box(model, "StatusLight", f, -5.6, 5.6, 14.0, 14.4, -2.5, -2.1, tint, M.Neon, GHOST)
-	status:SetAttribute("Glow", 0)
-	spotLight(status, Enum.NormalId.Bottom, tint:Lerp(DAYLIGHT, 0.4), 18, 1.4, 80)
-	local door
+	local surfacePart = portal(model, f, string.upper(gate.name), not gate.open)
+	doorPlate(model, f, string.upper(gate.name), gate.sector .. "  ·  " .. gate.prompt, gate.color)
+	local promptPart = surfacePart
 	if gate.open then
-		-- The Training Wing's bulkhead stands open: an air curtain you walk through
-		door = box(model, "PortalSurface", f, -6.4, 6.4, 0.2, 14, 0.8, 1.0, tint, M.Glass, { Transparency = 0.82, CanCollide = false, CastShadow = false })
-		box(model, "DoorLeaf", f, -9.6, -6.6, 0.2, 14, 0.4, 1.4, STEEL_LIGHT, M.Metal, SMALL)
-		box(model, "DoorLeaf", f, 6.6, 9.6, 0.2, 14, 0.4, 1.4, STEEL_LIGHT, M.Metal, SMALL)
-		local sill = box(model, "SillLight", f, -6, 6, 0.2, 0.3, -0.6, -0.2, tint, M.Neon, GHOST)
-		sill.Transparency = 0.3
-	else
-		-- Two closed leaves with a lit seam, hazard paint and narrow windows
-		door = box(model, "PortalSurface", f, -6.4, 0, 0.2, 14.0, 0.6, 1.6, vary(PANEL_SHADE, random, 0.02), M.Metal)
-		box(model, "DoorLeaf", f, 0, 6.4, 0.2, 14.0, 0.6, 1.6, vary(PANEL_SHADE, random, 0.02), M.Metal)
-		hazardStrip(model, Vector3.new(12.6, 0.1, 1.6), f * CFrame.new(0, 1.4, 0.55) * CFrame.Angles(math.rad(-90), 0, 0))
-		for _, x in { -3.2, 3.2 } do
-			box(model, "DoorWindow", f, x - 0.5, x + 0.5, 8, 11.5, 0.5, 0.6, rgb(40, 52, 58), M.Glass, { Transparency = 0.3, CastShadow = false })
-		end
-		local seam = box(model, "Seam", f, -0.12, 0.12, 0.4, 13.8, 0.45, 0.55, tint, M.Neon, GHOST)
-		seam.Transparency = 0.3
-		seam:SetAttribute("Glow", 0.3)
+		-- The Training Wing's leaves stand open against the reveal; walk straight through
+		box(model, "DoorLeaf", "bronze", f, -7, -6.2, 0.25, 22, 1, 8.5)
+		box(model, "DoorLeaf", "bronze", f, 6.2, 7, 0.25, 22, 1, 8.5)
+		promptPart = box(model, "PortalSurface", "dark", f, -6, 6, 0.25, 0.3, -1, 1, GHOST)
+		promptPart.Transparency = 1
 	end
-	-- The sign over the door, and a status screen beside it
-	local sign = box(model, "GateSign", f, -8, 8, 21, 24.4, -0.8, 0, rgb(24, 28, 31), M.SmoothPlastic, SMALL)
-	gateSign(sign, Enum.NormalId.Front, gate.name, gate.sector .. "  ·  " .. gate.prompt, tint)
-	local screen = box(model, "StatusScreen", f, -14.2, -11.2, 4, 8, -0.4, 0, STEEL_DARK, M.Metal, SMALL)
-	readout(screen, Enum.NormalId.Front, Vector2.new(3, 4), string.upper(gate.sector), {
-		"LINK  OK",
-		"SEAL  NOMINAL",
-		"AIR   21.4 C",
-		"LOAD  " .. tostring(random:NextInteger(12, 64)) .. "%",
-		"WARDEN  ACK",
-		"CYCLE " .. tostring(random:NextInteger(1000, 9999)),
-	}, tint)
-	hazardStrip(model, Vector3.new(14, 0.06, 1.0), f * CFrame.new(0, 0.05, -6))
-
-	local proximity = prompt(door, gate.prompt, gate.name, gate.action, 0, 14)
+	local proximity = prompt(promptPart, gate.prompt, gate.name, gate.action, 0, 14)
 	proximity.Name = "GatePrompt"
 	model.Parent = folder
 	return model
 end
 
--- The programme exhibits -------------------------------------------------------------------
+-- A plainer opening for a room off the hall: surround, lintel and a carved name
+local function roomArch(parent: Instance, f: CFrame, width: number, height: number, inscription: string)
+	local half = width / 2
+	box(parent, "Jamb", "marble", f, -half - 2.6, -half, 0, height + 2.4, -1.2, 0.6)
+	box(parent, "Jamb", "marble", f, half, half + 2.6, 0, height + 2.4, -1.2, 0.6)
+	box(parent, "Lintel", "marble", f, -half - 2.6, half + 2.6, height, height + 2.4, -1.2, 0.6)
+	local frieze = box(parent, "ArchFrieze", "travertine", f, -half - 3.2, half + 3.2, height + 2.8, height + 5.8, -0.9, 0)
+	carve(frieze, Enum.NormalId.Front, inscription, 30)
+	box(parent, "Threshold", "dark", f, -half, half, -0.6, 0.25, -3, 3)
+end
 
--- The north arc, 20 degrees apart; the Residential Wing's avenue runs between the middle two
-local EXHIBIT_ANGLES = { -160, -140, -120, -100, -80, -60, -40, -20 }
-local EXHIBIT_RADIUS = 62
+-- Meridian routes ---------------------------------------------------------------------------
 
--- A stylised standing figure (about 6.5 studs), built from `base` upward
-local function figure(model: Model, base: CFrame, id: string, color: Color3, material: Enum.Material, extra: { [string]: any })
-	local k = 1.1
-	local function at(offset: CFrame): CFrame
-		return base * (CFrame.new(offset.Position * k) * offset.Rotation)
-	end
-	local function piece(name: string, size: Vector3, offset: CFrame, tone: Color3?): BasePart
-		local made = block(model, name, size * k, at(offset), tone or color, material, extra)
-		made:SetAttribute("Holo", true)
-		return made
-	end
-	local calm = id == "Grandmaster"
-	piece("Leg", Vector3.new(0.8, 2.7, 0.9), CFrame.new(-0.55, 1.35, 0) * CFrame.Angles(0, 0, math.rad(if calm then -2 else -5)))
-	piece("Leg", Vector3.new(0.8, 2.7, 0.9), CFrame.new(0.55, 1.35, 0) * CFrame.Angles(0, 0, math.rad(if calm then 2 else 5)))
-	piece("Torso", Vector3.new(1.9, 2.4, 1.0), CFrame.new(0, 3.9, 0))
-	local chest = piece("Chest", Vector3.new(2.4, 0.9, 1.15), CFrame.new(0, 5.2, 0))
-	piece("Head", Vector3.new(1.05, 1.15, 1.05), CFrame.new(0, 6.35, 0))
-	-- Arms: how far out they swing and whether the forearm comes up, per power
-	local pose = {
-		StrongDude = { 18, 75 },
-		Ghost = { 10, 30 },
-		Shapeshifter = { 22, 15 },
-		MachineMaster = { 12, 80 },
-		Corruption = { 28, 10 },
-		Syntax = { 14, 60 },
-		Admin = { 8, 45 },
-		Grandmaster = { 4, 70 },
-	}
-	local swing, raise = table.unpack(pose[id] or { 10, 20 })
-	local hands = {}
+-- A paved walk through the Garden with the bronze line down its middle and the
+-- destination carved on a plate where it leaves the sanctum. The walk stops at
+-- the colonnade; the line runs on across the ambulatory to the threshold.
+local function route(folder: Instance, angle: number, walkTo: Vector3, lineTo: Vector3, label: string)
+	local model = Instance.new("Model")
+	model.Name = "Route"
+	local from = polar(angle, SANCTUM - 0.5)
+	local a, b = Vector3.new(from.X, 0, from.Z), Vector3.new(walkTo.X, 0, walkTo.Z)
+	local length = (b - a).Magnitude
+	-- -Z runs toward the destination
+	local f = lookAt((a + b) / 2, b)
+	box(model, "Walk", "dark", f, -5, 5, -1.2, 0.06, -length / 2, length / 2)
 	for _, side in { -1, 1 } do
-		local shoulder = CFrame.new(side * 1.5, 5.4, 0) * CFrame.Angles(0, 0, math.rad(side * swing))
-		piece("Arm", Vector3.new(0.65, 1.6, 0.68), shoulder * CFrame.new(0, -0.8, 0))
-		-- The groundskeeper's hands meet in front of him; everyone else's are ready
-		local bend = if calm then CFrame.Angles(math.rad(raise), 0, math.rad(side * 38)) else CFrame.Angles(math.rad(if side > 0 then raise else raise * 0.5), 0, math.rad(-side * swing * 0.6))
-		local elbow = shoulder * CFrame.new(0, -1.55, 0) * bend
-		piece("Forearm", Vector3.new(0.58, 1.4, 0.62), elbow * CFrame.new(0, -0.68, 0))
-		hands[side] = elbow * CFrame.new(0, -1.45, 0)
+		box(model, "Kerb", "marble", f, side * 5, side * 5.7, -1.2, 0.18, -length / 2, length / 2, SMALL)
 	end
-	if id == "StrongDude" then
-		for _, side in { -1, 1 } do
-			piece("Fist", Vector3.new(0.9, 0.9, 0.9), hands[side])
-		end
-	elseif id == "Ghost" then
-		piece("Hood", Vector3.new(1.4, 1.3, 1.3), CFrame.new(0, 6.45, 0.15))
-		piece("Blade", Vector3.new(0.12, 3.0, 0.36), hands[1] * CFrame.new(0, -1.2, 0))
-	elseif id == "Shapeshifter" then
-		for _, side in { -1, 1 } do
-			piece("Ear", Vector3.new(0.3, 0.7, 0.3), CFrame.new(side * 0.38, 7.1, 0) * CFrame.Angles(0, 0, math.rad(side * -14)))
-		end
-		piece("Tail", Vector3.new(0.4, 0.4, 2.0), CFrame.new(0, 2.8, 1.3) * CFrame.Angles(math.rad(-25), 0, 0))
-	elseif id == "MachineMaster" then
-		piece("Pack", Vector3.new(1.8, 2.2, 0.8), CFrame.new(0, 4.5, 0.9))
-		piece("Cannon", Vector3.new(0.8, 0.8, 2.0), hands[1] * CFrame.new(0, 0.3, -0.6))
-	elseif id == "Corruption" then
-		for index = 1, 3 do
-			local angle = index / 3 * math.pi * 2
-			piece("Shard", Vector3.new(0.22, 0.75, 0.22), CFrame.new(math.cos(angle) * 0.9, 7.3, math.sin(angle) * 0.9) * CFrame.Angles(0, -angle, math.rad(18)))
-		end
-	elseif id == "Syntax" then
-		piece("Pane", Vector3.new(1.7, 1.2, 0.06), hands[1] * CFrame.new(0, -0.2, -1.0) * CFrame.Angles(math.rad(-20), 0, 0))
-	elseif id == "Admin" then
-		piece("Staff", Vector3.new(0.24, 6.0, 0.24), CFrame.new(1.9, 3.0, -0.4))
-	elseif id == "Grandmaster" then
-		-- A plain robe over the legs, and a cloth band tied at the brow
-		piece("Robe", Vector3.new(2.2, 2.4, 1.3), CFrame.new(0, 1.9, 0), color:Lerp(rgb(70, 66, 60), 0.3))
-		piece("Band", Vector3.new(1.12, 0.22, 1.12), CFrame.new(0, 6.6, 0), LINEN)
-	end
-	return chest
+	local c = Vector3.new(lineTo.X, 0, lineTo.Z)
+	local full = (c - a).Magnitude
+	stone(model, "MeridianLine", "bronzeLight", Vector3.new(0.6, 0.06, full - 4.2), lookAt((a + c) / 2, c) * CFrame.new(0, 0.1, -2.1), GHOST)
+	local plaque = box(model, "RoutePlate", "bronze", f, -3.8, 3.8, 0.06, 0.12, length / 2 - 3.6, length / 2 - 1.2, GHOST)
+	carve(plaque, Enum.NormalId.Top, label, 50, rgb(236, 214, 170))
+	model.Parent = folder
 end
 
--- A plaque on a post: codename large, the power's name smaller, one line of the registry
-local function plaque(model: Model, base: CFrame, title: string, name: string, note: string, color: Color3, random: Random)
-	block(model, "PlaquePost", Vector3.new(0.5, 2.9, 0.5), base * CFrame.new(0, 1.45, 0), STEEL, M.Metal, SMALL)
-	-- Turned so its top face reads for someone standing on the Lantern's side
-	local board = block(model, "Plaque", Vector3.new(4.4, 0.22, 2.4), base * CFrame.new(0, 3.1, 0) * CFrame.Angles(0, math.pi, 0) * CFrame.Angles(math.rad(38), 0, 0), vary(rgb(30, 34, 37), random, 0.03), M.Metal, SMALL)
-	local gui = surface(board, Enum.NormalId.Top, 60, true)
-	frame(gui, { 0, 0, 1, 1 }, rgb(26, 30, 33))
-	frame(gui, { 0.06, 0.12, 0.012, 0.3 }, color)
-	line(gui, title, { 0.1, 0.08, 0.84, 0.36 }, SIGN_TEXT, FONT_TECH, nil, 30)
-	line(gui, name, { 0.1, 0.46, 0.84, 0.2 }, color:Lerp(SIGN_TEXT, 0.4), FONT_SANS, Enum.FontWeight.SemiBold, 26)
-	line(gui, note, { 0.1, 0.68, 0.84, 0.22 }, rgb(150, 160, 160), FONT_SANS, nil, 19)
+-- Where a route meets the colonnade on the north or south side, or the wall on the east or west
+local function walkEnd(door: Vector3): Vector3
+	if math.abs(door.Z) >= HALF - 1 then
+		return Vector3.new(door.X, 0, math.sign(door.Z) * (HALF - 21.2))
+	end
+	return Vector3.new(math.sign(door.X) * (HALF - 4), 0, door.Z)
 end
 
-local function buildExhibits(folder: Instance)
-	local random = Random.new(41)
-	local holo = { CanCollide = false, CastShadow = false, Transparency = 0.5 }
-	for index, programme in PROGRAMMES do
-		local angle = EXHIBIT_ANGLES[index]
-		local model = Instance.new("Model")
-		model.Name = "Statue_" .. programme.id
-		local base = facingCentre(polar(angle, EXHIBIT_RADIUS, 0))
-		local empty = programme.id == "Grandmaster"
-		block(model, "Pad", Vector3.new(if empty then 15 else 9, 0.4, 11), base * CFrame.new(if empty then 2.8 else 0, -0.05, -1.5), vary(PAVING, random, 0.02), M.Pavement)
-		disc(model, "PodBase", (base * CFrame.new(0, 1.3, 0)).Position, 7.2, 1.15, STEEL_DARK, M.Metal)
-		local ring = disc(model, "PodRing", (base * CFrame.new(0, 1.45, 0)).Position, 6.3, 0.15, if empty then STEEL else programme.color, if empty then M.Metal else M.Neon, GHOST)
-		if not empty then
-			ring.Transparency = 0.35
-		end
-		disc(model, "PodGlass", (base * CFrame.new(0, 10.45, 0)).Position, 5.6, 9, if empty then rgb(176, 178, 168) else GLASS, M.Glass, { CastShadow = false, Transparency = if empty then 0.5 else 0.66 })
-		disc(model, "PodCap", (base * CFrame.new(0, 11.8, 0)).Position, 7.2, 1.35, STEEL, M.Metal)
-		for rib = 0, 2 do
-			local turn = math.rad(90 + rib * 120)
-			block(model, "PodRib", Vector3.new(0.4, 9, 0.5), base * CFrame.new(math.cos(turn) * 2.9, 5.95, math.sin(turn) * 2.9) * CFrame.Angles(0, -turn, 0), STEEL_LIGHT, M.Metal, SMALL)
-		end
-		if empty then
-			-- The groundskeeper's pod: unlit, with his worn training wraps left on the floor
-			for wrap = -1, 1, 2 do
-				cylinder(model, "TrainingWrap", base * CFrame.new(wrap * 0.7, 1.75, 0.3) * CFrame.Angles(math.rad(90), math.rad(wrap * 20), 0), 1.1, 0.7, vary(LINEN, random, 0.04), M.Fabric, GHOST)
-			end
-			block(model, "TrainingWrap", Vector3.new(0.5, 0.06, 2.2), base * CFrame.new(0.2, 1.48, -0.8) * CFrame.Angles(0, 0.5, 0), vary(LINEN, random, 0.04), M.Fabric, GHOST)
-			plaque(model, base * CFrame.new(0, 0, -5.6), "NOT A SUBJECT", programme.name, programme.note, programme.color, random)
-			-- He stands outside it, at ease, looking toward the Lantern he refused
-			local stand = base * CFrame.new(5.6, 0, -1.2)
-			disc(model, "FigureBase", (stand * CFrame.new(0, 0.3, 0)).Position, 2.6, 0.4, STEEL_DARK, M.Metal)
-			figure(model, stand * CFrame.new(0, 0.3, 0), programme.id, rgb(118, 134, 122), M.Slate, { CastShadow = true })
-		else
-			disc(model, "Emitter", (base * CFrame.new(0, 10.45, 0)).Position, 3, 0.15, programme.color, M.Neon, GHOST)
-			local chest = figure(model, base * CFrame.new(0, 1.5, 0), programme.id, programme.color, M.Neon, holo)
-			light(chest, programme.color, 12, 0.9)
-			local scan = disc(model, "ScanRing", (base * CFrame.new(0, 5, 0)).Position, 5.2, 0.08, programme.color, M.Neon, holo)
-			scan.Transparency = 0.6
-			scan:SetAttribute("Scan", random:NextNumber(0, 6))
-			plaque(model, base * CFrame.new(0, 0, -5.6), "PROGRAMME " .. programme.codename, programme.name, programme.note, programme.color, random)
-		end
-		model.Parent = folder
+local function buildRoutes(folder: Instance)
+	local destinations = {}
+	for _, gate in Nexus.Gates do
+		table.insert(destinations, { gate.angle, gate.position, string.upper(gate.name) })
+	end
+	table.insert(destinations, { -135, LOUNGE_DOOR, "THE LOUNGE" })
+	table.insert(destinations, { -45, CALIBRATION_DOOR, "CALIBRATION" })
+	table.insert(destinations, { 135, DOOR_09, "DOOR IX" })
+	for _, destination in destinations do
+		local door = destination[2]
+		local inward = if math.abs(door.Z) >= HALF - 1 then Vector3.new(0, 0, -math.sign(door.Z)) else Vector3.new(-math.sign(door.X), 0, 0)
+		route(folder, destination[1], walkEnd(door), door + inward * 3.5, destination[3])
 	end
 end
 
 -- Builds the whole lobby into `folder`. Returns the spawn location.
 function Nexus.build(folder: Instance): SpawnLocation
+	tone = Random.new(17)
 	if not buildTerrain() then
 		-- No terrain (or it failed): a plain grass slab instead
 		block(folder, "Ground", Vector3.new(2 * INNER, 2, 2 * INNER), CFrame.new(0, GROUND_Y - 1, 0), rgb(98, 122, 62), M.Grass)
 	end
-	buildEnvelope(folder)
-	buildPlaza(folder)
-	local spawn = buildLantern(folder)
+	buildHall(folder)
+	local spawn = buildSanctum(folder)
+	buildStatueBays(folder)
 	for _, gate in Nexus.Gates do
 		buildGate(folder, gate)
 	end
-	buildExhibits(folder)
+	buildRoutes(folder)
 	return spawn :: SpawnLocation
 end
 

@@ -52,6 +52,7 @@ function UIController:Start()
 	local play = PlayWindow.register()
 	PowersWindow.register()
 	SettingsWindow.register()
+	require(script.Parent.Parent.UI.ArchiveWindow).register()
 
 	local hud = Hud.build(gui, self.input.Bindings, self.input.device, self.effects.currentGuard)
 	local abilityBar = AbilityBar.build(hud.abilityRow, self.abilities, self.input.device)
