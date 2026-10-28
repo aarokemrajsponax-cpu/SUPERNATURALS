@@ -246,8 +246,10 @@ local function scaled(def, scale: number, overrides: { [string]: number }?)
 		blockable = def.blockable,
 		parryable = def.parryable,
 	}
-	for key, value in overrides or {} do
-		spec[key] = if key == "damage" then value * scale else value
+	if overrides then
+		for key, value in overrides do
+			spec[key] = if key == "damage" then value * scale else value
+		end
 	end
 	return spec
 end

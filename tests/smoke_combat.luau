@@ -78,6 +78,8 @@ local function rig(name: string, position)
 	model.PrimaryPart = parts.HumanoidRootPart
 	model:SetAttribute("DisplayName", name)
 	model.Parent = workspace
+	-- The stand-in engine keeps Position apart from CFrame
+	Engine.syncPositions(model)
 	CollectionService:AddTag(model, "SNFighter")
 	return model, humanoid
 end
@@ -373,16 +375,14 @@ t.check("lock-on: Z locks the enemy in view, tap again lets go, hold mode, pause
 	local look = workspace.CurrentCamera.CFrame.LookVector
 	local toward = (foe.HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).Unit
 	assert(look:Dot(toward) > 0.8, "the camera frames the target")
-	local direction = Camera:lockDirection()
-	if not direction then
-		print("DEBUG", Camera:isLocked(), Camera:getLockTarget(), me.HumanoidRootPart.Position, foe.HumanoidRootPart.Position, workspace.CurrentCamera.CameraType, t.client("UI.Shell").getMode())
-	end
-	assert(direction ~= nil, "the character faces the target")
+	assert(Camera:lockDirection() ~= nil, "the character faces the target")
 	-- A second enemy: a tap switches to it
 	local other = rig("Other", Vector3.new(6, 3, -10))
 	press("SNLock", KEY)
 	assert(Camera:getLockTarget() == other, "tap switches when another enemy is near")
-	other:Destroy()
+	-- Leaves the game (the stand-in engine can't touch destroyed instances, so unparent)
+	other.Parent = nil
+	Engine.signalOf(other, "AncestryChanged"):Fire(other, nil)
 	step(2)
 	assert(Camera:getLockTarget() == foe or not Camera:isLocked(), "a target that leaves is let go")
 	if Camera:isLocked() then

@@ -1160,6 +1160,510 @@ local function buildRoutes(folder: Instance)
 	end
 end
 
+-- The Training Wing, beyond the west portal ----------------------------------------------
+
+-- A long stone room round the training ground (ArenaService builds the timber
+-- hall in it at Nexus.TrainingCenter), lit from above through the Institute's glass
+local function buildTrainingWing(folder: Instance)
+	local model = Instance.new("Model")
+	model.Name = "TrainingWing"
+	local o = CFrame.new()
+	local x0, x1, z0, z1, top = Nexus.TrainingCenter.X - 43, -HALF - 3, -44, 44, 34
+	box(model, "WingFloor", "dark", o, x0, x1, -1.4, -0.4, z0, z1)
+	box(model, "WingWall", "travertine", o, x0 - 2.4, x1, -1, top, z0 - 2.4, z0)
+	box(model, "WingWall", "travertine", o, x0 - 2.4, x1, -1, top, z1, z1 + 2.4)
+	box(model, "WingWall", "travertine", o, x0 - 2.4, x0, -1, top, z0, z1)
+	for _, z in { z0, z1 } do
+		local inward = if z == z0 then 1 else -1
+		box(model, "WingSkirting", "dark", o, x0, x1, -0.4, 2.6, math.min(z, z + inward * 0.6), math.max(z, z + inward * 0.6), SMALL)
+		for x = x0 + 14, x1 - 10, 22 do
+			box(model, "WingPilaster", "marble", o, x - 2.5, x + 2.5, -0.4, top - 4, math.min(z, z + inward * 1.2), math.max(z, z + inward * 1.2))
+		end
+	end
+	box(model, "WingRoof", "travertine", o, x0 - 2.4, x1, top, top + 2, z0 - 2.4, z0 + 14)
+	box(model, "WingRoof", "travertine", o, x0 - 2.4, x1, top, top + 2, z1 - 14, z1 + 2.4)
+	block(model, "WingGlass", Vector3.new(x1 - x0, 0.3, z1 - z0 - 28), CFrame.new((x0 + x1) / 2, top + 1, 0), GLASS, M.Glass, { CanCollide = false, CanQuery = false, CastShadow = false, Transparency = 0.6 })
+	for x = x0 + 12, x1 - 8, 18 do
+		box(model, "WingBeam", "steel", o, x - 0.6, x + 0.6, top - 0.6, top + 0.8, z0 + 14, z1 - 14, OVERHEAD)
+	end
+	model.Parent = folder
+end
+
+-- The Lounge ------------------------------------------------------------------------------
+
+-- Behind the north colonnade: a long warm room in four parts, west to east the
+-- hearth and library, the atrium with the leaderboard and the holotable, the
+-- coffee bar with the window chairs, and the showcase with the jukebox.
+local LOUNGE = { x0 = -176, x1 = -56, front = -183, back = -217.6, floor = 0.6, ceiling = 20 }
+-- The library on the back wall: uprights, shelf heights, and the bay that slides away
+local SHELF_UPRIGHTS = { -167, -160, -153, -146 }
+local SHELF_LEVELS = { 1.2, 3.9, 6.6, 9.3, 12.0, 14.7, 17.4, 19.6 }
+local SHELF_FRONT = -213.4
+local SECRET = { x0 = -160, x1 = -153, top = 12.6, slideBack = Vector3.new(0, 0, -2.4), slideSide = Vector3.new(-7, 0, 0) }
+local BOOK_COLORS = { rgb(112, 46, 40), rgb(38, 52, 84), rgb(52, 80, 60), rgb(176, 136, 70), rgb(214, 200, 170), rgb(64, 60, 58), rgb(150, 104, 70), rgb(92, 60, 84) }
+
+-- Books along a shelf from x0 to x1 standing on `y`, spines toward +Z: a run or
+-- two with a leaning book, and now and then a keepsake instead
+local function shelfBooks(parent: Instance, x0: number, x1: number, y: number, z: number, room: number, random: Random)
+	local x = x0 + random:NextNumber(0.05, 0.9)
+	local ornament = random:NextNumber() < 0.3
+	while x < x1 - 0.6 do
+		if ornament and x > x0 + 2 then
+			ornament = false
+			if random:NextNumber() < 0.5 then
+				block(parent, "Vase", Vector3.new(1.1, 0.7, 0.7), CFrame.new(x + 0.4, y + 0.55, z) * CFrame.Angles(0, 0, math.rad(90)), vary(rgb(70, 92, 110), random, 0.08), M.Glass, { CastShadow = false, CanCollide = false, Shape = Enum.PartType.Cylinder })
+			else
+				block(parent, "Keepsake", Vector3.new(1.0, 0.6, 0.9), CFrame.new(x + 0.5, y + 0.3, z) * CFrame.Angles(0, random:NextNumber(-0.3, 0.3), 0), vary(BRASS, random, 0.08), M.Metal, GHOST)
+			end
+			x += 1.6
+		else
+			local width = random:NextNumber(0.3, 0.6)
+			local height = math.min(room - 0.15, random:NextNumber(1.5, 2.3))
+			local lean = if x + width > x1 - 1 and random:NextNumber() < 0.5 then 0.22 else 0
+			block(parent, "Book", Vector3.new(width, height, random:NextNumber(1.0, 1.3)), CFrame.new(x + width / 2, y + height / 2 - lean * 0.4, z) * CFrame.Angles(0, 0, -lean), vary(BOOK_COLORS[random:NextInteger(1, #BOOK_COLORS)], random, 0.06), M.Fabric, GHOST)
+			x += width + (if random:NextNumber() < 0.15 then random:NextNumber(0.6, 1.4) else 0.02)
+		end
+	end
+end
+
+-- A deep sofa or armchair; `f` looks the way the seat faces (-Z)
+local function sofa(parent: Instance, f: CFrame, seats: number, fabric: Color3, material: Enum.Material, accent: Color3, random: Random)
+	local half = (seats * 3.1 + 1.8) / 2
+	local function piece(name: string, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, color: Color3, extra)
+		return block(parent, name, Vector3.new(x1 - x0, y1 - y0, z1 - z0), f * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), color, material, extra)
+	end
+	block(parent, "SofaPlinth", Vector3.new(half * 2 - 0.4, 0.5, 3), f * CFrame.new(0, 0.25, 0), WOOD_DARK, M.Wood, SMALL)
+	piece("SofaBody", -half, half, 0.5, 1.6, -1.7, 1.7, fabric)
+	piece("SofaBack", -half, half, 1.6, 4.3, 0.9, 1.7, fabric)
+	for _, side in { -1, 1 } do
+		piece("SofaArm", side * half - 0.45, side * half + 0.45, 1.6, 3.1, -1.7, 1.7, vary(fabric, random, 0.02))
+	end
+	for index = 1, seats do
+		local x = -half + 0.9 + (index - 0.5) * 3.1
+		piece("SeatCushion", x - 1.5, x + 1.5, 1.6, 2.35, -1.7, 0.9, vary(fabric, random, 0.03), SMALL)
+		block(parent, "BackCushion", Vector3.new(2.9, 1.9, 0.7), f * CFrame.new(x, 3.2, 0.5) * CFrame.Angles(math.rad(12), 0, 0), vary(fabric, random, 0.03), material, SMALL)
+	end
+	block(parent, "Pillow", Vector3.new(1.5, 1.5, 0.5), f * CFrame.new(half - 1.6, 3.0, 0.1) * CFrame.Angles(math.rad(14), 0.3, math.rad(8)), vary(accent, random, 0.04), M.Fabric, GHOST)
+end
+
+local function pottedPlant(parent: Instance, base: Vector3, height: number, random: Random)
+	cylinder(parent, "Pot", "travertine", CFrame.new(base + Vector3.new(0, 0.9, 0)), 1.8, 2.0, SMALL)
+	for index = 1, 3 do
+		local angle = index / 3 * math.pi * 2 + random:NextNumber(-0.5, 0.5)
+		ball(parent, "Foliage", base + Vector3.new(math.cos(angle) * 0.7, height * (0.55 + index * 0.13), math.sin(angle) * 0.7), height * random:NextNumber(0.45, 0.6), vary(pick(LEAVES, random), random, 0.06), M.LeafyGrass, GHOST)
+	end
+end
+
+-- A lamp shade with a warm light inside it
+local function shade(parent: Instance, position: Vector3, diameter: number, height: number, range: number, shadows: boolean): BasePart
+	local made = block(parent, "LampShade", Vector3.new(height, diameter, diameter), CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)), rgb(232, 214, 182), M.Fabric, { CastShadow = false, CanCollide = false, Shape = Enum.PartType.Cylinder, Transparency = 0.15 })
+	light(made, LAMP, range, 1.1, shadows)
+	return made
+end
+
+local function buildLibrary(model: Model, random: Random)
+	local o = CFrame.new()
+	local back = SHELF_FRONT - 1.6
+	for index, x in SHELF_UPRIGHTS do
+		local deep = index == 1 or index == #SHELF_UPRIGHTS
+		box(model, "ShelfUpright", "woodDark", o, x - 0.2, x + 0.2, LOUNGE.floor, LOUNGE.ceiling, if deep then LOUNGE.back else back - 0.3, SHELF_FRONT)
+	end
+	box(model, "ShelfBack", "woodDark", o, -166.8, SECRET.x0 - 0.2, LOUNGE.floor, LOUNGE.ceiling, back - 0.3, back, SMALL)
+	box(model, "ShelfBack", "woodDark", o, SECRET.x1 + 0.2, -146.2, LOUNGE.floor, LOUNGE.ceiling, back - 0.3, back, SMALL)
+	box(model, "ShelfBack", "woodDark", o, SECRET.x0 + 0.2, SECRET.x1 - 0.2, SECRET.top, LOUNGE.ceiling, back - 0.3, back, SMALL)
+	for index, y in SHELF_LEVELS do
+		local thickness = if index == 1 then 0.6 else 0.25
+		for _, bay in { { -166.8, SECRET.x0 - 0.2 }, { SECRET.x1 + 0.2, -146.2 } } do
+			box(model, "Shelf", "wood", o, bay[1], bay[2], y - thickness, y, back, SHELF_FRONT, SMALL)
+		end
+		if y > SECRET.top then
+			box(model, "Shelf", "wood", o, SECRET.x0 + 0.2, SECRET.x1 - 0.2, y - thickness, y, back, SHELF_FRONT, SMALL)
+		end
+		local nextY = SHELF_LEVELS[index + 1]
+		if nextY then
+			local room = nextY - y - 0.25
+			for _, bay in { { -166.8, SECRET.x0 - 0.2 }, { SECRET.x1 + 0.2, -146.2 } } do
+				shelfBooks(model, bay[1], bay[2], y, back + 0.85, room, random)
+			end
+			if y >= SECRET.top then
+				shelfBooks(model, SECRET.x0 + 0.2, SECRET.x1 - 0.2, y, back + 0.85, room, random)
+			end
+		end
+	end
+
+	-- The sliding bay: its own back, shelves and books, and one book that doesn't belong
+	local unit = Instance.new("Model")
+	unit.Name = "SecretShelf"
+	unit:SetAttribute("SlideBack", SECRET.slideBack)
+	unit:SetAttribute("SlideSide", SECRET.slideSide)
+	box(unit, "ShelfBack", "woodDark", o, SECRET.x0 + 0.2, SECRET.x1 - 0.2, LOUNGE.floor, SECRET.top, back, back + 0.3)
+	for index, y in SHELF_LEVELS do
+		if y < SECRET.top then
+			box(unit, "Shelf", "wood", o, SECRET.x0 + 0.2, SECRET.x1 - 0.2, y - (if index == 1 then 0.6 else 0.25), y, back + 0.3, SHELF_FRONT, SMALL)
+			local nextY = math.min(SHELF_LEVELS[index + 1], SECRET.top)
+			shelfBooks(unit, SECRET.x0 + 0.2, SECRET.x1 - 2.2, y, back + 0.95, nextY - y - 0.25, random)
+		end
+	end
+	box(unit, "Shelf", "wood", o, SECRET.x0 + 0.2, SECRET.x1 - 0.2, SECRET.top - 0.25, SECRET.top, back + 0.3, SHELF_FRONT, SMALL)
+	local loose = block(unit, "LooseBook", Vector3.new(0.55, 2.1, 1.2), CFrame.new(SECRET.x1 - 1.2, SHELF_LEVELS[3] + 1.05, back + 1.25), rgb(128, 34, 30), M.Fabric, GHOST)
+	local pull = prompt(loose, "Pull", "A loose book", "Secret:VargaStudy", 0.5, 6)
+	pull.Name = "SecretPrompt"
+	unit.Parent = model
+	box(model, "ShelfCrown", "woodDark", o, -167.6, -145.4, LOUNGE.ceiling - 0.6, LOUNGE.ceiling, back - 0.3, SHELF_FRONT + 0.4, SMALL)
+end
+
+local function buildLounge(folder: Instance)
+	local random = Random.new(57)
+	local model = Instance.new("Model")
+	model.Name = "Lounge"
+	local o = CFrame.new()
+	local x0, x1, front, back, fl, ceil = LOUNGE.x0, LOUNGE.x1, LOUNGE.front, LOUNGE.back, LOUNGE.floor, LOUNGE.ceiling
+
+	-- Shell: oak floor, panelled back wall (open behind the sliding bay), side walls, a beamed ceiling
+	block(model, "LoungeFloor", Vector3.new(x1 - x0, fl + 0.6, front - back + 1.2), CFrame.new((x0 + x1) / 2, (fl - 0.6) / 2, (front + back) / 2), WOOD_FLOOR, M.WoodPlanks)
+	block(model, "BackWall", Vector3.new(SECRET.x0 - x0 + 1.2, ceil - fl, 1.2), CFrame.new((x0 - 1.2 + SECRET.x0) / 2, (fl + ceil) / 2, back - 0.6), WOOD, M.WoodPlanks)
+	block(model, "BackWall", Vector3.new(x1 + 1.2 - SECRET.x1, ceil - fl, 1.2), CFrame.new((SECRET.x1 + x1 + 1.2) / 2, (fl + ceil) / 2, back - 0.6), WOOD, M.WoodPlanks)
+	block(model, "BackWall", Vector3.new(SECRET.x1 - SECRET.x0, ceil - SECRET.top, 1.2), CFrame.new((SECRET.x0 + SECRET.x1) / 2, (SECRET.top + ceil) / 2, back - 0.6), WOOD, M.WoodPlanks)
+	box(model, "SideWall", "travertine", o, x0 - 1.2, x0, 0, ceil + 1.6, back - 1.2, front)
+	box(model, "SideWall", "travertine", o, x1, x1 + 1.2, 0, ceil + 1.6, back - 1.2, front)
+	box(model, "LoungeCeiling", "travertine", o, x0 - 1.2, x1 + 1.2, ceil, ceil + 1.6, back - 1.2, front)
+	for x = -166, -56, 20 do
+		box(model, "CeilingBeam", "woodDark", o, x - 0.7, x + 0.7, ceil - 1.2, ceil, back, front, SMALL)
+	end
+	roomArch(model, lookAt(LOUNGE_DOOR, LOUNGE_DOOR + Vector3.new(0, 0, 1)), 14, 22, "THE LOUNGE")
+
+	-- The hearth: an ivory marble chimney breast, a long low fire, a mantel and a painting
+	local hz = -199
+	box(model, "Chimney", "marble", o, x0, x0 + 2.8, fl, ceil, hz - 8, hz + 8)
+	box(model, "Firebox", "darker", o, x0 + 2.6, x0 + 3.0, fl + 0.6, fl + 4.2, hz - 4, hz + 4, SMALL)
+	local firebed = box(model, "Firebed", "darker", o, x0 + 2.8, x0 + 4.0, fl + 0.6, fl + 1.1, hz - 3.4, hz + 3.4, SMALL)
+	local fire = Instance.new("Fire")
+	fire.Size = 3
+	fire.Heat = 4
+	fire.Color = rgb(255, 150, 70)
+	fire.SecondaryColor = rgb(200, 70, 30)
+	fire.Parent = firebed
+	light(firebed, rgb(255, 160, 90), 26, 1.8, true)
+	box(model, "Hearthstone", "dark", o, x0 + 2.8, x0 + 6.4, fl, fl + 0.5, hz - 6, hz + 6)
+	box(model, "Mantel", "marble", o, x0 + 2.8, x0 + 4.4, fl + 5.8, fl + 6.4, hz - 8.6, hz + 8.6)
+	box(model, "PaintingFrame", "bronze", o, x0 + 2.8, x0 + 3.1, fl + 8.6, fl + 14.6, hz - 5, hz + 5, SMALL)
+	local canvas = box(model, "Painting", "darker", o, x0 + 3.1, x0 + 3.2, fl + 9, fl + 14.2, hz - 4.6, hz + 4.6, SMALL)
+	-- The night it came home: a dark valley, a ridge, and one bright streak
+	local art = surface(canvas, Enum.NormalId.Right, 24, false)
+	frame(art, { 0, 0, 1, 1 }, rgb(34, 44, 66))
+	frame(art, { 0, 0.62, 1, 0.38 }, rgb(46, 58, 48))
+	frame(art, { -0.1, 0.52, 0.7, 0.3 }, rgb(38, 48, 44)).Rotation = -8
+	frame(art, { 0.45, 0.48, 0.8, 0.3 }, rgb(30, 40, 38)).Rotation = 6
+	frame(art, { 0.56, 0.18, 0.26, 0.02 }, rgb(220, 232, 255)).Rotation = 32
+	frame(art, { 0.74, 0.34, 0.03, 0.05 }, rgb(220, 232, 255))
+	for index, z in { hz - 7.2, hz - 6.4 } do
+		block(model, "Candle", Vector3.new(1.1 - index * 0.3, 0.35, 0.35), CFrame.new(x0 + 3.6, fl + 6.9 - index * 0.15, z) * CFrame.Angles(0, 0, math.rad(90)), LINEN, M.SmoothPlastic, { CastShadow = false, CanCollide = false, Shape = Enum.PartType.Cylinder })
+	end
+	box(model, "MantelClock", "bronze", o, x0 + 3.2, x0 + 4.0, fl + 6.4, fl + 7.6, hz + 5.6, hz + 7, GHOST)
+	-- Biscuit, asleep on the warm stone
+	local cat = CFrame.new(x0 + 5.0, fl + 0.5, hz + 3.6) * CFrame.Angles(0, 0.6, 0)
+	block(model, "Cat", Vector3.new(1.3, 1.1, 1.1), cat * CFrame.new(0, 0.5, 0), rgb(196, 130, 70), M.Fabric, { CastShadow = false, CanCollide = false, Shape = Enum.PartType.Cylinder })
+	ball(model, "CatHead", (cat * CFrame.new(0.75, 0.55, -0.35)).Position, 0.75, rgb(204, 140, 80), M.Fabric, GHOST)
+	for _, side in { -1, 1 } do
+		wedge(model, "CatEar", Vector3.new(0.12, 0.3, 0.25), cat * CFrame.new(0.75 + side * 0.18, 0.98, -0.35), rgb(190, 124, 66), M.Fabric, GHOST)
+	end
+	block(model, "CatTail", Vector3.new(0.22, 0.22, 1.1), cat * CFrame.new(-0.2, 0.14, 0.55) * CFrame.Angles(0, 0.9, 0), rgb(190, 124, 66), M.Fabric, GHOST)
+	local tag = box(model, "CatTag", "brass", o, x0 + 5.6, x0 + 6.3, fl + 0.5, fl + 0.55, hz - 2.2, hz - 0.6, GHOST)
+	line(surface(tag, Enum.NormalId.Top, 60, false), "This is Biscuit. Biscuit is not an experiment.", { 0.05, 0.1, 0.9, 0.8 }, rgb(60, 44, 28), FONT_SANS, Enum.FontWeight.SemiBold, 20, Enum.TextXAlignment.Center)
+
+	-- The reading room: a rug, a lapis velvet sofa facing the fire, two leather armchairs
+	box(model, "RugBorder", "wood", o, -170, -147, fl, fl + 0.06, hz - 9, hz + 9, GHOST).Color = RUST
+	block(model, "Rug", Vector3.new(21.4, 0.09, 16.4), CFrame.new(-158.5, fl + 0.045, hz), rgb(196, 170, 132), M.Fabric, GHOST)
+	sofa(model, CFrame.new(-150.5, fl, hz) * CFrame.Angles(0, math.rad(90), 0), 3, LAPIS, M.Fabric, MUSTARD, random)
+	block(model, "Throw", Vector3.new(1.2, 0.16, 3.2), CFrame.new(-150.2, fl + 3.3, hz - 5.1) * CFrame.Angles(0, 0, math.rad(70)), LINEN, M.Fabric, GHOST)
+	for _, z in { hz - 8.5, hz + 8.5 } do
+		sofa(model, lookAt(Vector3.new(-163.5, fl, z), Vector3.new(-171, fl, hz)), 1, LEATHER, M.Leather, if z < hz then RUST else MUSTARD, random)
+	end
+	box(model, "CoffeeTable", "woodDark", o, -162, -156, fl + 1.5, fl + 1.85, hz - 2.4, hz + 2.4)
+	box(model, "CoffeeTableBase", "darker", o, -161.4, -156.6, fl, fl + 1.5, hz - 1.8, hz + 1.8, SMALL)
+	block(model, "TableBook", Vector3.new(1.6, 0.25, 2.2), CFrame.new(-160, fl + 1.98, hz - 0.8) * CFrame.Angles(0, 0.3, 0), rgb(38, 52, 84), M.Fabric, GHOST)
+	block(model, "TableBook", Vector3.new(1.4, 0.22, 1.9), CFrame.new(-160, fl + 2.21, hz - 0.8) * CFrame.Angles(0, 0.1, 0), rgb(176, 136, 70), M.Fabric, GHOST)
+	block(model, "Mug", Vector3.new(0.9, 0.7, 0.7), CFrame.new(-157.4, fl + 2.3, hz + 1.0) * CFrame.Angles(0, 0, math.rad(90)), rgb(226, 220, 208), M.SmoothPlastic, { CastShadow = false, CanCollide = false, Shape = Enum.PartType.Cylinder })
+	-- Lamps: a standing lamp at the sofa's end and a table lamp beside it
+	disc(model, "LampFoot", "bronze", Vector3.new(-149.5, fl + 0.2, hz + 8.4), 1.4, 0.2, SMALL)
+	box(model, "LampPole", "bronze", o, -149.6, -149.4, fl + 0.2, fl + 6.2, hz + 8.3, hz + 8.5, SMALL)
+	shade(model, Vector3.new(-149.5, fl + 6.8, hz + 8.4), 1.8, 1.4, 16, false)
+	cylinder(model, "SideTable", "woodDark", CFrame.new(-150.5, fl + 1.2, hz - 8.6), 2.4, 1.8, SMALL)
+	shade(model, Vector3.new(-150.5, fl + 3.3, hz - 8.6), 1.3, 1.0, 12, false)
+
+	-- The Archive, open on its lectern by the hearth, under a soft spotlight
+	local lectern = lookAt(Vector3.new(-172, fl, front - 4.5), Vector3.new(-160, fl, front - 4.5))
+	box(model, "LecternFoot", "dark", lectern, -1.1, 1.1, 0, 0.4, -1.1, 1.1)
+	box(model, "LecternColumn", "woodDark", lectern, -0.4, 0.4, 0.4, 4.0, -0.4, 0.4)
+	local desk = stone(model, "LecternTop", "wood", Vector3.new(2.8, 0.3, 2.2), lectern * CFrame.new(0, 4.1, 0) * CFrame.Angles(math.rad(-20), 0, 0))
+	local cover = block(model, "ArchiveBook", Vector3.new(2.6, 0.12, 1.9), desk.CFrame * CFrame.new(0, 0.21, 0), rgb(96, 54, 34), M.Leather, SMALL)
+	for _, side in { -1, 1 } do
+		block(model, "ArchivePages", Vector3.new(1.2, 0.18, 1.7), cover.CFrame * CFrame.new(side * 0.62, 0.15, 0) * CFrame.Angles(0, 0, math.rad(side * -6)), rgb(232, 222, 196), M.SmoothPlastic, GHOST)
+	end
+	block(model, "Ribbon", Vector3.new(0.12, 0.03, 1.4), cover.CFrame * CFrame.new(0.1, 0.27, 0.6), rgb(150, 36, 34), M.Fabric, GHOST)
+	local read = prompt(cover, "Read", "The Meridian Archive", "Window:Archive", 0, 9)
+	read.Name = "ArchivePrompt"
+	local readingSpot = cylinder(model, "ReadingSpot", "bronze", CFrame.new(-172, ceil - 0.6, front - 4.5), 1.0, 1.2, SMALL)
+	spotLight(readingSpot, Enum.NormalId.Bottom, WARM_SPOT, 22, 2.4, 36, true)
+
+	-- A window seat in the west window, off the main path, and lapis drapes at both windows
+	box(model, "WindowSeat", "wood", o, -166.5, -153.5, fl, 3.0, front - 3.2, front)
+	box(model, "SeatCushion", "lapis", o, -166.2, -153.8, 3.0, 3.6, front - 3.0, front, SMALL)
+	for _, x in { -165, -155.6 } do
+		block(model, "Pillow", Vector3.new(1.4, 1.4, 0.45), CFrame.new(x, 4.3, front - 0.6) * CFrame.Angles(math.rad(-10), random:NextNumber(-0.3, 0.3), 0), vary(if x < -160 then MUSTARD else RUST, random, 0.04), M.Fabric, GHOST)
+	end
+	block(model, "Blanket", Vector3.new(3, 0.15, 2), CFrame.new(-160.5, 3.68, front - 1.6), LINEN, M.Fabric, GHOST)
+	for _, x in { -160, -80 } do
+		for _, side in { -1, 1 } do
+			box(model, "Drape", "lapis", o, x + side * 7.2, x + side * 9.0, 1, ceil - 0.4, front - 0.5, front - 0.1, GHOST)
+		end
+	end
+
+	-- A mobile of eight glass shards, one per programme, turning slowly over the reading room
+	local hub = Vector3.new(-158, ceil - 5, hz)
+	block(model, "MobileCord", Vector3.new(0.06, 4.8, 0.06), CFrame.new(hub + Vector3.new(0, 2.4, 0)), BRASS, M.Metal, GHOST)
+	for index, programme in PROGRAMME_COLORS do
+		local angle = index / #PROGRAMME_COLORS * math.pi * 2
+		local radius = if index % 2 == 0 then 2.2 else 3.4
+		local shard = block(model, "MobileShard", Vector3.new(0.35, 1.3, 0.35), CFrame.new(hub + Vector3.new(math.cos(angle) * radius, -(index % 3) * 0.7, math.sin(angle) * radius)) * CFrame.Angles(0, angle, math.rad(10)), programme[2]:Lerp(GLASS, 0.35), M.Glass, { CanCollide = false, CastShadow = false, Transparency = 0.25 })
+		shard:SetAttribute("Spin", 0.12)
+		shard:SetAttribute("SpinPivot", hub)
+	end
+
+	buildLibrary(model, random)
+
+	-- The atrium: the leaderboard faces the door, with the echo library and the Archive's tally beside it
+	local boardFrame = box(model, "LeaderboardFrame", "bronze", o, -133, -107, fl + 3.6, fl + 15.2, back, back + 0.6)
+	local board = box(model, "Leaderboard", "darker", o, -132.4, -107.6, fl + 4.2, fl + 14.6, back + 0.6, back + 0.8, SMALL)
+	board.Color = SCREEN
+	local boardGui = surface(board, Enum.NormalId.Back, 30, true)
+	boardGui.Name = "Leaderboard"
+	CollectionService:AddTag(boardGui, "SNLeaderboard")
+	frame(boardGui, { 0, 0, 1, 1 }, SCREEN)
+	local border = Instance.new("UIStroke")
+	border.Color = BRONZE
+	border.Transparency = 0.4
+	border.Thickness = 2
+	border.Parent = frame(boardGui, { 0.02, 0.03, 0.96, 0.94 }, SCREEN, 1)
+	line(boardGui, "TOP FIGHTERS", { 0.06, 0.06, 0.6, 0.16 }, IVORY_TEXT, FONT_DISPLAY, nil, 56)
+	line(boardGui, "This week in the Test Chambers", { 0.06, 0.22, 0.6, 0.08 }, rgb(185, 176, 160), FONT_SANS, Enum.FontWeight.Medium, 28)
+	local rows = frame(boardGui, { 0.06, 0.36, 0.88, 0.56 }, SCREEN, 1)
+	rows.Name = "Rows"
+	line(rows, "Results appear here after the first matches.", { 0, 0, 1, 0.16 }, rgb(142, 134, 118), FONT_SANS, nil, 26).Name = "Waiting"
+	boardFrame:SetAttribute("Leaderboard", true)
+	local echo = box(model, "EchoBoard", "darker", o, -141, -135, fl + 5, fl + 13, back, back + 0.3, SMALL)
+	readout(echo, Enum.NormalId.Back, Vector2.new(6, 8), "ECHO LIBRARY", {
+		"ATLAS    ready",
+		"VEIL     ready",
+		"CHIMERA  ready",
+		"FURNACE  ready",
+		"LATTICE  ready",
+		"ECLIPSE  ready",
+		"WARDEN   ready",
+		"EIGHTH   declined",
+	})
+	local tally = box(model, "ArchiveBoard", "darker", o, -105, -99, fl + 5, fl + 13, back, back + 0.3, SMALL)
+	readout(tally, Enum.NormalId.Back, Vector2.new(6, 8), "THE ARCHIVE", {
+		"10 files hidden",
+		"in this hall.",
+		"Read them in the",
+		"Archive by the fire.",
+		"Tape 12: missing",
+		"Door 09: sealed",
+	})
+	-- The holotable on the entrance axis: a slowly turning map of the hall; press to browse the programmes
+	local tableAt = Vector3.new(-120, fl, -200)
+	disc(model, "AtriumRug", "lapis", tableAt + Vector3.new(0, 0.06, 0), 18, 0.06, GHOST)
+	disc(model, "AtriumRugBorder", "bronze", tableAt + Vector3.new(0, 0.04, 0), 19.2, 0.04, GHOST)
+	cylinder(model, "HolotableBase", "bronze", CFrame.new(tableAt + Vector3.new(0, 1.4, 0)), 2.8, 2.4)
+	disc(model, "Holotable", "brass", tableAt + Vector3.new(0, 3.0, 0), 6, 0.3)
+	local map = block(model, "HoloMap", Vector3.new(0.05, 4.4, 4.4), CFrame.new(tableAt + Vector3.new(0, 3.5, 0)) * CFrame.Angles(0, 0, math.rad(90)), HOLO, M.Neon, { CanCollide = false, CastShadow = false, Transparency = 0.82, Shape = Enum.PartType.Cylinder })
+	local mini = block(model, "HoloLantern", Vector3.new(0.5, 1.1, 0.5), CFrame.new(tableAt + Vector3.new(0, 4.6, 0)) * CFrame.Angles(0, 0, math.rad(45)), HOLO, M.Neon, { CanCollide = false, CastShadow = false, Transparency = 0.3 })
+	for _, piece in { map, mini } do
+		piece:SetAttribute("Holo", true)
+	end
+	mini:SetAttribute("Spin", 0.5)
+	mini:SetAttribute("SpinPivot", tableAt + Vector3.new(0, 4.6, 0))
+	light(map, HOLO, 10, 0.7)
+	local browse = prompt(map, "Browse", "Hall holotable", "Display:Holotable", 0, 8)
+	browse.Name = "HolotablePrompt"
+	for _, x in { -131, -109 } do
+		local bench = lookAt(Vector3.new(x, fl, -191), Vector3.new(-120, fl, -214))
+		box(model, "Bench", "marble", bench, -3, 3, 0, 1.6, -0.9, 0.9)
+		box(model, "BenchCushion", "lapis", bench, -2.8, 2.8, 1.6, 1.9, -0.8, 0.8, SMALL)
+	end
+
+	-- The coffee bar: counter, brass machine, mugs, a menu, stools and pendants
+	box(model, "BarCabinet", "woodDark", o, -96, -76, fl, fl + 3.4, back, back + 2.6)
+	box(model, "BarTop", "marble", o, -96.2, -75.8, fl + 3.4, fl + 3.7, back, back + 2.9)
+	box(model, "Espresso", "brass", o, -88, -85.4, fl + 3.7, fl + 5.8, back + 0.3, back + 1.9)
+	box(model, "EspressoTop", "bronze", o, -88.1, -85.3, fl + 5.8, fl + 6.0, back + 0.2, back + 2.0, SMALL)
+	local spout = box(model, "EspressoHead", "steel", o, -87.1, -86.3, fl + 4.6, fl + 5.0, back + 1.9, back + 2.5, GHOST)
+	emitter(spout, {
+		Texture = "rbxasset://textures/particles/smoke_main.dds",
+		Color = ColorSequence.new(rgb(240, 236, 230)),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1.0) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.3, 0.8), NumberSequenceKeypoint.new(1, 1) }),
+		Lifetime = NumberRange.new(2, 3),
+		Speed = NumberRange.new(0.4, 0.8),
+		SpreadAngle = Vector2.new(10, 10),
+		Rate = 1.2,
+	})
+	box(model, "Grinder", "steel", o, -90.2, -89.0, fl + 3.7, fl + 5.4, back + 0.6, back + 1.8, SMALL)
+	for index, x in { -82.5, -81.4, -80.3 } do
+		block(model, "Mug", Vector3.new(0.8, 0.65, 0.65), CFrame.new(x, fl + 4.1, back + 1.6) * CFrame.Angles(0, 0, math.rad(90)), if index == 2 then RUST else rgb(226, 220, 208), M.SmoothPlastic, { CastShadow = false, CanCollide = false, Shape = Enum.PartType.Cylinder })
+	end
+	box(model, "BarShelf", "wood", o, -95, -77, fl + 7.4, fl + 7.65, back, back + 1.2, SMALL)
+	for index, x in { -93, -91.6, -90.2, -79, -77.6 } do
+		block(model, "Jar", Vector3.new(1.2, 0.8, 0.8), CFrame.new(x, fl + 8.25, back + 0.6) * CFrame.Angles(0, 0, math.rad(90)), rgb(200, 214, 210), M.Glass, { CanCollide = false, CastShadow = false, Transparency = 0.35 + index * 0.02, Shape = Enum.PartType.Cylinder })
+	end
+	local menu = box(model, "MenuBoard", "darker", o, -91, -81, fl + 9, fl + 14, back, back + 0.2, SMALL)
+	local menuGui = surface(menu, Enum.NormalId.Back, 40, false)
+	line(menuGui, "COFFEE  ·  TEA  ·  COCOA", { 0.06, 0.08, 0.88, 0.24 }, rgb(232, 226, 210), FONT_DISPLAY, nil, 40, Enum.TextXAlignment.Center)
+	line(menuGui, "Brewed fresh. Decaf is a rumour.", { 0.06, 0.4, 0.88, 0.18 }, rgb(210, 204, 190), FONT_SANS, Enum.FontWeight.Medium, 26, Enum.TextXAlignment.Center)
+	line(menuGui, "Please do not warm your mug on the Lantern.", { 0.06, 0.64, 0.88, 0.18 }, rgb(196, 160, 110), FONT_SANS, Enum.FontWeight.Medium, 24, Enum.TextXAlignment.Center)
+	local suggestions = box(model, "SuggestionBox", "brass", o, -95.6, -93.8, fl + 3.7, fl + 5.1, back + 1.0, back + 2.4, GHOST)
+	line(surface(suggestions, Enum.NormalId.Back, 80, false), "WARDEN SUGGESTIONS. Read so far: 0", { 0.06, 0.15, 0.88, 0.7 }, rgb(40, 34, 26), FONT_SANS, Enum.FontWeight.Bold, 18, Enum.TextXAlignment.Center)
+	for _, x in { -92, -86, -80 } do
+		cylinder(model, "StoolPost", "bronze", CFrame.new(x, fl + 1.4, back + 4.6), 2.8, 0.3, SMALL)
+		block(model, "StoolSeat", Vector3.new(0.35, 1.6, 1.6), CFrame.new(x, fl + 2.95, back + 4.6) * CFrame.Angles(0, 0, math.rad(90)), LEATHER, M.Leather, { CastShadow = false, Shape = Enum.PartType.Cylinder })
+		box(model, "PendantCord", "brass", o, x - 0.03, x + 0.03, ceil - 3.6, ceil, back + 1.97, back + 2.03, GHOST)
+		local pendant = cylinder(model, "Pendant", "brass", CFrame.new(x, ceil - 4.0, back + 2.0), 0.9, 1.3, GHOST)
+		light(pendant, LAMP, 12, 0.9)
+	end
+	-- The window chairs, turned to the view of the Garden
+	for _, x in { -84, -76 } do
+		sofa(model, lookAt(Vector3.new(x, fl, front - 5), Vector3.new(x + (if x < -80 then 2 else -2), fl, front + 20)), 1, LEATHER, M.Leather, LINEN, random)
+	end
+	cylinder(model, "SideTable", "woodDark", CFrame.new(-80, fl + 0.9, front - 4.4), 1.8, 1.6, SMALL)
+	for _, spot in { { -97.5, front - 2.4 }, { -58.4, front - 2.4 } } do
+		pottedPlant(model, Vector3.new(spot[1], fl, spot[2]), 6.5, random)
+	end
+
+	-- The showcase: a lit stage to stand on and show off, the jukebox and its dance floor
+	local stageAt = Vector3.new(-66, fl, -200)
+	local stage = disc(model, "ShowcaseStage", "dark", stageAt + Vector3.new(0, 0.6, 0), 9, 0.6)
+	stage:SetAttribute("EmoteSpot", true)
+	stage:SetAttribute("Showcase", true)
+	disc(model, "StageRing", "bronzeLight", stageAt + Vector3.new(0, 0.63, 0), 8.2, 0.04, GHOST)
+	disc(model, "StageTop", "dark", stageAt + Vector3.new(0, 0.65, 0), 7.6, 0.04, GHOST)
+	local stageSpot = cylinder(model, "StageSpot", "bronze", CFrame.new(stageAt + Vector3.new(0, ceil - fl - 0.6, 0)), 1.0, 1.2, SMALL)
+	spotLight(stageSpot, Enum.NormalId.Bottom, rgb(255, 236, 214), 24, 2.6, 34, true)
+	local showcase = box(model, "ShowcasePlate", "brass", o, -70, -62, fl + 0.6, fl + 1.2, -205.2, -205, SMALL)
+	line(surface(showcase, Enum.NormalId.Back, 50, false), "SHOWCASE", { 0.05, 0.1, 0.9, 0.8 }, rgb(60, 44, 28), FONT_DISPLAY, nil, 24, Enum.TextXAlignment.Center)
+	local juke = lookAt(Vector3.new(x1 - 2.6, fl, back + 3.4), Vector3.new(-70, fl, -204))
+	block(model, "Jukebox", Vector3.new(3.0, 4.6, 2.0), juke * CFrame.new(0, 2.3, 0), WOOD_DARK, M.Wood)
+	block(model, "JukeboxCrown", Vector3.new(2.0, 3.0, 3.0), juke * CFrame.new(0, 4.6, 0) * CFrame.Angles(0, math.rad(90), 0), WOOD_DARK, M.Wood, { Shape = Enum.PartType.Cylinder })
+	local glow = block(model, "JukeboxGlow", Vector3.new(2.4, 2.2, 0.1), juke * CFrame.new(0, 3.3, -1.02), rgb(255, 196, 128), M.Glass, { CastShadow = false, CanCollide = false, Transparency = 0.2 })
+	light(glow, rgb(255, 170, 100), 10, 0.9)
+	stone(model, "JukeboxGrille", "brass", Vector3.new(2.2, 1.4, 0.1), juke * CFrame.new(0, 1.2, -1.02), GHOST)
+	local juking = prompt(glow, "Choose a song", "Jukebox", "Jukebox", 0, 8)
+	juking.Name = "JukeboxPrompt"
+	local dance = box(model, "DanceFloor", "darker", o, -74, -62, fl, fl + 0.08, back + 1.2, back + 9.2, GHOST)
+	dance:SetAttribute("EmoteSpot", true)
+	local tiles = surface(dance, Enum.NormalId.Top, 10, false)
+	for row = 0, 3 do
+		for column = 0, 5 do
+			local cell = frame(tiles, { column / 6 + 0.005, row / 4 + 0.01, 1 / 6 - 0.01, 1 / 4 - 0.02 }, if (row + column) % 2 == 0 then rgb(214, 206, 190) else rgb(60, 56, 52))
+			cell:SetAttribute("Disco", row * 6 + column)
+		end
+	end
+	-- A little maintenance drone hovers by the coffee bar, waiting for crumbs
+	local drone = Vector3.new(-78, fl + 9, back + 5)
+	for _, piece in {
+		stone(model, "DroneBody", "brass", Vector3.new(1.2, 0.5, 1.2), CFrame.new(drone), GHOST),
+		block(model, "DroneEye", Vector3.new(0.4, 0.12, 0.08), CFrame.new(drone + Vector3.new(0, 0, 0.62)), HOLO, M.Neon, GHOST),
+		stone(model, "DroneRotor", "steel", Vector3.new(2.2, 0.06, 0.2), CFrame.new(drone + Vector3.new(0, 0.32, 0)) * CFrame.Angles(0, 0.8, 0), GHOST),
+	} do
+		piece:SetAttribute("Bob", 0.4)
+	end
+	model.Parent = folder
+end
+
+-- Dr. Varga's study, behind the sliding bay of the library ---------------------------------
+
+local function buildStudy(folder: Instance)
+	local random = Random.new(63)
+	local model = Instance.new("Model")
+	model.Name = "VargaStudy"
+	local o = CFrame.new()
+	local fl, top = LOUNGE.floor, 13.6
+	local x0, x1, z0, z1 = -167, -146, -234, LOUNGE.back - 1.2
+	box(model, "StudyFloor", "woodDark", o, x0, x1, fl - 1, fl, z0, z1)
+	box(model, "StudyWall", "travertine", o, x0 - 1.2, x0, 0, top, z0 - 1.2, z1)
+	box(model, "StudyWall", "travertine", o, x1, x1 + 1.2, 0, top, z0 - 1.2, z1)
+	box(model, "StudyWall", "wood", o, x0, x1, fl, top, z0 - 1.2, z0)
+	box(model, "StudyCeiling", "woodDark", o, x0 - 1.2, x1 + 1.2, top, top + 1, z0 - 1.2, z1)
+	block(model, "StudyRug", Vector3.new(12, 0.06, 8), CFrame.new(-156.5, fl + 0.03, -226), rgb(120, 52, 40), M.Fabric, GHOST)
+	-- Her desk against the far wall, the green lamp still on
+	box(model, "Desk", "wood", o, -160.5, -152.5, fl + 2.8, fl + 3.1, z0 + 0.4, z0 + 3.2)
+	for _, x in { -159.5, -153.5 } do
+		box(model, "DeskPedestal", "woodDark", o, x - 1, x + 1, fl, fl + 2.8, z0 + 0.6, z0 + 3.0, SMALL)
+	end
+	box(model, "DeskChair", "woodDark", o, -157.5, -155.5, fl + 1.6, fl + 1.9, z0 + 3.6, z0 + 5.6, SMALL).Color = LEATHER
+	box(model, "DeskChairBack", "woodDark", o, -157.5, -155.5, fl + 1.9, fl + 4.2, z0 + 5.4, z0 + 5.7, SMALL).Color = LEATHER
+	box(model, "DeskChairPost", "bronze", o, -156.7, -156.3, fl, fl + 1.6, z0 + 4.4, z0 + 4.8, SMALL)
+	box(model, "LampStem", "brass", o, -154.2, -153.9, fl + 3.1, fl + 4.2, z0 + 1.0, z0 + 1.3, GHOST)
+	local lampShade = block(model, "BankersLamp", Vector3.new(1.8, 0.5, 0.8), CFrame.new(-154.0, fl + 4.4, z0 + 1.4) * CFrame.Angles(math.rad(-10), 0, 0), rgb(40, 110, 70), M.Glass, { CanCollide = false, CastShadow = false, Transparency = 0.2 })
+	light(lampShade, rgb(255, 210, 150), 16, 1.3)
+	-- Tape 12, still in the machine
+	local recorder = box(model, "TapeRecorder", "steel", o, -159.9, -157.5, fl + 3.1, fl + 3.6, z0 + 1.0, z0 + 2.4, GHOST)
+	for _, x in { -159.3, -158.1 } do
+		block(model, "TapeReel", Vector3.new(0.06, 0.8, 0.8), CFrame.new(x, fl + 3.66, z0 + 1.7) * CFrame.Angles(0, 0, math.rad(90)), rgb(30, 30, 30), M.SmoothPlastic, { CastShadow = false, CanCollide = false, Shape = Enum.PartType.Cylinder })
+	end
+	loreFile(recorder, "varga_tape_12", "Tape 12")
+	-- Chalkboard: her working, and the question she kept coming back to
+	local chalk = box(model, "Chalkboard", "darker", o, x0, x0 + 0.2, fl + 3, fl + 10, z0 + 2, z0 + 12, SMALL)
+	local board = surface(chalk, Enum.NormalId.Right, 30, false)
+	line(board, "WHY DOES IT HUM?", { 0.06, 0.06, 0.88, 0.16 }, rgb(226, 226, 214), FONT_SANS, Enum.FontWeight.Bold, 40)
+	line(board, "output(t) ~ 1 / distance to someone it knows", { 0.06, 0.3, 0.88, 0.12 }, rgb(200, 204, 194), FONT_MONO, nil, 24)
+	line(board, "8 lines in the registry. 7 programmes. 1 refusal.", { 0.06, 0.48, 0.88, 0.12 }, rgb(200, 204, 194), FONT_MONO, nil, 24)
+	line(board, "Ask G. again?  NO.", { 0.06, 0.68, 0.88, 0.12 }, rgb(226, 190, 150), FONT_SANS, Enum.FontWeight.SemiBold, 28)
+	-- A pinboard map of the hall: ten pins where things were left behind
+	local cork = box(model, "Pinboard", "wood", o, x1 - 0.2, x1, fl + 3.5, fl + 9.5, z0 + 4, z0 + 12, SMALL)
+	cork.Color = rgb(176, 140, 96)
+	local pins = surface(cork, Enum.NormalId.Left, 30, false)
+	frame(pins, { 0.1, 0.1, 0.8, 0.72 }, rgb(226, 216, 190))
+	line(pins, "Things they left behind", { 0.1, 0.84, 0.8, 0.12 }, rgb(70, 50, 34), FONT_SANS, Enum.FontWeight.SemiBold, 26, Enum.TextXAlignment.Center)
+	for index, spot in { { 0.52, 0.47 }, { 0.48, 0.52 }, { 0.5, 0.97 }, { 0.12, 0.66 }, { 0.84, 0.95 }, { 0.8, 0.2 }, { 0.06, 0.02 }, { 0.38, 0.97 }, { 0.2, 0.97 }, { 0.22, 0.02 } } do
+		frame(pins, { 0.1 + spot[1] * 0.76, 0.1 + spot[2] * 0.66, 0.03, 0.04 }, if index % 3 == 0 then rgb(170, 50, 40) else rgb(40, 90, 150)).Rotation = 45
+	end
+	-- Her own shelf, and the reward for finding the room: a fragment of the Lantern under glass
+	box(model, "StudyShelf", "woodDark", o, x0 + 1, x0 + 4.6, fl, fl + 7, z0, z0 + 1.3)
+	for _, y in { fl + 2.4, fl + 4.8 } do
+		shelfBooks(model, x0 + 1.2, x0 + 4.4, y - 0.1, z0 + 0.65, 2.2, random)
+	end
+	local stand = Vector3.new(x1 - 2.6, fl, z0 + 2.4)
+	cylinder(model, "FragmentPlinth", "marble", CFrame.new(stand + Vector3.new(0, 1.6, 0)), 3.2, 1.6)
+	local fragment = block(model, "LanternFragment", Vector3.new(0.4, 0.9, 0.4), CFrame.new(stand + Vector3.new(0, 4.0, 0)) * CFrame.Angles(0, 0.6, math.rad(20)), HOLO, M.Neon, { CanCollide = false, CastShadow = false, Transparency = 0.15 })
+	fragment:SetAttribute("Spin", 0.35)
+	fragment:SetAttribute("SpinPivot", stand + Vector3.new(0, 4.0, 0))
+	light(fragment, rgb(208, 226, 255), 12, 1.2)
+	ball(model, "Dome", stand + Vector3.new(0, 4.0, 0), 2.2, GLASS, M.Glass, { CanCollide = false, CastShadow = false, Transparency = 0.6 })
+	emitter(fragment, {
+		Texture = "rbxasset://textures/particles/sparkles_main.dds",
+		Color = ColorSequence.new(rgb(226, 238, 255)),
+		LightEmission = 1,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.05), NumberSequenceKeypoint.new(0.5, 0.14), NumberSequenceKeypoint.new(1, 0) }),
+		Transparency = NumberSequence.new(0.3, 1),
+		Lifetime = NumberRange.new(1.5, 2.5),
+		Speed = NumberRange.new(0.1, 0.3),
+		SpreadAngle = Vector2.new(180, 180),
+		Rate = 1.5,
+	})
+	local card = block(model, "FragmentCard", Vector3.new(1.8, 0.05, 0.9), CFrame.new(stand + Vector3.new(0, 3.24, 0.6)) * CFrame.Angles(math.rad(15), 0, 0), rgb(226, 216, 190), M.SmoothPlastic, GHOST)
+	line(surface(card, Enum.NormalId.Top, 80, false), "Fragment 3. It hums when someone it knows is near.", { 0.05, 0.1, 0.9, 0.8 }, rgb(60, 44, 28), FONT_SANS, Enum.FontWeight.Medium, 16, Enum.TextXAlignment.Center)
+	local certificate = box(model, "Certificate", "marble", o, -162.5, -158.5, fl + 6.5, fl + 9.5, z0, z0 + 0.1, GHOST)
+	local certificateGui = surface(certificate, Enum.NormalId.Back, 60, false)
+	line(certificateGui, "EMPLOYEE OF THE MONTH", { 0.06, 0.1, 0.88, 0.25 }, rgb(120, 90, 40), FONT_DISPLAY, nil, 24, Enum.TextXAlignment.Center)
+	line(certificateGui, "The Lantern (again)", { 0.06, 0.45, 0.88, 0.3 }, rgb(60, 44, 28), FONT_SANS, Enum.FontWeight.SemiBold, 28, Enum.TextXAlignment.Center)
+	-- A brass lever by the doorway works the shelf from this side
+	local lever = box(model, "StudyLever", "brass", o, SECRET.x0 - 1.6, SECRET.x0 - 1.0, fl + 4.5, fl + 6.0, z1 - 0.6, z1, GHOST)
+	local use = prompt(lever, "Pull", "Shelf lever", "Secret:VargaStudy", 0.3, 6)
+	use.Name = "SecretPrompt"
+	model.Parent = folder
+end
+
 -- Builds the whole lobby into `folder`. Returns the spawn location.
 function Nexus.build(folder: Instance): SpawnLocation
 	tone = Random.new(17)
@@ -1174,6 +1678,9 @@ function Nexus.build(folder: Instance): SpawnLocation
 		buildGate(folder, gate)
 	end
 	buildRoutes(folder)
+	buildTrainingWing(folder)
+	buildLounge(folder)
+	buildStudy(folder)
 	return spawn :: SpawnLocation
 end
 

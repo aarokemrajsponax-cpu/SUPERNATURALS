@@ -1763,7 +1763,7 @@ local function flowDocument(doc: any, geo: Geometry): { any }
 	local labelStyle = style(TYPE.UiBold, 14 * s, 1.7, C.BronzeInk)
 	local titleStyle = style(TYPE.Display, 30 * s, 1.15, C.Ink)
 	local metaStyle = style(TYPE.SerifItalic, 14 * s, 1.45, C.InkSoft)
-	opener(setText(string.upper(doc.label), labelStyle, W), labelStyle)
+	opener(setText(Theme.track(doc.label), labelStyle, W), labelStyle)
 	opener(setText(doc.title, titleStyle, W), titleStyle)
 	y += px(3 * s)
 	if typeof(doc.meta) == "string" and doc.meta ~= "" then
@@ -2291,7 +2291,7 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 			make("UIStroke", { Color = C.BronzeLight, Thickness = 1, Transparency = 0.2, Parent = plate })
 			local inner = make("Frame", { Name = "Inner", Position = UDim2.fromOffset(6, 6), Size = UDim2.new(1, -12, 1, -12), BackgroundTransparency = 1, ZIndex = 2, Parent = plate })
 			make("UIStroke", { Color = C.InkSoft, Thickness = 1, Transparency = 0.55, Parent = inner })
-			label(plate, "EX LIBRIS", 0, px(plateH * 0.12), plateW, px(22 * s), TYPE.Display, px(16 * s), C.BronzeInk, Enum.TextXAlignment.Center).ZIndex = 2
+			label(plate, Theme.track("Ex libris"), 0, px(plateH * 0.12), plateW, px(22 * s), TYPE.Display, px(16 * s), C.BronzeInk, Enum.TextXAlignment.Center).ZIndex = 2
 			label(plate, "Meridian Station", 0, px(plateH * 0.3), plateW, px(34 * s), TYPE.SerifItalic, px(21 * s), C.Ink, Enum.TextXAlignment.Center).ZIndex = 2
 			local note = label(plate, "The Lounge copy. Please leave it on the lectern.", px(18 * s), px(plateH * 0.54), plateW - px(36 * s), px(44 * s), TYPE.Serif, px(14 * s), C.InkSoft, Enum.TextXAlignment.Center)
 			note.ZIndex = 2
@@ -2302,7 +2302,7 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 		local W2 = geo.textW
 		local y = px(10 * s)
 		local titleStyle = style(TYPE.Display, 36 * s, 1.12, C.Ink)
-		for _, line in setText("THE MERIDIAN ARCHIVE", titleStyle, W2) do
+		for _, line in setText(Theme.track(Archive.Title), titleStyle, W2) do
 			drawLine(content, line, titleStyle, math.floor((W2 - line.width) / 2), y)
 			y += titleStyle.pitch
 		end
@@ -2321,7 +2321,7 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 		buildFigure(content, "lantern", math.floor((W2 - plateW) / 2), y, plateW, plateH, state)
 		y += plateH + px(6 * s)
 		label(content, "Plate I. The Lantern.", 0, y, W2, captionH, TYPE.SerifItalic, px(14 * s), C.InkSoft, Enum.TextXAlignment.Center)
-		label(content, "MERIDIAN STATION, KESTREL VALLEY", 0, geo.textH - footH, W2, footH, TYPE.Display, px(14 * s), C.BronzeInk, Enum.TextXAlignment.Center)
+		label(content, Theme.track("Meridian Station, Kestrel Valley"), 0, geo.textH - footH, W2, footH, TYPE.Display, px(14 * s), C.BronzeInk, Enum.TextXAlignment.Center)
 		return page
 	end
 
@@ -2435,7 +2435,9 @@ end
 
 local PAGE_ACTION = "SNArchivePages"
 local PAGE_KEYS = { Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.Left, Enum.KeyCode.Right, Enum.KeyCode.ButtonL1, Enum.KeyCode.ButtonR1 }
-local BACK_KEYS = { [Enum.KeyCode.Q] = true, [Enum.KeyCode.Left] = true, [Enum.KeyCode.ButtonL1] = true }
+-- By name: an EnumItem is only safe as a table key where the engine keeps one per value
+local BACK_KEYS = { Q = true, Left = true, ButtonL1 = true }
+local FORWARD_KEYS = { E = true, Right = true, ButtonR1 = true }
 
 -- Set while the window exists, so tests (and other code) can reach it
 local handleKey: ((Enum.KeyCode) -> ())? = nil
@@ -3384,9 +3386,10 @@ local function build(body: Frame, _api)
 		if not Shell.isOpen("Archive") then
 			return
 		end
-		if BACK_KEYS[keyCode] then
+		local name = if typeof(keyCode) == "EnumItem" then keyCode.Name else ""
+		if BACK_KEYS[name] then
 			turn(-1)
-		elseif table.find(PAGE_KEYS, keyCode) then
+		elseif FORWARD_KEYS[name] then
 			turn(1)
 		end
 	end
@@ -3493,6 +3496,9 @@ function ArchiveWindow.register()
 		build = build,
 	})
 end
+
+-- Tunables, readable (and adjustable in tests)
+ArchiveWindow.Config = CONFIG
 
 -- Turns pages as if the key were pressed (tests and other input paths)
 function ArchiveWindow.press(keyCode: Enum.KeyCode)

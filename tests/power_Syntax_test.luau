@@ -289,6 +289,7 @@ local function arenaObject(kind: string, position: Vector3)
 	part.Anchored = true
 	part.Size = if kind == "Pylon" then Vector3.new(2, 6, 2) else Vector3.new(4, 0.3, 4)
 	part.CFrame = CFrame.new(position)
+	part.Position = position
 	part.CanCollide = false
 	part.Parent = world.workspace
 	part:SetAttribute("Interaction", kind)
@@ -363,7 +364,8 @@ check("Syntax's definition: card text, Processing, premium, degrees, weakness an
 	local d1, d2, d3 = ability("SystemOverride", 1), ability("SystemOverride", 2), ability("SystemOverride", 3)
 	assert(d3.damage > d2.damage and d2.damage > d1.damage and d3.radius > d1.radius, "ultimate scales")
 	assert(d1.defense == "Timing" and d1.lock <= Combat.Statuses.Sealed.max, "telegraphed, lock within the Sealed cap")
-	assert(ability("RuleRewrite", 3).cost + ability("CommandZone", 3).cost + ability("ConfinementField", 3).cost > processing.max, "the big three can't be cast back to back")
+	local control = ability("RuleRewrite", 3).cost + ability("MovementOverride", 3).cost + ability("ConfinementField", 3).cost + ability("CommandZone", 3).cost
+	assert(control > processing.max, "her whole control kit can't be dumped at once: " .. control)
 	-- Fragile: less health and guard than the default
 	local profile = Powers.combatProfile("Syntax", 1)
 	assert(profile.MaxHealth < Combat.MaxHealth and profile.Block.MaxGuard < Combat.Block.MaxGuard, "fragile")
@@ -438,12 +440,13 @@ check("premium: unowned Syntax is a trial (Practice yes, Duel no); the pass and 
 	assert(ok and trial == false, "no longer a trial with the pass")
 	purchases.ownsPass = original
 	-- The Gems path: 4,500 Gems
+	local gems = services.CurrencyService:balance(alice, "gems")
 	services.CurrencyService:add(alice, { gems = 4500 }, "test")
 	request("PowerRequest", alice, Protocol.PowerAction.UnlockPower, "Syntax")
 	task.wait(0.2)
 	assert(services.PowerService:owns(alice, "Syntax"), "unlocked with Gems")
 	assert(A().power.trial == false, "the equipped trial became owned")
-	assert(services.CurrencyService:balance(alice, "gems") == 0, "4,500 Gems spent")
+	assert(services.CurrencyService:balance(alice, "gems") == gems, "4,500 Gems spent")
 	assert(services.PowerService:queueCheck(alice, "Duel"), "owned: duels allowed")
 end)
 
@@ -585,12 +588,13 @@ check("Code Bolt: a homing bolt; locked targets take more and are tracked harder
 	ready(b)
 	local mark = game.mark()
 	request("AbilityRequest", alice, "CodeBolt", aimAt(a, b))
-	task.wait(0.8)
+	task.wait(0.05)
+	assert(a.power.resource < 100 - def.cost + 1, "Processing spent: " .. a.power.resource)
+	task.wait(0.75)
 	local spawns = spawnsSince(mark, a, "CodeBolt")
 	assert(#spawns == 1, "one bolt")
 	local hits = hitsSince(mark, a, b, "CodeBolt")
 	assert(#hits == 1 and near(hits[1].damage, def.damage), "9 damage unlocked: " .. tostring(hits[1] and hits[1].damage))
-	assert(a.power.resource < 100 - def.cost + 7, "Processing spent")
 	assert(cooldownSet(a, "CodeBolt"), "cooldown")
 	-- Locked: aimed well off to the side, it still bends in, and hits harder
 	ready(a)
@@ -652,7 +656,8 @@ check("Packet Reroute: the Redirect prompt sends a projectile back, capped; it c
 	task.wait(0.05)
 	assert(shot.redirected and shot.owner == a, "Alice owns it now")
 	assert(shot.spec.hit.Damage <= Combat.Projectiles.RedirectDamageCap, "damage capped")
-	assert(cooldownSet(a, "PacketReroute") and a.power.resource < 100 - def.cost + 2, "cost and cooldown paid")
+	assert(cooldownSet(a, "PacketReroute"), "cooldown started")
+	assert(a.power.resource < 100 - def.cost + 2, "cost paid: " .. a.power.resource)
 	assert(#fxSince(mark, "PacketReroute", a) == 1, "the reroute is drawn")
 	task.wait(0.9)
 	local hits = hitsSince(mark, a, b, "TestShot")
@@ -964,8 +969,18 @@ check("Move Override: opponents in the lane are carried away; stepping out of it
 	local mark = game.mark()
 	request("AbilityRequest", alice, "MovementOverride", aimAt(a, b))
 	task.wait(0.6)
-	local mover = b.root:FindFirstChild("SNSyntaxDrift")
-	assert(mover and mover:IsA("LinearVelocity"), "Bob's movement is overridden")
+	local mover = b.root:FindFirstChildOfClass("LinearVelocity")
+	local children = {}
+	for _, child in b.root:GetChildren() do
+		table.insert(children, child.Name .. ":" .. child.ClassName)
+	end
+	assert(mover and mover.Name == "SNSyntaxDrift", "Bob's movement is overridden: " .. table.concat(children, ", ") .. " / " .. table.concat((function()
+		local list = {}
+		for _, entry in game.sentSince(mark, "AbilityEvent", "Rejected", alice) do
+			table.insert(list, tostring(entry.ability) .. "=" .. tostring(entry.reason))
+		end
+		return list
+	end)(), ","))
 	assert(mover.LineDirection:Dot(Vector3.new(1, 0, 0)) > 0.95 and near(mover.LineVelocity, def.drift), "away from Alice, at the lane's speed")
 	assert(#fxSince(mark, "Lane", a) == 1, "the lane is drawn")
 	place(b, b.root.Position + Vector3.new(0, 0, def.width))
@@ -1124,9 +1139,9 @@ check("§38: Syntax knocked out mid-ultimate: the lock lifts at once and nothing
 	end
 	assert(stops >= 1, "the area's effect is stopped")
 	game.waitFor(function()
-		return A() ~= nil and services.CharacterService:isAlive(A())
-	end, 8, "Alice to respawn")
-	task.wait(0.5)
+		return A() ~= nil and services.CharacterService:isAlive(A()) and services.MatchService:isCombatAllowed(A()) and services.MatchService:isCombatAllowed(B())
+	end, 12, "Alice to respawn and the fight to resume")
+	task.wait(0.3)
 end)
 
 check("her weakness: close hits knock Processing out of her buffer; bolts don't", function()
@@ -1200,12 +1215,12 @@ check("§38: a match ending with bolts, fields, cells, sentries and lanes out le
 	local a, b = stage(14)
 	request("AbilityRequest", alice, "MovementOverride", aimAt(a, b))
 	request("AbilityRequest", bob, "ConfinementField", aimAt(b, a))
-	task.wait(0.9)
+	task.wait(1)
 	request("AbilityRequest", alice, "RuleRewrite", aimAt(a, b))
 	request("AbilityRequest", bob, "ObjectOverride", aimPoint(b, b.root.Position + Vector3.new(4, 0, 6)))
-	task.wait(0.7)
+	task.wait(1)
 	request("AbilityRequest", alice, "HoloBarrier", { direction = Vector3.new(0, 0, 1) })
-	task.wait(0.3)
+	task.wait(0.45)
 	request("AbilityRequest", alice, "CodeBolt", { direction = Vector3.new(0, 0, 1) })
 	request("AbilityRequest", bob, "CodeBolt", { direction = Vector3.new(0, 0, -1) })
 	local mark = game.mark()

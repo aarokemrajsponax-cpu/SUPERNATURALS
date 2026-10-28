@@ -36,7 +36,12 @@ Replay.Flags = {
 	Absent = 16,
 	-- Swinging or casting (BusyUntil in the future)
 	Attacking = 32,
+	-- Knocked out: the stand-in lies where the fighter fell
+	Out = 64,
 }
+-- Hits and knockouts this soon after the match is decided still count (the
+-- deciding blow is reported a moment after the finish)
+Replay.FinishGrace = 0.5
 
 -- Viewer (client) -------------------------------------------------------------------
 

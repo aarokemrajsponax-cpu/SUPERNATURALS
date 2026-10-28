@@ -150,6 +150,7 @@ Protocol.ProgressAction = {
 	Welcome = "Welcome", -- the new-player welcome was seen
 	FindLore = "FindLore", -- (fileId) a recovered file was picked up (LoreService)
 	ReadLore = "ReadLore", -- (documentId, page?) a book document was shown (LoreService)
+	SeenHint = "SeenHint", -- (hintId) a one-time hint was shown; remembered in tutorial.done (ReplayService)
 }
 
 -- Client -> server, through Remotes.SettingsRequest: (settings table, sanitized on the server)

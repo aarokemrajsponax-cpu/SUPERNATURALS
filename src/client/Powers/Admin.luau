@@ -430,8 +430,7 @@ local function doorway(kit, floor: Vector3, facing: Vector3, life: number)
 	local lintel = door:add(CFrame.new(0, 0, 0), { Size = Vector3.new(width + 0.16, 0.16, 0.16), Color = GOLD, Transparency = 0 })
 	local sill = door:add(CFrame.new(0, 0.05, 0), { Size = Vector3.new(width + 0.4, 0.06, 0.5), Color = CRIMSON, Transparency = 0.1 })
 	local field = door:add(CFrame.new(0, 0, 0), { Size = Vector3.new(width - 0.2, 0.1, 0.04), Color = WHITE, Transparency = 0.72 })
-	local light = kit.Vfx.glow(field, GOLD, 10, 1.2, life)
-	local _ = light
+	kit.Vfx.glow(field, GOLD, 10, 1.2, life)
 	animate(life, function(t)
 		-- Opens fast, holds, then closes to a bright line
 		local open = easeOut(t / 0.14)
@@ -992,7 +991,7 @@ function fx.SpeedUp(kit)
 	glints(kit, root.Position - UP * 2.5, GOLD, 10, 8)
 	local last = root.Position
 	local stopped = false
-	local stop = animate(duration, function(t)
+	local stop = animate(duration, function()
 		if not root.Parent then
 			return false
 		end
@@ -1011,7 +1010,6 @@ function fx.SpeedUp(kit)
 				kit.Vfx.fade(arm, 0.5, { Transparency = 1 })
 			end
 		end
-		local _ = t
 		return true
 	end, function()
 		stopped = true
@@ -1137,6 +1135,9 @@ function fx.CloneDecoy(kit)
 	local direction = flatUnit(to - from) or flatUnit(vec(data.direction)) or Vector3.new(0, 0, -1)
 	local rotation = CFrame.lookAt(Vector3.zero, direction).Rotation
 	local pieces = {}
+	-- The copies live under one effect part, so they all go together
+	local holder = kit.Vfx.part({ Transparency = 1, Size = Vector3.one * 0.2, CFrame = CFrame.new(from) })
+	Debris:AddItem(holder, run + 1.5)
 	for _, limb in model:GetDescendants() do
 		local accessory = limb:FindFirstAncestorWhichIsA("Accessory")
 		if limb:IsA("BasePart") and limb.Name ~= "HumanoidRootPart" and (limb.Parent == model or accessory) and string.sub(limb.Name, 1, 2) ~= "SN" then
@@ -1152,7 +1153,7 @@ function fx.CloneDecoy(kit)
 			copy.CanTouch = false
 			copy.CastShadow = false
 			copy.Transparency = math.max(limb.Transparency, 0)
-			copy.Parent = kit.Vfx.part({ Transparency = 1, Size = Vector3.one * 0.2 }).Parent
+			copy.Parent = holder
 			local hingeName = HINGE_PART[limb.Name]
 			local hingePart = hingeName and model:FindFirstChild(hingeName)
 			local hinge = CFrame.identity
@@ -1165,6 +1166,7 @@ function fx.CloneDecoy(kit)
 		end
 	end
 	if #pieces == 0 then
+		holder:Destroy()
 		return
 	end
 	local scanline = kit.Vfx.part({ Size = Vector3.new(3, 0.08, 1.4), CFrame = CFrame.new(from), Color = GOLD, Transparency = 1 })
@@ -1173,8 +1175,8 @@ function fx.CloneDecoy(kit)
 	local life = run + 0.45
 	animate(life, function(t)
 		local a = math.clamp(t / run, 0, 1)
-		local travel = 1 - (1 - a) * (1 - a) * 0.15 - (1 - a) * 0.85 * (1 - a)
-		local position = from:Lerp(to, math.clamp(travel, 0, 1))
+		-- Sprints out, eases off at the end of its run
+		local position = from:Lerp(to, 1 - (1 - a) * (1 - a))
 		local stride = math.sin(t * 15)
 		local base = CFrame.new(position + UP * math.abs(math.cos(t * 15)) * 0.25) * rotation * CFrame.Angles(math.rad(-8), 0, 0)
 		local dissolve = math.clamp((t - run) / 0.45, 0, 1)
@@ -1193,9 +1195,7 @@ function fx.CloneDecoy(kit)
 		end
 		return true
 	end, function()
-		for _, piece in pieces do
-			piece.part:Destroy()
-		end
+		holder:Destroy()
 		scanline:Destroy()
 		glints(kit, to, GOLD, 16, 8)
 	end)
@@ -1876,11 +1876,17 @@ local hammers: { [Model]: any } = {}
 
 -- A giant gold hammer: a handle along the group's Y axis with the head at the
 -- top, crimson band, glowing white faces. Built around its grip (the origin).
+-- Grip to head (the server sends its number; this is the fallback)
 local HAMMER_REACH = 7
+-- How high the grip is when the head strikes: the head's face meets the floor
+local GRIP_HEIGHT = 3.35
 
-local function buildHammer(kit)
+local function reachOf(data): number
+	return math.clamp(num(data.reach, HAMMER_REACH), 3, 12)
+end
+
+local function buildHammer(kit, reach: number)
 	local hammer = newGroup(kit)
-	local reach = HAMMER_REACH
 	hammer:add(CFrame.new(0, reach / 2, 0) * CFrame.Angles(0, 0, math.rad(90)), { Shape = Enum.PartType.Cylinder, Size = Vector3.new(reach + 0.6, 0.85, 0.85), Color = GRAPHITE, Material = Enum.Material.Metal, Transparency = 0 })
 	for _, y in { 0.6, reach * 0.45 } do
 		hammer:add(CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(90)), { Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 1.05, 1.05), Color = GOLD, Material = Enum.Material.Metal, Transparency = 0 })
@@ -1900,8 +1906,8 @@ local function buildHammer(kit)
 end
 
 -- Where the hammer's grip stands, and its frame, for a ring at `floor` facing `facing`
-local function hammerFrame(floor: Vector3, facing: Vector3, angle: number): CFrame
-	local grip = floor - facing * HAMMER_REACH + UP * 1.8
+local function hammerFrame(floor: Vector3, facing: Vector3, angle: number, reach: number): CFrame
+	local grip = floor - facing * reach + UP * GRIP_HEIGHT
 	return CFrame.lookAt(grip, grip + facing) * CFrame.Angles(-math.rad(angle), 0, 0)
 end
 
@@ -1914,7 +1920,11 @@ function fx.BanHammerWindup(kit)
 	local radius = math.clamp(num(data.radius, 10), 1, 30)
 	local pullRadius = math.clamp(num(data.pullRadius, 18), radius, 40)
 	local startup = math.clamp(num(data.startup, 1.5), 0.1, 4)
-	local facing = (kit.root and flatUnit(floor - kit.root.Position)) or (kit.root and flatUnit(kit.root.CFrame.LookVector)) or Vector3.new(0, 0, -1)
+	-- The swing line comes from the server so every screen draws the same hammer
+	local facing = flatUnit(vec(data.facing))
+		or (kit.root and flatUnit(floor - kit.root.Position))
+		or (kit.root and flatUnit(kit.root.CFrame.LookVector))
+		or Vector3.new(0, 0, -1)
 	-- The verdict ring (exactly the hit radius), the pull ring, inward chevrons
 	local verdict = newGroup(kit)
 	addRing(verdict, radius, 0.07, 0.34, CRIMSON_HOT, 0, 40)
@@ -1932,8 +1942,9 @@ function fx.BanHammerWindup(kit)
 			chevrons:add(CFrame.Angles(0, angle, 0) * CFrame.new(side * 0.45, 0.07, 0) * CFrame.Angles(0, side * math.rad(40), 0), { Size = Vector3.new(0.16, 0.05, 1.3), Color = CRIMSON_HOT, Transparency = 0.15 })
 		end
 	end
-	local hammer = buildHammer(kit)
-	local slot = { hammer = hammer, floor = floor, facing = facing, angle = -10, taken = false }
+	local reach = reachOf(data)
+	local hammer = buildHammer(kit, reach)
+	local slot = { hammer = hammer, floor = floor, facing = facing, reach = reach, angle = -10, taken = false }
 	if kit.model then
 		hammers[kit.model] = slot
 	end
@@ -1961,7 +1972,7 @@ function fx.BanHammerWindup(kit)
 		-- The hammer forms out of the light, then cocks back
 		if not slot.taken then
 			slot.angle = -10 - 32 * easeOut(a)
-			hammer:place(hammerFrame(floor, facing, slot.angle) * CFrame.new(0, 2 + 3 * easeOut(a), 0))
+			hammer:place(hammerFrame(floor, facing, slot.angle, reach) * CFrame.new(0, 2 + 3 * easeOut(a), 0))
 			hammer:alpha(easeOut(t / 0.6))
 		end
 		light.Brightness = 1.5 * a
@@ -1997,20 +2008,24 @@ function fx.BanHammerSlam(kit)
 	if kit.model then
 		hammers[kit.model] = nil
 	end
-	local facing = (slot and slot.facing) or (kit.root and flatUnit(kit.root.CFrame.LookVector)) or Vector3.new(0, 0, -1)
+	local facing = (slot and slot.facing)
+		or flatUnit(vec(data.facing))
+		or (kit.root and flatUnit(kit.root.CFrame.LookVector))
+		or Vector3.new(0, 0, -1)
+	local reach = if slot then slot.reach else reachOf(data)
 	local hammer = slot and slot.hammer
 	local fromAngle = if slot then slot.angle else -40
 	if slot then
 		slot.taken = true
 	else
-		hammer = buildHammer(kit)
+		hammer = buildHammer(kit, reach)
 	end
 	-- The swing: accelerating into the floor, then a beat of weight, then light
 	animate(0.75, function(t)
 		local swing = easeIn(t / 0.09)
 		local angle = fromAngle + (90 - fromAngle) * swing
 		local lift = if slot then 5 * (1 - swing) else 0
-		hammer:place(hammerFrame(floor, facing, angle) * CFrame.new(0, 2 + lift - 2 * swing, 0))
+		hammer:place(hammerFrame(floor, facing, angle, reach) * CFrame.new(0, 2 + lift - 2 * swing, 0))
 		if t > 0.35 then
 			hammer:alpha(1 - (t - 0.35) / 0.4)
 		end
@@ -2136,7 +2151,8 @@ function Admin.appearance(kit)
 	regalia.Name = "SNAdminRegalia"
 	regalia.Parent = model
 	local connections: { RBXScriptConnection } = {}
-	local spinners: { { weld: Weld, offset: CFrame, speed: number } } = {}
+	-- Turning pieces: the back sigil turns in its own plane (Z), the crown around the head (Y)
+	local spinners: { { weld: Weld, offset: CFrame, speed: number, axis: string } } = {}
 
 	-- Gold cuffs with a crimson inlay at both wrists
 	for _, name in { "RightLowerArm", "LeftLowerArm", "Right Arm", "Left Arm" } do
@@ -2165,7 +2181,7 @@ function Admin.appearance(kit)
 	if degree >= 2 then
 		hubRing(regalia, sigil, 1.12, 8, Vector3.new(0.08, 0.22, 0.05), CRIMSON, Enum.Material.Neon, 0.15)
 	end
-	table.insert(spinners, { weld = sigilWeld, offset = back, speed = 0.6 })
+	table.insert(spinners, { weld = sigilWeld, offset = back, speed = 0.6, axis = "Z" })
 
 	-- Degree 2: gold epaulettes with a crimson edge
 	if degree >= 2 then
@@ -2210,7 +2226,7 @@ function Admin.appearance(kit)
 			motes.Rate = 3
 			motes.Parent = crown
 		end
-		table.insert(spinners, { weld = crownWeld, offset = crownOffset, speed = 0.45 })
+		table.insert(spinners, { weld = crownWeld, offset = crownOffset, speed = 0.45, axis = "Y" })
 	end
 
 	-- Base looks, so hiding and showing restores them exactly
@@ -2235,7 +2251,8 @@ function Admin.appearance(kit)
 		spin += dt
 		for _, spinner in spinners do
 			if spinner.weld.Parent then
-				spinner.weld.C0 = spinner.offset * CFrame.Angles(0, if spinner.offset.Y > 0.5 and spinner.offset.Z == 0 then spin * spinner.speed else 0, if spinner.offset.Z ~= 0 then spin * spinner.speed else 0)
+				local angle = spin * spinner.speed
+				spinner.weld.C0 = spinner.offset * (if spinner.axis == "Y" then CFrame.Angles(0, angle, 0) else CFrame.Angles(0, 0, angle))
 			end
 		end
 	end))

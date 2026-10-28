@@ -12,7 +12,6 @@
 -- power's attribute, server changes made while hidden are kept, and the animal
 -- fades whenever the body would.
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -42,10 +41,6 @@ local LOOK_NAME = "SNShapeLook"
 local SMOKE = "rbxasset://textures/particles/smoke_main.dds"
 local SPARK = "rbxasset://textures/particles/sparkles_main.dds"
 local FIRE = "rbxasset://textures/particles/fire_main.dds"
-
-local function now(): number
-	return workspace:GetServerTimeNow()
-end
 
 local function num(value: any, default: number): number
 	return if typeof(value) == "number" and value == value and math.abs(value) < 1e6 then value else default
@@ -124,13 +119,13 @@ local PALETTES: { [string]: { [string]: any } } = {
 	},
 	Hawk = { base = rgb(140, 96, 60), dark = rgb(86, 58, 38), light = rgb(226, 208, 176), beak = rgb(96, 90, 84), cere = rgb(228, 186, 72), eye = rgb(32, 24, 20), feet = rgb(222, 184, 80), claw = rgb(36, 32, 30), material = FUR },
 	Eagle = { base = rgb(98, 70, 48), dark = rgb(64, 46, 32), light = rgb(236, 232, 222), beak = rgb(232, 180, 58), cere = rgb(232, 190, 70), eye = rgb(40, 30, 18), feet = rgb(232, 186, 66), claw = rgb(34, 30, 28), material = FUR, whiteHead = true },
-	StormEagle = { base = rgb(88, 98, 120), dark = rgb(58, 64, 82), light = rgb(198, 208, 224), beak = rgb(172, 178, 190), cere = rgb(150, 160, 178), eye = rgb(170, 214, 255), feet = rgb(150, 156, 168), claw = rgb(30, 32, 38), glow = STORM, material = FUR, whiteHead = true, glowEyes = true },
+	StormEagle = { base = rgb(104, 114, 136), dark = rgb(70, 78, 98), light = rgb(198, 208, 224), beak = rgb(172, 178, 190), cere = rgb(150, 160, 178), eye = rgb(170, 214, 255), feet = rgb(150, 156, 168), claw = rgb(30, 32, 38), glow = STORM, material = FUR, whiteHead = true, glowEyes = true },
 	Phoenix = { base = rgb(206, 78, 32), dark = rgb(136, 36, 22), light = rgb(255, 184, 84), beak = rgb(255, 214, 150), cere = rgb(255, 200, 110), eye = rgb(255, 236, 170), feet = rgb(150, 50, 26), claw = rgb(60, 24, 18), glow = FLAME, material = SMOOTH, glowEyes = true },
 	Bear = { base = rgb(120, 86, 56), dark = rgb(80, 58, 40), light = rgb(166, 132, 96), eye = rgb(24, 18, 14), nose = rgb(26, 22, 20), claw = rgb(206, 196, 176), material = FUR },
 	DireBear = { base = rgb(104, 86, 68), dark = rgb(68, 54, 42), light = rgb(176, 160, 138), eye = rgb(30, 20, 14), nose = rgb(24, 20, 18), claw = rgb(222, 212, 192), material = FUR, grizzled = true },
-	MythicBear = { base = rgb(84, 68, 56), dark = rgb(56, 44, 36), light = rgb(128, 106, 86), eye = rgb(255, 190, 100), nose = rgb(22, 18, 16), claw = rgb(230, 214, 180), glow = AMBER, material = FUR, glowEyes = true, grizzled = true },
+	MythicBear = { base = rgb(96, 76, 60), dark = rgb(62, 48, 38), light = rgb(140, 116, 92), eye = rgb(255, 190, 100), nose = rgb(22, 18, 16), claw = rgb(230, 214, 180), glow = AMBER, material = FUR, glowEyes = true, grizzled = true },
 	Cheetah = { base = rgb(206, 162, 94), dark = rgb(42, 34, 28), light = rgb(238, 224, 194), eye = rgb(214, 166, 60), nose = rgb(44, 32, 28), claw = rgb(70, 60, 50), material = FUR, spots = true },
-	Panther = { base = rgb(52, 51, 58), dark = rgb(34, 34, 38), light = rgb(80, 78, 86), eye = rgb(196, 206, 74), nose = rgb(24, 24, 26), claw = rgb(70, 68, 70), material = SMOOTH, rosettes = true },
+	Panther = { base = rgb(60, 58, 66), dark = rgb(38, 37, 42), light = rgb(88, 86, 94), eye = rgb(196, 206, 74), nose = rgb(24, 24, 26), claw = rgb(70, 68, 70), material = SMOOTH, rosettes = true },
 	Crocodile = { base = rgb(104, 116, 70), dark = rgb(68, 78, 48), light = rgb(186, 174, 122), eye = rgb(206, 190, 76), teeth = rgb(228, 222, 200), nose = rgb(40, 46, 30), claw = rgb(44, 48, 34), material = Enum.Material.Slate },
 }
 
@@ -480,9 +475,10 @@ end
 
 -- A glowing rune laid flat on a sphere's surface: a few short strokes
 local RUNES = {
-	{ { 0, 0, 0.5, 0 }, { 0.12, 0.14, 0.32, 40 }, { 0.12, -0.08, 0.3, -40 } },
-	{ { -0.1, 0, 0.5, 0 }, { 0.1, 0, 0.5, 0 }, { 0, 0.05, 0.3, 90 } },
-	{ { 0, 0, 0.55, 0 }, { 0, 0.1, 0.34, 55 }, { 0, -0.1, 0.34, -55 } },
+	-- Algiz, Tiwaz and Sowilo: old runes of protection, victory and the sun
+	{ { 0, 0, 0.55, 0 }, { -0.09, 0.14, 0.3, 35 }, { 0.09, 0.14, 0.3, -35 } },
+	{ { 0, -0.04, 0.55, 0 }, { -0.08, 0.17, 0.26, -50 }, { 0.08, 0.17, 0.26, 50 } },
+	{ { -0.08, 0.14, 0.26, -40 }, { 0, 0, 0.3, 40 }, { 0.08, -0.14, 0.26, -40 } },
 }
 local function rune(rig, boneName: string, center: Vector3, radius: number, direction: Vector3, glyph: number, size: number)
 	local normal = direction.Unit
@@ -590,10 +586,10 @@ local function buildBear(rig)
 	rig:piece("Jaw", "Block", Vector3.new(0.5, 0.06, 0.6), CFrame.new(0, 0.14, -0.5), rgb(140, 64, 60), { material = SMOOTH })
 
 	local claws = if rig.id == "Bear" then 0.3 else 0.42
-	local front = { top = 1.25, topY = 0.1, upper = 1.4, upperD = 0.95, knee = 1.4, lower = 0.95, lowerD = 0.82, ankle = 0.92, paw = Vector3.new(0.98, 0.38, 1.15), toes = 4, claws = claws, low = "dark", pawTone = "dark" }
+	local front = { top = 1.25, topY = 0.1, upper = 1.4, upperD = 0.95, knee = 1.4, lower = 0.95, lowerD = 0.82, ankle = 0.92, paw = Vector3.new(0.98, 0.38, 1.15), toes = 4, claws = claws, low = "base", pawTone = "dark" }
 	leg(rig, "LegFL", "Body", Vector3.new(-0.9, -0.55, -1.3), front)
 	leg(rig, "LegFR", "Body", Vector3.new(0.9, -0.55, -1.3), front)
-	local back = { top = 1.55, topY = -0.1, topZ = 0.1, upper = 1.6, upperD = 0.95, upperZ = 0.08, knee = 1.6, kneeZ = 0.12, lower = 0.95, lowerD = 0.8, ankle = 0.92, paw = Vector3.new(0.95, 0.38, 1.2), toes = 4, claws = claws * 0.7, low = "dark", pawTone = "dark" }
+	local back = { top = 1.55, topY = -0.1, topZ = 0.1, upper = 1.6, upperD = 0.95, upperZ = 0.08, knee = 1.6, kneeZ = 0.12, lower = 0.95, lowerD = 0.8, ankle = 0.92, paw = Vector3.new(0.95, 0.38, 1.2), toes = 4, claws = claws * 0.7, low = "base", pawTone = "dark" }
 	leg(rig, "LegBL", "Body", Vector3.new(-0.95, -0.35, 1.45), back)
 	leg(rig, "LegBR", "Body", Vector3.new(0.95, -0.35, 1.45), back)
 
@@ -1115,7 +1111,7 @@ local function poseBird(rig, dt: number)
 	local wingYaw = lerp(0, 78, fold)
 	local wingTilt = lerp(0, 72, fold)
 	-- Folded wingtips lift to cross over the tail instead of dragging
-	local handYaw = lerp(0, -26, fold)
+	local handYaw = lerp(0, -14, fold)
 	local dihedral = 6 * spread
 	local name, u = actionOf(rig)
 	if name then
@@ -1732,7 +1728,8 @@ function Shape.onCast(kit)
 end
 
 Shape.predict = {}
-for abilityId, ability in Powers.get(POWER).abilities do
+local definition = Powers.get(POWER) :: any
+for abilityId, ability in definition.abilities do
 	if not ability.basicOnly then
 		Shape.predict[abilityId] = castAction
 	end

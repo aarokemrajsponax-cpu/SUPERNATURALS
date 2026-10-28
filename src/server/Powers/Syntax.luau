@@ -194,7 +194,7 @@ end
 
 local function objectPosition(object: Instance): Vector3?
 	if object:IsA("BasePart") then
-		return object.Position
+		return object.CFrame.Position
 	elseif object:IsA("Model") then
 		return object:GetPivot().Position
 	end
@@ -1014,11 +1014,12 @@ function abilities.SystemOverride(ctx)
 	ctx:telegraph(ctx:inSphere(center, def.radius + 4, 14), impactAt)
 	local sealed = {}
 	local struck = false
-	-- If she's knocked out of it, the area is handed back at once
-	ctx:onCleanup(function()
+	-- If she's knocked out of it (or the match ends), the area is handed back at once
+	local function handBack()
 		if struck then
 			return
 		end
+		struck = true
 		stopFx()
 		for _, target in sealed do
 			local status = services.StatusService:get(target, "Sealed")
@@ -1026,7 +1027,9 @@ function abilities.SystemOverride(ctx)
 				services.StatusService:remove(target, "Sealed")
 			end
 		end
-	end)
+	end
+	ctx:own(handBack)
+	ctx:onCleanup(handBack)
 	if not ctx:wait(def.claimAt) then
 		ctx:fx("OverrideFizzle", { position = center })
 		return
@@ -1039,7 +1042,7 @@ function abilities.SystemOverride(ctx)
 		table.insert(models, target.model)
 	end
 	ctx:fx("OverrideClaim", { position = center, radius = def.radius, lock = def.lock, targets = models })
-	if not ctx:waitActive() then
+	if not ctx:waitActive() or struck then
 		ctx:fx("OverrideFizzle", { position = center })
 		return
 	end
