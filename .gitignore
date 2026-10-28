@@ -1,0 +1,7 @@
+# Rojo
+/*.rbxl
+/*.rbxlx
+/*.lock
+sourcemap.json
+/rojo.exe
+/build

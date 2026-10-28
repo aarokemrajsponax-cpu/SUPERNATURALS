@@ -1,0 +1,186 @@
+{
+  "name": "SUPERNATURALS",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "EnableMouseLockOption": false
+      },
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      },
+      "StarterCharacterScripts": {
+        "$path": "src/character"
+      }
+    },
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "CombatRequest": {
+          "$className": "RemoteEvent"
+        },
+        "CombatEvent": {
+          "$className": "RemoteEvent"
+        },
+        "MatchRequest": {
+          "$className": "RemoteEvent"
+        },
+        "MatchEvent": {
+          "$className": "RemoteEvent"
+        },
+        "AdminRequest": {
+          "$className": "RemoteEvent"
+        },
+        "AdminEvent": {
+          "$className": "RemoteEvent"
+        },
+        "AbilityRequest": {
+          "$className": "RemoteEvent"
+        },
+        "AbilityEvent": {
+          "$className": "RemoteEvent"
+        },
+        "DefenseInput": {
+          "$className": "RemoteEvent"
+        },
+        "DefenseEvent": {
+          "$className": "RemoteEvent"
+        },
+        "PowerRequest": {
+          "$className": "RemoteEvent"
+        },
+        "DataEvent": {
+          "$className": "RemoteEvent"
+        },
+        "ShopRequest": {
+          "$className": "RemoteEvent"
+        },
+        "BaseRequest": {
+          "$className": "RemoteEvent"
+        },
+        "BaseEvent": {
+          "$className": "RemoteEvent"
+        },
+        "ProgressRequest": {
+          "$className": "RemoteEvent"
+        },
+        "SettingsRequest": {
+          "$className": "RemoteEvent"
+        }
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "Brightness": 2.1,
+        "ClockTime": 16.1,
+        "GeographicLatitude": 35,
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.2,
+        "Ambient": [
+          0.16,
+          0.17,
+          0.19
+        ],
+        "OutdoorAmbient": [
+          0.4,
+          0.43,
+          0.48
+        ],
+        "ExposureCompensation": -0.12,
+        "ColorShift_Top": [
+          0.12,
+          0.08,
+          0.03
+        ],
+        "ColorShift_Bottom": [
+          0.02,
+          0.03,
+          0.04
+        ]
+      },
+      "NexusAtmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.3,
+          "Offset": 0.22,
+          "Color": [
+            0.78,
+            0.82,
+            0.86
+          ],
+          "Decay": [
+            0.56,
+            0.63,
+            0.7
+          ],
+          "Glare": 0.12,
+          "Haze": 1.1
+        }
+      },
+      "NexusBloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.4,
+          "Size": 24,
+          "Threshold": 1.85
+        }
+      },
+      "NexusSunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": {
+          "Intensity": 0.04,
+          "Spread": 0.6
+        }
+      },
+      "NexusGrade": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.0,
+          "Contrast": 0.08,
+          "Saturation": 0.04,
+          "TintColor": [
+            1.0,
+            0.975,
+            0.94
+          ]
+        }
+      },
+      "NexusDepth": {
+        "$className": "DepthOfFieldEffect",
+        "$properties": {
+          "FarIntensity": 0.12,
+          "FocusDistance": 60,
+          "InFocusRadius": 140,
+          "NearIntensity": 0
+        }
+      },
+      "NexusSky": {
+        "$className": "Sky",
+        "$properties": {
+          "SunAngularSize": 11,
+          "MoonAngularSize": 10,
+          "StarCount": 3000,
+          "CelestialBodiesShown": true
+        }
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false
+      }
+    }
+  }
+}
