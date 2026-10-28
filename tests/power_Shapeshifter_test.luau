@@ -14,6 +14,7 @@
 
 local fs = require("@lune/fs")
 local process = require("@lune/process")
+local roblox = require("@lune/roblox")
 
 local World = require("./smoke/World")
 
@@ -977,7 +978,7 @@ check("every animal's body, movement, transformations and effects run on the cli
 	-- Free-standing bodies in every pose (spirits, previews)
 	for animalId in client.Animals do
 		for _, pose in { "Bite", "Maul", "Crouch", "Leap", "Rear", "Slam", "Roll", "Flinch", "Howl", "Gape", "Talon", "Dive", "Rise", "Nova", "Snap" } do
-			local spirit = client.build(animalId, { mode = "Anchored", frame = CFrame.new(0, 3, 10), parent = world.workspace, ghost = Color3.new(1, 0.7, 0.3) })
+			local spirit = client.build(animalId, { mode = "Anchored", frame = CFrame.new(0, 3, 10), parent = world.workspace, ghost = roblox.Color3.new(1, 0.7, 0.3) })
 			client.still(spirit, pose, 0.4, 12, pose == "Dive")
 			spirit:destroy()
 		end

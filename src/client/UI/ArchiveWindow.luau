@@ -66,28 +66,39 @@ local CONFIG = {
 	Row = 44,
 }
 
--- A small, warm palette: paper, inks, leather and one red for stamps and labels
+-- The Sanctum palette (docs/ArtDirection.md): ivory paper, warm inks, dark
+-- leather, patinated bronze and lapis, with gold leaf kept for one detail.
+-- Red appears only as ink on the documents themselves (rubber stamps).
 local C = {
-	Paper = rgb(239, 230, 210),
-	PaperCream = rgb(243, 232, 205),
-	PaperWhite = rgb(237, 234, 225),
-	PaperLined = rgb(240, 233, 216),
-	Manila = rgb(222, 199, 152),
-	Slip = rgb(234, 216, 157),
-	Sheet = rgb(246, 241, 229),
-	Endpaper = rgb(50, 57, 53),
-	Edge = rgb(214, 202, 177),
-	Ink = rgb(43, 37, 33),
-	InkSoft = rgb(104, 92, 79),
-	InkFaded = rgb(148, 134, 116),
+	Paper = rgb(236, 229, 213),
+	PaperCream = rgb(240, 230, 207),
+	PaperWhite = rgb(238, 235, 227),
+	PaperLined = rgb(237, 231, 216),
+	Manila = rgb(221, 199, 153),
+	Slip = rgb(233, 215, 158),
+	Sheet = rgb(245, 241, 231),
+	Endpaper = rgb(31, 43, 74),
+	Edge = rgb(214, 205, 186),
+	Ink = rgb(43, 38, 33),
+	InkSoft = rgb(102, 92, 80),
+	InkFaded = rgb(138, 126, 110),
 	InkBlue = rgb(33, 45, 82),
 	InkType = rgb(42, 40, 42),
 	Pencil = rgb(82, 81, 84),
-	Red = rgb(158, 44, 38),
-	Ribbon = rgb(118, 30, 33),
-	Leather = rgb(66, 39, 31),
-	LeatherDark = rgb(36, 22, 18),
-	Gold = rgb(178, 146, 92),
+	Red = rgb(168, 68, 58),
+	Bronze = rgb(140, 106, 63),
+	BronzeLight = rgb(181, 139, 79),
+	BronzeInk = rgb(118, 88, 50),
+	GoldLeaf = rgb(217, 178, 95),
+	Ivory = rgb(237, 230, 214),
+	IvorySoft = rgb(185, 176, 160),
+	IvoryFaint = rgb(142, 134, 118),
+	Graphite = rgb(26, 24, 20),
+	Accent = rgb(201, 164, 92),
+	Ribbon = rgb(31, 43, 74),
+	Leather = rgb(56, 38, 29),
+	LeatherDark = rgb(30, 21, 17),
+	Gold = rgb(140, 106, 63),
 	Redact = rgb(22, 19, 17),
 	Terminal = rgb(18, 20, 17),
 	Amber = rgb(240, 172, 78),
@@ -100,8 +111,7 @@ local C = {
 	BlueRed = rgb(226, 86, 70),
 	Rule = rgb(146, 168, 196),
 	Margin = rgb(198, 112, 104),
-	BarText = rgb(232, 222, 202),
-	Shadow = rgb(8, 6, 5),
+	Shadow = rgb(10, 9, 8),
 }
 
 local function shade(color: Color3, factor: number): Color3
@@ -161,9 +171,27 @@ local function typeface(name: string, weight: Enum.FontWeight?, style: Enum.Font
 	}
 end
 
+-- A face from an Enum.Font's family (Accanthis is "Bodoni" in Enum.Font)
+local function enumTypeface(enumName: string, weight: Enum.FontWeight?, style: Enum.FontStyle?, bar: number): Typeface
+	local enum = fontEnum(enumName)
+	local ok, base = pcall(Font.fromEnum, enum)
+	local family = if ok and base then base.Family else "rbxasset://fonts/families/BuilderSans.json"
+	return {
+		face = Font.new(family, weight or Enum.FontWeight.Regular, style or Enum.FontStyle.Normal),
+		enum = enum,
+		bar = bar,
+		mono = false,
+	}
+end
+
 local Bold, Italic, Medium = Enum.FontWeight.Bold, Enum.FontStyle.Italic, Enum.FontWeight.Medium
 
 local TYPE = {
+	-- Chapter titles and display capitals
+	Display = enumTypeface("Bodoni", nil, nil, 0.6),
+	-- Interface labels (the controls under the book)
+	Ui = { face = Theme.Faces.SemiBold, enum = fontEnum("BuilderSansMedium"), bar = 0.6, mono = false },
+	UiBold = { face = Theme.Faces.Bold, enum = fontEnum("BuilderSansBold"), bar = 0.6, mono = false },
 	Serif = typeface("Merriweather", nil, nil, 0.6),
 	SerifItalic = typeface("Merriweather", nil, Italic, 0.6),
 	SerifBold = typeface("Merriweather", Bold, nil, 0.6),
@@ -469,20 +497,20 @@ local KINDS: { [string]: { [string]: any } } = {
 	},
 	journal = {
 		paper = C.PaperLined, body = TYPE.Serif, size = 16, lead = 1.5, color = C.Ink, gap = 0, indent = 22,
-		heading = TYPE.SerifBoldItalic, headingSize = 14, headingColor = C.Red, ruled = true,
+		heading = TYPE.SerifBoldItalic, headingSize = 15, headingColor = C.BronzeInk, ruled = true,
 	},
 	memo = {
 		paper = C.PaperWhite, body = TYPE.Type, size = 14, lead = 1.55, color = C.InkType, gap = 0.6,
-		heading = TYPE.Type, linesSize = 12.5, linesColor = C.InkType,
+		heading = TYPE.Type, linesSize = 14, linesColor = C.InkType,
 		stamp = { "MERIDIAN INSTITUTE", "INTERNAL" },
 	},
 	dossier = {
 		paper = C.Manila, body = TYPE.Serif, size = 15, lead = 1.55, color = C.Ink, gap = 0.5,
-		heading = TYPE.Sci, headingSize = 11, headingColor = C.Ink, headingRule = true, headingUpper = true,
+		heading = TYPE.Sci, headingSize = 14, headingColor = C.Ink, headingRule = true, headingUpper = true,
 		clip = true, tab = "SUBJECT REGISTRY",
 	},
 	log = {
-		paper = C.Paper, body = TYPE.Mono, size = 13, lead = 1.45, color = C.Amber, gap = 0.6,
+		paper = C.Paper, body = TYPE.Mono, size = 14, lead = 1.42, color = C.Amber, gap = 0.6,
 		heading = TYPE.MonoBold, headingColor = C.Amber, panel = "terminal", inset = { 18, 36, 18, 26 },
 	},
 	transcript = {
@@ -491,7 +519,7 @@ local KINDS: { [string]: { [string]: any } } = {
 	},
 	report = {
 		paper = C.PaperWhite, body = TYPE.Type, size = 14, lead = 1.55, color = C.InkType, gap = 0.6,
-		heading = TYPE.Type, linesSize = 12, linesColor = C.InkType,
+		heading = TYPE.Type, linesSize = 14, linesColor = C.InkType,
 		stamp = { "CLASSIFIED", "MERIDIAN STATION" },
 	},
 	note = {
@@ -740,13 +768,13 @@ end
 local function titleBlock(canvas: Instance, at: Vector2, lines: { string })
 	local width = 0
 	for _, text in lines do
-		width = math.max(width, measure(text, TYPE.Mono, 9))
+		width = math.max(width, measure(text, TYPE.Mono, 14))
 	end
-	local frame = fill(canvas, at.X, at.Y, math.ceil(width) + 16, 8 + #lines * 12, C.Blueprint, 0)
+	local frame = fill(canvas, at.X, at.Y, math.ceil(width) + 18, 8 + #lines * 17, C.Blueprint, 0)
 	frame.Name = "TitleBlock"
 	make("UIStroke", { Color = C.BlueLine, Thickness = 1, Transparency = 0.3, Parent = frame })
 	for index, text in lines do
-		figureText(frame, text, Vector2.new(6, 10 + (index - 1) * 12), TYPE.Mono, 9, C.BlueLine, "Left", 0.1)
+		figureText(frame, text, Vector2.new(6, 12 + (index - 1) * 17), TYPE.Mono, 14, C.BlueLine, "Left", 0.1)
 	end
 end
 
@@ -806,10 +834,10 @@ FIGURES.valley_sketch = function(canvas, w, h, rng)
 
 	-- His labels
 	local hand = TYPE.Hand
-	figureText(canvas, "W. rim, looking east", P(0.015, 0.05), hand, 12, ink, "Left", 0.2)
-	figureText(canvas, "rim (glassed)", P(0.01, 0.42), hand, 13, ink, "Left", 0.1)
+	figureText(canvas, "W. rim, looking east", P(0.015, 0.05), hand, 14, ink, "Left", 0.2)
+	figureText(canvas, "rim (glassed)", P(0.01, 0.42), hand, 14, ink, "Left", 0.1)
 	sketch(canvas, spline({ P(0.1, 0.46), P(0.14, 0.49), P(0.175, 0.5) }, 3), rng, ink, { passes = 1, thickness = 1, alpha = 0.35 })
-	figureText(canvas, "object", P(0.8, 0.41), hand, 13, ink, "Left", 0.1)
+	figureText(canvas, "object", P(0.8, 0.41), hand, 14, ink, "Left", 0.1)
 	local tip = at(7, -2)
 	sketch(canvas, spline({ P(0.79, 0.44), P(0.68, 0.47), P(0.6, 0.52), tip }, 3), rng, ink, { passes = 1, thickness = 1, alpha = 0.32 })
 	stroke(canvas, tip, tip + Vector2.new(6, -1), 1, ink, 0.32)
@@ -821,7 +849,7 @@ FIGURES.valley_sketch = function(canvas, w, h, rng)
 	sketch(canvas, { Vector2.new(w / 2 + half, y), Vector2.new(right, y) }, rng, ink, { passes = 1, alpha = 0.35, thickness = 1 })
 	stroke(canvas, Vector2.new(left, y - 5), Vector2.new(left, y + 5), 1, ink, 0.35)
 	stroke(canvas, Vector2.new(right, y - 5), Vector2.new(right, y + 5), 1, ink, 0.35)
-	figureText(canvas, "40 m", Vector2.new(w / 2, y), hand, 13, ink, "Center", 0.1)
+	figureText(canvas, "40 m", Vector2.new(w / 2, y), hand, 14, ink, "Center", 0.1)
 end
 
 -- The tune, on a hand-ruled stave: four notes rising, one falling, a rest
@@ -862,7 +890,7 @@ FIGURES.tune = function(canvas, w, h, rng)
 		local sx = if up then x + gap * 0.58 else x - gap * 0.58
 		local reach = if up then -gap * 3.3 else gap * 3.3
 		sketch(canvas, { Vector2.new(sx, y), Vector2.new(sx + 0.5, y + reach) }, rng, ink, { passes = 1, thickness = 1.2, alpha = 0.25, jitter = 0.3 })
-		figureText(canvas, tostring(index), Vector2.new(x, bottom + gap * 1.8), TYPE.Hand, 12, ink, "Center", 0.3)
+		figureText(canvas, tostring(index), Vector2.new(x, bottom + gap * 1.8), TYPE.Hand, 14, ink, "Center", 0.3)
 	end
 	-- the rest, a hand-drawn zigzag
 	local rx, ry = w * 0.82, bottom - 2 * gap
@@ -874,7 +902,7 @@ FIGURES.tune = function(canvas, w, h, rng)
 		Vector2.new(rx - 2, ry + gap * 0.9),
 		Vector2.new(rx + 1, ry + gap * 1.5),
 	}, rng, ink, { thickness = 2, alpha = 0.2, jitter = 0.3 })
-	figureText(canvas, "rest", Vector2.new(rx, bottom + gap * 1.8), TYPE.Hand, 12, ink, "Center", 0.3)
+	figureText(canvas, "rest", Vector2.new(rx, bottom + gap * 1.8), TYPE.Hand, 14, ink, "Center", 0.3)
 end
 
 -- Growth against distance from the Lantern
@@ -890,10 +918,10 @@ FIGURES.exposure_chart = function(canvas, w, h, rng)
 	for _, tick in { { 0.22, "1 m" }, { 0.45, "3 m" }, { 0.85, "10 m" } } do
 		local p = P(tick[1] :: number, 0.78)
 		stroke(canvas, p, p + Vector2.new(0, 5), 1.2, line, 0.1)
-		figureText(canvas, tick[2] :: string, p + Vector2.new(0, 14), TYPE.Mono, 10, line, "Center", 0.05)
+		figureText(canvas, tick[2] :: string, p + Vector2.new(0, 14), TYPE.Mono, 14, line, "Center", 0.05)
 	end
-	figureText(canvas, "DISTANCE FROM THE LANTERN", P(0.54, 0.93), TYPE.Mono, 9, line, "Center", 0.3)
-	figureText(canvas, "GROWTH", P(0.07, 0.44), TYPE.Mono, 9, line, "Center", 0.3, -90)
+	figureText(canvas, "DISTANCE FROM THE LANTERN", P(0.54, 0.93), TYPE.Mono, 14, line, "Center", 0.3)
+	figureText(canvas, "GROWTH", P(0.07, 0.44), TYPE.Mono, 14, line, "Center", 0.3, -90)
 	local curve = spline({
 		P(0.17, 0.12), P(0.205, 0.17), P(0.22, 0.25), P(0.25, 0.43), P(0.3, 0.5), P(0.35, 0.46),
 		P(0.4, 0.55), P(0.45, 0.6), P(0.6, 0.67), P(0.85, 0.71), P(0.92, 0.715),
@@ -941,13 +969,13 @@ FIGURES.garden_plan = function(canvas, w, h, rng)
 		local y = pond.Y + k * 8
 		polyline(canvas, { Vector2.new(pond.X - 14, y), Vector2.new(pond.X - 7, y - 2), Vector2.new(pond.X, y), Vector2.new(pond.X + 7, y - 2), Vector2.new(pond.X + 14, y) }, 1, line, 0.5)
 	end
-	figureText(canvas, "POND", pond + Vector2.new(0, 0.2 * h), TYPE.Mono, 9, line, "Center", 0.2)
+	figureText(canvas, "POND", pond + Vector2.new(0, 0.2 * h), TYPE.Mono, 14, line, "Center", 0.2)
 
 	-- the Lantern at the centre
 	local lantern = P(0.43, 0.48)
 	ring(canvas, lantern, 12, 1.4, line, 0)
 	polyline(canvas, { lantern + Vector2.new(0, -6), lantern + Vector2.new(4, 0), lantern + Vector2.new(0, 6), lantern + Vector2.new(-4, 0) }, 1.2, line, 0, true)
-	figureText(canvas, "LANTERN", lantern + Vector2.new(0, 22), TYPE.Mono, 9, line, "Center", 0.1)
+	figureText(canvas, "LANTERN", lantern + Vector2.new(0, 22), TYPE.Mono, 14, line, "Center", 0.1)
 
 	-- paths (dashed)
 	local function dashed(points: { Vector2 })
@@ -958,7 +986,7 @@ FIGURES.garden_plan = function(canvas, w, h, rng)
 	end
 	dashed({ P(0.41, 0.92), P(0.37, 0.8), P(0.44, 0.68), P(0.43, 0.56) })
 	dashed({ P(0.76, 0.4), P(0.66, 0.34), P(0.57, 0.44), P(0.47, 0.47) })
-	figureText(canvas, "EAST PATH", P(0.66, 0.28), TYPE.Mono, 8, line, "Center", 0.3)
+	figureText(canvas, "EAST PATH", P(0.66, 0.28), TYPE.Mono, 14, line, "Center", 0.3)
 
 	-- trees
 	local placed = 0
@@ -988,10 +1016,10 @@ FIGURES.garden_plan = function(canvas, w, h, rng)
 	local north = P(0.88, 0.2)
 	stroke(canvas, north + Vector2.new(0, 14), north + Vector2.new(0, -14), 1.4, line, 0.05)
 	polyline(canvas, { north + Vector2.new(-5, -6), north + Vector2.new(0, -14), north + Vector2.new(5, -6) }, 1.4, line, 0.05)
-	figureText(canvas, "N", north + Vector2.new(0, -24), TYPE.Mono, 10, line, "Center", 0)
+	figureText(canvas, "N", north + Vector2.new(0, -24), TYPE.Mono, 14, line, "Center", 0)
 	local legend = P(0.8, 0.5)
 	ring(canvas, legend + Vector2.new(6, 0), 4.5, 1, line, 0.2)
-	figureText(canvas, "TREE", legend + Vector2.new(16, 0), TYPE.Mono, 8, line, "Left", 0.2)
+	figureText(canvas, "TREE", legend + Vector2.new(16, 0), TYPE.Mono, 14, line, "Left", 0.2)
 	titleBlock(canvas, P(0.79, 0.66), { "THE GARDEN", "PLAN 1:500", "ARCH. COPY" })
 end
 
@@ -1096,7 +1124,7 @@ FIGURES.programme_sigils = function(canvas, w, h)
 		local r = math.min(cw, ch) * 0.19
 		SIGILS[index](canvas, Vector2.new(x0 + cw / 2, y0 + ch * 0.42), r, line)
 		if names[index] ~= "" then
-			figureText(canvas, names[index], Vector2.new(x0 + cw / 2, y0 + ch * 0.8), TYPE.Sci, 9, line, "Center", 0.05)
+			figureText(canvas, names[index], Vector2.new(x0 + cw / 2, y0 + ch * 0.8), TYPE.Sci, 14, line, "Center", 0.05)
 		end
 	end
 end
@@ -1114,8 +1142,8 @@ FIGURES.cascade_map = function(canvas, w, h)
 	end
 	box(canvas, P(0.02, 0.04), P(0.98, 0.96), 1, line, 0.55)
 	box(canvas, P(0.33, 0.24), P(0.63, 0.76), 1.6, line, 0.05)
-	figureText(canvas, "GARDEN", P(0.48, 0.44), TYPE.Mono, 10, line, "Center", 0.05)
-	figureText(canvas, "INCIDENT 88-0412", P(0.48, 0.56), TYPE.Mono, 8, line, "Center", 0.35)
+	figureText(canvas, "GARDEN", P(0.48, 0.44), TYPE.Mono, 14, line, "Center", 0.05)
+	figureText(canvas, "INCIDENT 88-0412", P(0.48, 0.56), TYPE.Mono, 14, line, "Center", 0.35)
 	local chambers = {
 		{ "1", 0.06, 0.08 }, { "2", 0.06, 0.4 }, { "3", 0.06, 0.72 },
 		{ "4", 0.74, 0.08 }, { "5", 0.74, 0.4 }, { "6", 0.74, 0.72 },
@@ -1130,7 +1158,7 @@ FIGURES.cascade_map = function(canvas, w, h)
 			fill(canvas, a.X, a.Y, b.X - a.X, b.Y - a.Y, C.BlueRed, 0.35)
 		end
 		box(canvas, a, b, 1.3, line, 0.05)
-		figureText(canvas, spec[1] :: string, (a + b) / 2, TYPE.Mono, 10, line, "Center", 0)
+		figureText(canvas, spec[1] :: string, (a + b) / 2, TYPE.Mono, 14, line, "Center", 0)
 		-- corridor to the Garden
 		local mid = (a + b) / 2
 		local target = if x < 0.3 then Vector2.new(P(0.33, 0).X, mid.Y)
@@ -1147,10 +1175,10 @@ FIGURES.cascade_map = function(canvas, w, h)
 	local door = P(0.02, 0.82)
 	fill(canvas, door.X - 3, door.Y - 9, 6, 18, C.BlueRed, 0)
 	stroke(canvas, P(0.22, 0.82), door, 1, C.BlueRed, 0.2)
-	figureText(canvas, "09", door + Vector2.new(9, -12), TYPE.Mono, 10, C.BlueRed, "Left", 0)
+	figureText(canvas, "09", door + Vector2.new(9, -12), TYPE.Mono, 14, C.BlueRed, "Left", 0)
 	-- legend
 	fill(canvas, P(0.4, 0).X, P(0, 0.64).Y, 8, 8, C.BlueRed, 0.3)
-	figureText(canvas, "AFFECTED", Vector2.new(P(0.4, 0).X + 12, P(0, 0.64).Y + 4), TYPE.Mono, 8, line, "Left", 0.25)
+	figureText(canvas, "AFFECTED", Vector2.new(P(0.4, 0).X + 12, P(0, 0.64).Y + 4), TYPE.Mono, 14, line, "Left", 0.25)
 end
 
 -- A grainy security still: dawn, mist on the pond, an old man and a broom
@@ -1239,8 +1267,8 @@ FIGURES.groundskeeper = function(canvas, w, h, rng)
 	corner(brush, 2)
 	-- the camera's own marks
 	local overlay = rgb(236, 240, 236)
-	figureText(canvas, "CAM 04  EAST PATH", P(0.03, 0.08), TYPE.Mono, 9, overlay, "Left", 0.15)
-	figureText(canvas, "05:02", P(0.97, 0.92), TYPE.Mono, 11, overlay, "Right", 0.1)
+	figureText(canvas, "CAM 04  EAST PATH", P(0.03, 0.08), TYPE.Mono, 14, overlay, "Left", 0.15)
+	figureText(canvas, "05:02", P(0.97, 0.92), TYPE.Mono, 14, overlay, "Right", 0.1)
 	scanlines(canvas, h, 3, 0.9)
 	grain(canvas, w, h, rng, 200)
 	vignette(canvas, 0.55)
@@ -1316,16 +1344,16 @@ local BIRD = {
 }
 
 FIGURES.bird = function(canvas, w, h)
-	local size = 11
-	local pitch = 13
+	local size = 14
+	local pitch = 15
 	local cell = measure("0000000000", TYPE.Mono, size) / 10
 	local columns = 0
 	for _, text in BIRD do
 		columns = math.max(columns, #text)
 	end
 	local x0 = math.floor((w - columns * cell) / 2)
-	local y0 = math.floor((h - #BIRD * pitch) / 2) + 6
-	figureText(canvas, "IMG_0001.TXT", Vector2.new(4, 8), TYPE.Mono, 9, C.Phosphor, "Left", 0.5)
+	local y0 = math.max(24, math.floor((h - #BIRD * pitch) / 2) + 8)
+	figureText(canvas, "IMG_0001.TXT", Vector2.new(4, 10), TYPE.Mono, 14, C.Phosphor, "Left", 0.5)
 	for index, text in BIRD do
 		make("TextLabel", {
 			Name = "Art",
@@ -1400,7 +1428,7 @@ FIGURES.lantern = function(canvas, w, h, rng, ctx)
 end
 
 -- How tall each style of figure is, against its width
-local FIGURE_RATIO = { pencil = 0.44, blueprint = 0.48, photo = 0.52, terminal = 0.42, viewport = 0.62 }
+local FIGURE_RATIO = { pencil = 0.44, blueprint = 0.5, photo = 0.52, terminal = 0.47, viewport = 0.62 }
 
 -- Builds a figure in its mount: a tipped-in sketch sheet, a blueprint, a
 -- bordered print, a terminal screen or a dark plate. `bare` draws straight
@@ -1580,15 +1608,15 @@ local function flowDocument(doc: any, geo: Geometry): { any }
 	heading.barColor = body.barColor
 	local mono = style(TYPE.Mono, (spec.linesSize or spec.size) * s, 1.45, spec.linesColor or spec.color)
 	mono.barColor = body.barColor
-	local direction = style(TYPE.MonoItalic, 12.5 * s, 1, C.InkSoft)
-	local speaker = style(TYPE.SerifBold, 10.5 * s, 1, C.InkSoft)
+	local direction = style(TYPE.MonoItalic, 14 * s, 1, C.InkSoft)
+	local speaker = style(TYPE.SerifBold, 14 * s, 1, C.BronzeInk)
 	direction.pitch, speaker.pitch = pitch, pitch
 	if snap then
 		heading.pitch, mono.pitch = pitch, pitch
 	end
 	local captionStyle = if spec.panel == "terminal"
-		then style(TYPE.MonoItalic, 11 * s, 1.45, C.AmberDim)
-		else style(TYPE.SerifItalic, 12 * s, 1.42, C.InkSoft)
+		then style(TYPE.MonoItalic, 14 * s, 1.4, C.AmberDim)
+		else style(TYPE.SerifItalic, 14 * s, 1.4, C.InkSoft)
 	local gap = px(pitch * (spec.gap or 0.5))
 	local function grid(h: number): number
 		return if snap then math.ceil(h / pitch - 0.01) * pitch else h
@@ -1655,9 +1683,9 @@ local function flowDocument(doc: any, geo: Geometry): { any }
 	-- The opener
 	newPage()
 	y = 0
-	local labelStyle = style(TYPE.SerifBold, 10.5 * s, 1.8, C.Red)
-	local titleStyle = style(TYPE.SerifBold, 22 * s, 1.3, C.Ink)
-	local metaStyle = style(TYPE.SerifItalic, 12.5 * s, 1.45, C.InkSoft)
+	local labelStyle = style(TYPE.UiBold, 14 * s, 1.7, C.BronzeInk)
+	local titleStyle = style(TYPE.Display, 30 * s, 1.15, C.Ink)
+	local metaStyle = style(TYPE.SerifItalic, 14 * s, 1.45, C.InkSoft)
 	opener(setText(string.upper(doc.label), labelStyle, W), labelStyle)
 	opener(setText(doc.title, titleStyle, W), titleStyle)
 	y += px(3 * s)
@@ -1986,17 +2014,28 @@ local function label(parent: Instance, text: string, x: number, y: number, w: nu
 	})
 end
 
+-- The Lantern star (two squares at 45 degrees) between two bronze hairlines
 local function ornament(parent: Instance, cx: number, cy: number, color: Color3, s: number)
 	local mark = make("Frame", {
 		Name = "Ornament",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(cx, cy),
-		Size = UDim2.fromOffset(px(6 * s), px(6 * s)),
-		Rotation = 45,
+		Size = UDim2.fromOffset(px(7 * s), px(7 * s)),
 		BackgroundColor3 = color,
-		BackgroundTransparency = 0.15,
+		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
 		Parent = parent,
+	})
+	make("Frame", {
+		Name = "Star",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		Rotation = 45,
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.1,
+		BorderSizePixel = 0,
+		Parent = mark,
 	})
 	for _, side in { -1, 1 } do
 		make("Frame", {
@@ -2055,9 +2094,9 @@ end
 
 -- A rubber stamp, a little crooked and worn
 local function stamp(parent: Instance, lines: { string }, at: Vector2, rotation: number, s: number, rng: Random)
-	local big = px((if #lines[1] > 12 then 10 else 15) * s)
-	local small = px(8.5 * s)
-	local width = math.ceil(math.max(measure(lines[1], TYPE.Sci, big), measure(lines[2] or "", TYPE.Sci, small))) + px(26 * s)
+	local big = px((if #lines[1] > 12 then 14 else 18) * s)
+	local small = px(14 * s)
+	local width = math.ceil(math.max(measure(lines[1], TYPE.Sci, big), measure(lines[2] or "", TYPE.Type, small))) + px(28 * s)
 	local height = big + small + px(22 * s)
 	local frame = make("Frame", {
 		Name = "Stamp",
@@ -2073,11 +2112,11 @@ local function stamp(parent: Instance, lines: { string }, at: Vector2, rotation:
 	corner(frame, 3)
 	local inner = make("Frame", { Name = "Inner", Position = UDim2.fromOffset(4, 4), Size = UDim2.new(1, -8, 1, -8), BackgroundTransparency = 1, ZIndex = 3, Parent = frame })
 	make("UIStroke", { Color = C.Red, Thickness = 1, Transparency = 0.35, Parent = inner })
-	local first = label(frame, lines[1], 0, px(8 * s), width, big + 4, TYPE.Sci, big, C.Red, Enum.TextXAlignment.Center)
+	local first = label(frame, lines[1], 0, px(9 * s), width, big + 4, TYPE.Sci, big, C.Red, Enum.TextXAlignment.Center)
 	first.TextTransparency = 0.18
 	first.ZIndex = 3
 	if lines[2] then
-		local second = label(frame, lines[2], 0, px(10 * s) + big, width, small + 4, TYPE.Sci, small, C.Red, Enum.TextXAlignment.Center)
+		local second = label(frame, lines[2], 0, px(11 * s) + big, width, small + 4, TYPE.Type, small, C.Red, Enum.TextXAlignment.Center)
 		second.TextTransparency = 0.25
 		second.ZIndex = 3
 	end
@@ -2147,21 +2186,21 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 	-- Running head and folio
 	if model.number then
 		local head = if side == "left" then "The Meridian Archive" else (model.head or "")
-		label(page, string.upper(head), cx, px(geo.top * 0.3), geo.textW, px(16 * s), TYPE.Serif, px(9.5 * s), C.InkFaded, Enum.TextXAlignment.Center, true)
+		label(page, string.upper(head), cx, px(geo.top * 0.24), geo.textW, px(20 * s), TYPE.Display, px(14 * s), C.InkFaded, Enum.TextXAlignment.Center, true)
 		local folio = tostring(model.number)
 		local align = if side == "left" then Enum.TextXAlignment.Left elseif side == "right" then Enum.TextXAlignment.Right else Enum.TextXAlignment.Center
-		label(page, folio, cx, H - px(geo.bottom * 0.72), geo.textW, px(18 * s), TYPE.Serif, px(11 * s), C.InkSoft, align)
+		label(page, folio, cx, H - px(geo.bottom * 0.74), geo.textW, px(20 * s), TYPE.Serif, px(14 * s), C.InkSoft, align)
 	end
 
 	if model.kind == "endpaper" then
 		-- a fine printed lattice, and a bookplate inside the front cover
 		local step = 26
 		for k = -math.ceil(H / step), math.ceil(W / step) do
-			stroke(page, Vector2.new(k * step, 0), Vector2.new(k * step + H, H), 1, C.Gold, 0.9)
-			stroke(page, Vector2.new(k * step + H, 0), Vector2.new(k * step, H), 1, C.Gold, 0.9)
+			stroke(page, Vector2.new(k * step, 0), Vector2.new(k * step + H, H), 1, C.Bronze, 0.72)
+			stroke(page, Vector2.new(k * step + H, 0), Vector2.new(k * step, H), 1, C.Bronze, 0.72)
 		end
 		if not model.back then
-			local plateW, plateH = px(W * 0.56), px(H * 0.3)
+			local plateW, plateH = px(W * 0.62), px(H * 0.34)
 			local plate = make("Frame", {
 				Name = "Bookplate",
 				AnchorPoint = Vector2.new(0.5, 0.5),
@@ -2172,40 +2211,40 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 				ZIndex = 2,
 				Parent = page,
 			})
-			make("UIStroke", { Color = C.Gold, Thickness = 1, Transparency = 0.3, Parent = plate })
+			make("UIStroke", { Color = C.BronzeLight, Thickness = 1, Transparency = 0.2, Parent = plate })
 			local inner = make("Frame", { Name = "Inner", Position = UDim2.fromOffset(6, 6), Size = UDim2.new(1, -12, 1, -12), BackgroundTransparency = 1, ZIndex = 2, Parent = plate })
 			make("UIStroke", { Color = C.InkSoft, Thickness = 1, Transparency = 0.55, Parent = inner })
-			label(plate, "EX LIBRIS", 0, px(plateH * 0.16), plateW, px(18 * s), TYPE.SerifBold, px(10 * s), C.Red, Enum.TextXAlignment.Center).ZIndex = 2
-			label(plate, "Meridian Station", 0, px(plateH * 0.34), plateW, px(30 * s), TYPE.SerifItalic, px(19 * s), C.Ink, Enum.TextXAlignment.Center).ZIndex = 2
-			local note = label(plate, "The Lounge copy. Please leave it on the lectern.", px(16 * s), px(plateH * 0.6), plateW - px(32 * s), px(34 * s), TYPE.Serif, px(10.5 * s), C.InkSoft, Enum.TextXAlignment.Center)
+			label(plate, "EX LIBRIS", 0, px(plateH * 0.12), plateW, px(22 * s), TYPE.Display, px(16 * s), C.BronzeInk, Enum.TextXAlignment.Center).ZIndex = 2
+			label(plate, "Meridian Station", 0, px(plateH * 0.3), plateW, px(34 * s), TYPE.SerifItalic, px(21 * s), C.Ink, Enum.TextXAlignment.Center).ZIndex = 2
+			local note = label(plate, "The Lounge copy. Please leave it on the lectern.", px(18 * s), px(plateH * 0.54), plateW - px(36 * s), px(44 * s), TYPE.Serif, px(14 * s), C.InkSoft, Enum.TextXAlignment.Center)
 			note.ZIndex = 2
-			ornament(plate, plateW / 2, px(plateH * 0.86), C.InkSoft, s * 0.8).ZIndex = 2
+			ornament(plate, plateW / 2, px(plateH * 0.86), C.Bronze, s * 0.8).ZIndex = 2
 		end
 		return page
 	elseif model.kind == "title" then
 		local W2 = geo.textW
 		local y = px(10 * s)
-		local titleStyle = style(TYPE.SerifBold, 25 * s, 1.3, C.Ink)
+		local titleStyle = style(TYPE.Display, 36 * s, 1.12, C.Ink)
 		for _, line in setText("THE MERIDIAN ARCHIVE", titleStyle, W2) do
 			drawLine(content, line, titleStyle, math.floor((W2 - line.width) / 2), y)
 			y += titleStyle.pitch
 		end
-		ornament(content, W2 / 2, y + px(11 * s), C.Red, s)
-		y += px(26 * s)
-		local subStyle = style(TYPE.SerifItalic, 13 * s, 1.5, C.InkSoft)
+		ornament(content, W2 / 2, y + px(12 * s), C.Bronze, s)
+		y += px(28 * s)
+		local subStyle = style(TYPE.SerifItalic, 14 * s, 1.5, C.InkSoft)
 		for _, line in setText(Archive.Subtitle, subStyle, math.floor(W2 * 0.78)) do
 			drawLine(content, line, subStyle, math.floor((W2 - line.width) / 2), y)
 			y += subStyle.pitch
 		end
 		y += px(16 * s)
-		local footH = px(22 * s)
-		local captionH = px(24 * s)
+		local footH = px(24 * s)
+		local captionH = px(26 * s)
 		local plateH = math.max(80, geo.textH - y - captionH - footH - px(10 * s))
 		local plateW = math.min(px(W2 * 0.68), px(plateH * 1.05))
 		buildFigure(content, "lantern", math.floor((W2 - plateW) / 2), y, plateW, plateH, state)
 		y += plateH + px(6 * s)
-		label(content, "Plate I. The Lantern.", 0, y, W2, captionH, TYPE.SerifItalic, px(12 * s), C.InkSoft, Enum.TextXAlignment.Center)
-		label(content, "Meridian Station, Kestrel Valley", 0, geo.textH - footH, W2, footH, TYPE.Serif, px(10.5 * s), C.InkFaded, Enum.TextXAlignment.Center)
+		label(content, "Plate I. The Lantern.", 0, y, W2, captionH, TYPE.SerifItalic, px(14 * s), C.InkSoft, Enum.TextXAlignment.Center)
+		label(content, "MERIDIAN STATION, KESTREL VALLEY", 0, geo.textH - footH, W2, footH, TYPE.Display, px(14 * s), C.BronzeInk, Enum.TextXAlignment.Center)
 		return page
 	end
 
@@ -2229,11 +2268,11 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 		end
 		if spec.clip and model.first then
 			paperclip(page, cx + px(10 * s), -px(14 * s), s)
-			local tabW = math.ceil(measure(spec.tab, TYPE.Sci, px(8 * s))) + px(26 * s)
-			local tab = fill(page, W - tabW - (if side == "left" then geo.outer else geo.outer), 0, tabW, px(22 * s), shade(C.Manila, 0.9), 0)
+			local tabW = math.ceil(measure(spec.tab, TYPE.Sci, px(14 * s))) + px(28 * s)
+			local tab = fill(page, W - tabW - geo.outer, 0, tabW, px(28 * s), shade(C.Manila, 0.9), 0)
 			tab.Name = "FolderTab"
-			corner(tab, 4)
-			label(tab, spec.tab, 0, px(4 * s), tabW, px(16 * s), TYPE.Sci, px(8 * s), C.InkSoft, Enum.TextXAlignment.Center)
+			corner(tab, 2)
+			label(tab, spec.tab, 0, px(4 * s), tabW, px(22 * s), TYPE.Sci, px(14 * s), C.InkSoft, Enum.TextXAlignment.Center)
 		end
 		if spec.stamp and model.first then
 			stamp(content, spec.stamp, Vector2.new(geo.textW - px(4 * s), panelTop + px(4 * s)), -7, s, rng)
@@ -2253,11 +2292,11 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 			make("UIStroke", { Color = rgb(74, 66, 52), Thickness = 1, Transparency = 0.2, Parent = panel })
 			gradient(panel, { shade(C.Terminal, 0.8), C.Terminal, shade(C.Terminal, 0.75) }, 90)
 			scanlines(panel, math.max(40, panelBottom - panelTop), 3, 0.78)
-			local headSize = px(9.5 * s)
-			label(panel, "MERIDIAN STATION  //  " .. string.upper(doc.id) .. ".LOG", px(12 * s), px(8 * s), geo.textW * 0.7, px(16 * s), TYPE.Mono, headSize, C.AmberDim, Enum.TextXAlignment.Left, true)
-			label(panel, `PAGE {model.docPage}`, geo.textW * 0.7, px(8 * s), geo.textW * 0.3, px(16 * s), TYPE.Mono, headSize, C.AmberDim, Enum.TextXAlignment.Right)
+			local headSize = px(14 * s)
+			label(panel, "MS/WARDEN  " .. string.upper(doc.id) .. ".LOG", px(12 * s), px(8 * s), geo.textW * 0.72, px(20 * s), TYPE.Mono, headSize, C.AmberDim, Enum.TextXAlignment.Left, true)
+			label(panel, `P.{model.docPage}`, geo.textW * 0.72, px(8 * s), geo.textW * 0.28, px(20 * s), TYPE.Mono, headSize, C.AmberDim, Enum.TextXAlignment.Right)
 			if not model.last then
-				label(panel, "-- MORE --", px(12 * s), math.max(40, panelBottom - panelTop) - px(22 * s), geo.textW, px(16 * s), TYPE.Mono, headSize, C.AmberDim, Enum.TextXAlignment.Left)
+				label(panel, "-- MORE --", px(12 * s), math.max(40, panelBottom - panelTop) - px(26 * s), geo.textW, px(20 * s), TYPE.Mono, headSize, C.AmberDim, Enum.TextXAlignment.Left)
 			end
 		elseif spec.panel == "slip" then
 			local slipH = math.max(60, panelBottom - panelTop)
@@ -2288,7 +2327,7 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 		if kind == "line" then
 			drawLine(content, item.line, item.style, item.x, item.y)
 		elseif kind == "ornament" then
-			ornament(content, item.w / 2, item.y + item.h / 2, if spec and spec.panel == "terminal" then C.AmberDim else C.InkSoft, s)
+			ornament(content, item.w / 2, item.y + item.h / 2, if spec and spec.panel == "terminal" then C.AmberDim else C.Bronze, s)
 		elseif kind == "rule" then
 			fill(content, item.x, item.y + math.floor(item.h / 2), item.w, 1, if spec then spec.color else C.Ink, 0.6).Name = "Rule"
 		elseif kind == "cursor" then
@@ -2303,7 +2342,7 @@ local function buildPage(book: any, index: number, side: string, state: any): Fr
 				y += item.captionStyle.pitch
 			end
 		elseif kind == "title" then
-			label(content, item.text, 0, item.y, geo.textW, item.h, TYPE.SerifBold, item.size, C.Ink, Enum.TextXAlignment.Center, true)
+			label(content, item.text, 0, item.y, geo.textW, item.h, TYPE.Display, item.size, C.Ink, Enum.TextXAlignment.Center, true)
 		elseif kind == "entry" then
 			state.contentsEntry(content, item)
 		elseif kind == "file" then
