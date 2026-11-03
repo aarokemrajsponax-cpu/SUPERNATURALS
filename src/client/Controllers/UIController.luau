@@ -54,6 +54,7 @@ function UIController:Start()
 	require(script.Parent.Parent.UI.ShopWindow).register()
 	SettingsWindow.register()
 	require(script.Parent.Parent.UI.ArchiveWindow).register()
+	require(script.Parent.Parent.UI.LearnWindow).register()
 
 	local hud = Hud.build(gui, self.input.Bindings, self.input.device, self.effects.currentGuard)
 	local abilityBar = AbilityBar.build(hud.abilityRow, self.abilities, self.input.device)

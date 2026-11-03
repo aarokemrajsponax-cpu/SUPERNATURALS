@@ -129,6 +129,8 @@ Protocol.DataEvent = {
 	Profile = "Profile", -- the player's saved data (safe copy), sent on join and after changes
 	Persistence = "Persistence", -- { saving: boolean, message: string? } false when progress can't be saved
 	Reward = "Reward", -- { money, gems, xp, lines: { { label, money?, gems?, xp? } } } after a match
+	Tutorial = "Tutorial", -- { active, replay, index, total, step, face, lines, goal, done, complete, exited } Jeffery's tutorial state
+	Hint = "Hint", -- { id, text, face } one contextual hint from Jeffery
 	Toast = "Toast", -- { text, kind: "info" | "success" | "error" | "reward" }
 	-- Selection screens (docs/specs/SelectionContract.md)
 	Selection = "Selection", -- the whole snapshot: context, balances, equipped selection, every power and degree with price and status
@@ -169,6 +171,10 @@ Protocol.ProgressAction = {
 	Welcome = "Welcome", -- the new-player welcome was seen
 	FindLore = "FindLore", -- (fileId) a recovered file was picked up (LoreService)
 	ReadLore = "ReadLore", -- (documentId, page?) a book document was shown (LoreService)
+	TutorialAck = "TutorialAck", -- (stepId) CONTINUE on a note-only tutorial step (TutorialService)
+	TutorialExit = "TutorialExit", -- () leave Jeffery's tutorial
+	TutorialReplay = "TutorialReplay", -- () start Jeffery's tutorial again
+	HintWindow = "HintWindow", -- (windowId) a hint window was opened (Powers, Market)
 	SeenHint = "SeenHint", -- (hintId) a one-time hint was shown; remembered in tutorial.done (ReplayService)
 }
 

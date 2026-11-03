@@ -718,6 +718,7 @@ function Hub.build(folder: Instance): SpawnLocation
 	end
 	buildGuides(folder)
 	buildLoreFiles(folder)
+	require(script.Parent.Jeffery).build(folder)
 
 	-- Spawn on the plaza south of the dais, facing the Lantern, the entrance behind
 	local spawn = Instance.new("SpawnLocation")

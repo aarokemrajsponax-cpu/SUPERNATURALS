@@ -109,6 +109,23 @@ local function passPrice(def): (any, string)
 	return state, PriceFetcher.describe(state)
 end
 
+-- A permanent unlock price ({ money } or { gems }) as text, and whether the player can pay it
+local function unlockPriceText(price): string
+	if price.gems then
+		return `{Components.formatNumber(price.gems)} Gems`
+	end
+	return `{Components.formatNumber(price.money or 0)} Money`
+end
+local function canPay(price): boolean
+	if isOwnerAccount() then
+		return true
+	end
+	if price.gems then
+		return Profile.currency("gems") >= price.gems
+	end
+	return Profile.currency("money") >= (price.money or 0)
+end
+
 PowersWindow.helpers = {
 	owns = owns,
 	degreeOpen = degreeOpen,
@@ -524,9 +541,10 @@ function PowersWindow.register()
 				if not ok then
 					-- No layout yet (a stand-in engine): estimate from the screen
 					local view = workspace.CurrentCamera.ViewportSize
-					size = Vector2.new(math.min(1120, view.X - 140), math.min(520, view.Y - 290))
+					size = Vector2.new(math.min(1120, view.X - 140), math.max(170, math.min(520, view.Y - 290)))
 				end
 				local w, h = size.X, size.Y
+				caption.Visible = h >= 260
 				if w <= 0 then
 					return
 				end
@@ -565,6 +583,8 @@ function PowersWindow.register()
 				return frame
 			end
 
+			local renderDossier
+			local renderCards
 			local function abilityRow(parent: Instance, order: number, def, ability, accent: Color3)
 				local row = make("Frame", {
 					Name = "Ability_" .. ability.id,
@@ -591,12 +611,36 @@ function PowersWindow.register()
 				if numbers ~= "" then
 					Components.text({ Text = numbers, Style = "number", TextSize = 14, Color = Colors.TextDim, LayoutOrder = 3, Wrap = true, Parent = row })
 				end
+				local abilityOwned = ability.kind == "Ultimate" or not ability.price or Powers.abilityOwned(def.id, ability.id, powerData(def.id), selectedPhase) or isOwnerAccount()
+				if not abilityOwned then
+					local price = ability.price
+					local buy = Components.button(`Unlock (permanent): {unlockPriceText(price)}`, { Name = "UnlockAbility", Variant = "Gold", Size = UDim2.new(1, 0, 0, Theme.Size.Control), LayoutOrder = 5, Parent = row }, function()
+						Shell.confirm({
+							title = `Unlock {ability.name}?`,
+							body = "A permanent unlock for this ability.",
+							price = price,
+							confirmText = "Unlock",
+							onConfirm = function()
+								PowerRequest:FireServer(Action.UnlockAbility, def.id, ability.id)
+								task.delay(0.8, function()
+									if body.Parent then
+										renderDossier()
+									end
+								end)
+							end,
+						})
+					end)
+					if def.premium and not owns(def) then
+						Components.setDisabled(buy, true, `Unlock {def.name} first`)
+					elseif not canPay(price) then
+						Components.setDisabled(buy, true, `Need {unlockPriceText(price)}`)
+					end
+				end
 				if typeof(ability.description) == "string" then
 					Components.text({ Text = clean(ability.description), Style = "caption", Color = Colors.TextMuted, LayoutOrder = 4, Wrap = true, Parent = row })
 				end
 			end
 
-			local renderDossier
 			function renderDossier()
 				for _, child in detail:GetChildren() do
 					if not child:IsA("UIListLayout") then
@@ -662,6 +706,29 @@ function PowersWindow.register()
 					local how = if ownsIt then "You own this fighter. It works in every mode."
 						else `Unlock with a one-time Robux pass: {priceLabel}. Free to try in Training and CPU Practice.`
 					Components.text({ Text = how, Style = "caption", Color = Colors.TextDim, LayoutOrder = 5, Wrap = true, Parent = intro })
+					if not ownsIt and def.premium.gems then
+						local price = { gems = def.premium.gems }
+						local gem = Components.button(`Unlock (permanent): {unlockPriceText(price)}`, { Name = "UnlockWithGems", Variant = "Gold", Size = UDim2.new(1, 0, 0, Theme.Size.Control), LayoutOrder = 6, Parent = intro }, function()
+							Shell.confirm({
+								title = `Unlock {def.name} with Gems?`,
+								body = `{def.name} becomes yours in every mode. Each phase still unlocks separately.`,
+								price = price,
+								confirmText = "Unlock",
+								onConfirm = function()
+									PowerRequest:FireServer(Action.UnlockPower, def.id)
+									task.delay(0.8, function()
+										if body.Parent then
+											renderCards()
+											renderDossier()
+										end
+									end)
+								end,
+							})
+						end)
+						if not canPay(price) then
+							Components.setDisabled(gem, true, `Need {unlockPriceText(price)}`)
+						end
+					end
 				end
 
 				-- Phase tabs
@@ -696,35 +763,64 @@ function PowersWindow.register()
 				Components.text({ Text = clean(degreeDef.description), Style = "caption", Color = Colors.TextDim, LayoutOrder = 2, Wrap = true, Parent = card })
 				local feeLine, feeColor
 				if selectedPhase == 1 then
-					feeLine, feeColor = "Evolve fee: none. Every match starts here.", Colors.Success
+					feeLine, feeColor = "Evolve fee (this match): none. Every match starts here.", Colors.Success
 				elseif fee <= 0 then
-					feeLine, feeColor = "Evolve fee: free for you.", Colors.Success
+					feeLine, feeColor = "Evolve fee (this match): free for you.", Colors.Success
 				elseif money >= fee then
-					feeLine, feeColor = `Evolve fee: {feeText(fee)}. You have {Components.formatNumber(money)}, enough.`, Colors.Success
+					feeLine, feeColor = `Evolve fee (this match): {feeText(fee)}. You have {Components.formatNumber(money)}, enough.`, Colors.Success
 				else
-					feeLine, feeColor = `Evolve fee: {feeText(fee)}. You have {Components.formatNumber(money)}, {Components.formatNumber(fee - money)} short.`, Colors.Warning
+					feeLine, feeColor = `Evolve fee (this match): {feeText(fee)}. You have {Components.formatNumber(money)}, {Components.formatNumber(fee - money)} short.`, Colors.Warning
 				end
 				Components.text({ Text = feeLine, Style = "label", Color = feeColor, LayoutOrder = 3, Wrap = true, Parent = card })
-				local unlockLine
 				if open then
-					unlockLine = "Unlocked."
+					Components.text({ Text = "Unlock (permanent): unlocked.", Style = "caption", Color = Colors.TextDim, LayoutOrder = 4, Wrap = true, Parent = card })
 				else
 					local unlock = degreeDef.unlock
 					local bits = {}
 					if unlock and unlock.mastery then
 						table.insert(bits, `reach mastery level {unlock.mastery}`)
 					end
-					if unlock and unlock.money then
-						table.insert(bits, `pay {Components.formatNumber(unlock.money)} Money`)
+					local price = if unlock and unlock.money then { money = unlock.money } else nil
+					if price then
+						table.insert(bits, `pay {unlockPriceText(price)}`)
 					end
-					unlockLine = `Locked: {table.concat(bits, " or ")}.`
+					Components.text({ Text = `Unlock (permanent): {table.concat(bits, " or ")}.`, Style = "caption", Color = Colors.Warning, LayoutOrder = 4, Wrap = true, Parent = card })
+					if price then
+						local previousOpen = degreeOpen(def, selectedPhase - 1)
+						local affordable = canPay(price)
+						local lock = Components.button(`Unlock Phase {selectedPhase}: {unlockPriceText(price)}`, { Name = "UnlockPhase", Variant = "Gold", Size = UDim2.new(1, 0, 0, Theme.Size.Control), LayoutOrder = 5, Parent = card }, function()
+							Shell.confirm({
+								title = `Unlock Phase {selectedPhase}, {degreeDef.name}?`,
+								body = `A permanent unlock of {def.name}'s Phase {selectedPhase}. It is separate from the evolve fee, which is paid in a match.`,
+								price = price,
+								confirmText = "Unlock",
+								onConfirm = function()
+									PowerRequest:FireServer(Action.UnlockDegree, def.id, selectedPhase)
+									task.delay(0.8, function()
+										if body.Parent then
+											renderCards()
+											renderDossier()
+										end
+									end)
+								end,
+							})
+						end)
+						if not ownsIt then
+							Components.setDisabled(lock, true, `Unlock {def.name} first`)
+						elseif not previousOpen then
+							Components.setDisabled(lock, true, `Unlock Phase {selectedPhase - 1} first`)
+						elseif not affordable then
+							Components.setDisabled(lock, true, `Need {unlockPriceText(price)}`)
+						end
+						local note = if not ownsIt then `Unlock {def.name} first.` elseif not previousOpen then `Unlock Phase {selectedPhase - 1} first.` elseif not affordable then `You do not have enough yet: you have {Components.formatNumber(Profile.currency("money"))} Money.` else "You can afford this."
+						Components.text({ Text = note, Style = "caption", Color = if affordable and previousOpen and ownsIt then Colors.Success else Colors.Warning, LayoutOrder = 6, Wrap = true, Parent = card })
+					end
 				end
-				Components.text({ Text = unlockLine, Style = "caption", Color = if open then Colors.TextDim else Colors.Warning, LayoutOrder = 4, Wrap = true, Parent = card })
 				Components.text({
 					Text = "Matches start in Phase 1; evolve during the fight with T once the meter is full. A fee lasts for that match only. Training is free.",
 					Style = "caption",
 					Color = Colors.TextMuted,
-					LayoutOrder = 5,
+					LayoutOrder = 7,
 					Wrap = true,
 					Parent = card,
 				})
@@ -780,7 +876,7 @@ function PowersWindow.register()
 			end
 
 			-- The cards -------------------------------------------------------------------------------
-			local function renderCards()
+			function renderCards()
 				for _, entry in cards do
 					entry.frame:Destroy()
 				end
@@ -854,7 +950,16 @@ function PowersWindow.register()
 					renderDossier()
 				end
 			end
+			local profileLink = Profile.changed:Connect(function()
+				if body.Parent and Shell.isOpen("Powers") then
+					renderCards()
+					renderDossier()
+				end
+			end)
 			refreshAll()
+			body.Destroying:Connect(function()
+				profileLink:Disconnect()
+			end)
 			body.Destroying:Connect(preview.stop)
 
 			return {

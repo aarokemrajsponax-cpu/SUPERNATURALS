@@ -130,6 +130,35 @@ t.check("premium fighters show an intro and a price; free ones do not", function
 	Shell.close()
 end)
 
+t.check("locked phases offer a permanent unlock, separate from the evolve fee", function()
+	Shell.open("Powers")
+	t.press(t.findNamed(gui, "Card_Corruption"))
+	local found = false
+	for phase = 2, 3 do
+		local tabs = {}
+		for _, tab in t.findNamed(t.findNamed(gui, "PowerDetail"), "PhaseTabs"):GetDescendants() do
+			if isPhaseTab(tab) then
+				table.insert(tabs, tab)
+			end
+		end
+		t.press(tabs[phase])
+		local detail = t.findNamed(gui, "PowerDetail")
+		if t.findNamed(detail, "UnlockPhase") then
+			found = true
+		end
+		local text = false
+		for _, item in detail:GetDescendants() do
+			if item:IsA("TextLabel") and string.find(item.Text, "Evolve fee (this match)", 1, true) then
+				text = true
+			end
+		end
+		assert(text, "the evolve fee is labelled as this match only")
+	end
+	assert(found, "a locked phase has an Unlock Phase button")
+	assert(t.findNamed(t.findNamed(gui, "PowerDetail"), "UnlockWithGems"), "a premium fighter has a Gem unlock")
+	Shell.close()
+end)
+
 t.check("Play: Training is free and separate; confirm sends the selection", function()
 	Shell.open("Play")
 	assert(t.findNamed(gui, "HeaderFree"), "Training sits under its own free header")
