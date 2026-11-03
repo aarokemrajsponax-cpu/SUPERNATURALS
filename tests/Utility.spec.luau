@@ -35,6 +35,8 @@ return function(t)
 	t.test("calendar: holiday seasons", function()
 		local cases = {
 			{ 2026, 10, 20, "Halloween" },
+			{ 2026, 10, 31, "Halloween" },
+			{ 2026, 11, 1, "Thanksgiving" },
 			{ 2026, 11, 2, "Thanksgiving" },
 			{ 2026, 11, 30, nil },
 			{ 2026, 12, 25, "Christmas" },

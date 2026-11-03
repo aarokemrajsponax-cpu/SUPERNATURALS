@@ -133,9 +133,9 @@
       "NexusBloom": {
         "$className": "BloomEffect",
         "$properties": {
-          "Intensity": 0.4,
+          "Intensity": 0.35,
           "Size": 24,
-          "Threshold": 1.85
+          "Threshold": 1.4
         }
       },
       "NexusSunRays": {

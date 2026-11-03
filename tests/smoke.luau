@@ -66,15 +66,29 @@ check("the Nexus lobby builds: plaza, gates with prompts, statues, spawn", funct
 	folder.Name = "NexusTest"
 	local spawn = Nexus.build(folder)
 	assert(spawn and spawn:IsA("SpawnLocation") and spawn.Enabled, "a spawn on the dais")
-	local prompts = 0
+	local Archive = world.require(world.find("ReplicatedStorage.Shared.Content.Archive"))
+	local prompts, files = 0, {}
 	for _, item in folder:GetDescendants() do
 		if item:IsA("ProximityPrompt") then
-			prompts += 1
-			assert(typeof(item:GetAttribute("Action")) == "string", "every gate says what it does")
-			assert(item.KeyboardKeyCode ~= roblox.Enum.KeyCode.E and item.KeyboardKeyCode ~= roblox.Enum.KeyCode.F, "gate keys don't clash with combat keys")
+			local action = item:GetAttribute("Action")
+			assert(typeof(action) == "string", "every prompt says what it does")
+			assert(item.KeyboardKeyCode ~= roblox.Enum.KeyCode.E and item.KeyboardKeyCode ~= roblox.Enum.KeyCode.F, "prompt keys don't clash with combat keys")
+			local loreId = string.match(action, "^Lore:([%w_]+)$")
+			if loreId then
+				-- A recovered Archive file: tagged for LoreService, on a part carrying its id
+				local holder = item.Parent
+				assert(holder:GetAttribute("LoreId") == loreId, `file {loreId} carries its id`)
+				assert(world.services.CollectionService:HasTag(holder, "SNLoreTerminal"), `file {loreId} is tagged`)
+				files[loreId] = true
+			else
+				prompts += 1
+			end
 		end
 	end
 	assert(prompts == #Nexus.Gates, `one prompt per gate ({prompts})`)
+	for id in Archive.Files do
+		assert(files[id], `recovered file {id} is placed in the hub`)
+	end
 	local statues = 0
 	for _, child in folder:GetChildren() do
 		if string.sub(child.Name, 1, 7) == "Statue_" then
@@ -144,7 +158,7 @@ end
 
 local function findText(root, text: string)
 	for _, item in root:GetDescendants() do
-		if (item:IsA("TextLabel") or item:IsA("TextButton")) and item.Text == text then
+		if (item:IsA("TextLabel") or item:IsA("TextButton")) and (item.Text == text or string.gsub(item.Text, utf8.char(0x200A), "") == text) then
 			return item
 		end
 	end
@@ -596,7 +610,7 @@ check("interface: shell, play and settings windows, toasts, confirms, modes, scr
 		returnsAt = 1200,
 	})
 	Engine.step(game, 5, 0.05)
-	assert(findText(gui, "VICTORY") and findText(gui, "🏆  Winner: Tester"), "results banner")
+	assert(findText(gui, "VICTORY") and findText(gui, "Winner: Tester"), "results banner")
 	auditLayout(findNamed(gui, "Results"), "Results")
 	auditLayout(findNamed(gui, "MatchTop"), "Match top bar")
 	start = #Engine.sent

@@ -58,7 +58,7 @@ local TILE = rgb(40, 43, 49)
 local TILE_DARK = rgb(27, 29, 33)
 local SEAM = rgb(12, 13, 16)
 local STEEL = rgb(138, 146, 156)
-local CERAMIC = rgb(196, 200, 205)
+local CERAMIC = rgb(158, 164, 172)
 local IVORY = rgb(222, 214, 198)
 local AMBER = rgb(232, 162, 74)
 local COPPER = rgb(184, 115, 63)
@@ -631,6 +631,77 @@ local function buildGuides(folder: Instance)
 	guides.Parent = folder
 end
 
+-- Recovered files ------------------------------------------------------------------------------------------
+-- The Meridian Archive's ten hidden files (Content/Archive.Files), each placed where its hint
+-- points. A file is a small data slate tagged SNLoreTerminal with a LoreId attribute
+-- (LoreService checks the player is within reach) and a prompt whose Action "Lore:<id>" the
+-- client sends as ProgressAction.FindLore. Two details exist for the hints: scorched panels by
+-- the Test Chambers and Door 09, the sealed door on the Training Studio wall.
+
+local CollectionService = game:GetService("CollectionService")
+
+local function slate(folder: Instance, id: string, f: CFrame)
+	local model = Instance.new("Model")
+	model.Name = "RecoveredFile_" .. id
+	local body = bx(model, "Slate", f, -0.6, 0.6, 0, 0.12, -0.45, 0.45, GRAPHITE, M.Metal, SMALL)
+	bx(model, "Screen", f, -0.5, 0.5, 0.12, 0.15, -0.35, 0.3, rgb(18, 34, 44), M.Glass, SMALL)
+	bx(model, "Status", f, -0.5, -0.32, 0.15, 0.17, 0.32, 0.38, CYAN, M.Neon, SMALL)
+	-- A faint glow so a curious player can spot it; never a beacon
+	local glow = Instance.new("PointLight")
+	glow.Color = CYAN
+	glow.Range = 5
+	glow.Brightness = 0.35
+	glow.Shadows = false
+	glow.Parent = body
+	CollectionService:AddTag(body, "SNLoreTerminal")
+	body:SetAttribute("LoreId", id)
+	local proximity = prompt(body, "Read", "Recovered file", "Lore:" .. id, 8)
+	proximity.Name = "LorePrompt"
+	model.Parent = folder
+end
+
+local function statueAngle(powerId: string): number
+	for index, id in Powers.Order do
+		if id == powerId then
+			return 22.5 + (index - 1) * 45
+		end
+	end
+	return 112.5
+end
+
+local function buildLoreFiles(folder: Instance)
+	local files = Instance.new("Folder")
+	files.Name = "RecoveredFiles"
+	local function at(angle: number, r: number, turn: number?): CFrame
+		return frameAt(angle, r) * CFrame.Angles(0, math.rad(turn or 0), 0)
+	end
+	local wolf = statueAngle("Shapeshifter")
+	slate(files, "ajkr_first_entry", at(98, 19, 20)) -- near the Lantern, where every visitor stops first
+	slate(files, "lantern_field_note", at(wolf + 180, STATUE_R + 7, -15)) -- behind a statue, under the glass roof
+	slate(files, "procurement_memo", at(144, R - 6, 10)) -- beside the Master Shop door, where supplies came in
+	slate(files, "garden_irrigation", at(81, R - 6, -10)) -- beside the way you came in
+	slate(files, "night_shift_07", at(54, R - 6, 5)) -- beside the Spectating Lounge door
+	slate(files, "badge_okafor", at(wolf, STATUE_R + 7, 30)) -- behind the wolf
+	slate(files, "varga_tape_12", at(61.5, 22, 0)) -- by the Archive book
+	slate(files, "warden_boot", at(-126, R - 6, -5)) -- beside the door to Jeffery's Base
+	slate(files, "eclipse_cleanup", at(-9, R - 6, 15)) -- by the Test Chambers, under the scorched panels
+	-- Scorched panels on the Test Chambers wall, left of the door
+	local wall = frameAt(0, R)
+	for _, x in { -18, -13 } do
+		bx(files, "ScorchedPanel", wall, x - 2.2, x + 2.2, 3, 14, -1.1, -0.35, rgb(30, 26, 24), M.Slate, SMALL)
+		bx(files, "ScorchMark", wall, x - 1.4, x + 1.1, 6, 11, -1.18, -1.1, rgb(16, 13, 12), M.Slate, SMALL)
+	end
+	-- Door 09: a sealed steel door on the Training Studio wall, its status light dark red
+	local door = frameAt(180, R) * CFrame.new(24, 0, 0)
+	bx(files, "Door09Frame", door, -3.6, 3.6, 0, 10.6, -1.2, -0.3, STEEL, M.Metal, SMALL)
+	local leaf = bx(files, "Door09Leaf", door, -3, 3, 0, 10, -1.35, -1.2, GRAPHITE, M.DiamondPlate, SMALL)
+	bx(files, "Door09Lamp", door, -0.4, 0.4, 10.9, 11.3, -1.3, -1.2, rgb(150, 30, 30), M.Neon, SMALL)
+	local plate = surface(leaf, Enum.NormalId.Front, 30)
+	label(plate, "09", { 0.25, 0.08, 0.5, 0.14 }, rgb(205, 196, 180), FONT_DISPLAY, 60, Enum.TextXAlignment.Center)
+	slate(files, "door_09_note", door * CFrame.new(0, 0, -3) * CFrame.Angles(0, math.rad(8), 0)) -- at the foot of the door that never opens
+	files.Parent = folder
+end
+
 -- Builds the whole hub into `folder`. Returns the spawn location.
 function Hub.build(folder: Instance): SpawnLocation
 	buildFloor(folder)
@@ -646,6 +717,7 @@ function Hub.build(folder: Instance): SpawnLocation
 		end
 	end
 	buildGuides(folder)
+	buildLoreFiles(folder)
 
 	-- Spawn on the plaza south of the dais, facing the Lantern, the entrance behind
 	local spawn = Instance.new("SpawnLocation")

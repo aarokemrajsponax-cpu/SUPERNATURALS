@@ -387,7 +387,7 @@ Archive.Files = {
 		title = "Procurement Request 0117",
 		kind = "memo",
 		meta = "Supply office, Meridian Station. 1981.",
-		hint = "Where the station's supplies came in.",
+		hint = "Beside the Master Shop door, where the supplies came in.",
 		blocks = {
 			{ lines = {
 				"ITEM                                   QTY",
@@ -409,7 +409,7 @@ Archive.Files = {
 		title = "Maintenance Ticket 4410",
 		kind = "note",
 		meta = "Garden maintenance board. Pinned, faded.",
-		hint = "By the water.",
+		hint = "Beside the way you came in.",
 		blocks = {
 			"Pond level rises 3 cm every night between 2 and 4 a.m. No input from the irrigation system. Pumps checked. Pipes checked. Drains checked.",
 			"Water tested: clean. Slightly warm. Tastes like rain, which is impossible, because it has never rained in here.",
@@ -421,7 +421,7 @@ Archive.Files = {
 		title = "Checkpoint Note",
 		kind = "note",
 		meta = "Left on the Garden checkpoint desk. Officer D. Mercer.",
-		hint = "Under the observation deck, where the night watch sat.",
+		hint = "Beside the Spectating Lounge door, where the night watch sat.",
 		blocks = {
 			"To the day shift:",
 			"If you hear footsteps on the roof glass, don't go up. Don't call WARDEN either; it gets upset. Just knock on the groundskeeper's door and tell him the roof is busy.",
@@ -458,7 +458,7 @@ Archive.Files = {
 		title = "Boot Sequence",
 		kind = "log",
 		meta = "Printout from a maintenance terminal. Paper yellowed.",
-		hint = "A terminal in the Commissary's back room.",
+		hint = "Beside the door to Jeffery's Base.",
 		blocks = {
 			{ lines = {
 				"WARDEN v4.11  MERIDIAN STATION COMMAND PROTOCOL",

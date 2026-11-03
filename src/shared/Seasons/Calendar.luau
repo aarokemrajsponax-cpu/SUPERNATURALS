@@ -80,13 +80,13 @@ Calendar.Windows = {
 	{
 		id = "Halloween",
 		window = function(year: number)
-			return range(year, 10, 1, year, 11, 1)
+			return range(year, 10, 1, year, 10, 31)
 		end,
 	},
 	{
 		id = "Thanksgiving",
 		window = function(year: number)
-			return range(year, 11, 2, year, 11, Calendar.thanksgiving(year) + 3)
+			return range(year, 11, 1, year, 11, Calendar.thanksgiving(year) + 3)
 		end,
 	},
 	{

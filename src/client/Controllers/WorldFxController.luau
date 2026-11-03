@@ -14,6 +14,7 @@ local Shell = require(script.Parent.Parent.UI.Shell)
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local MatchRequest = Remotes:WaitForChild("MatchRequest") :: RemoteEvent
 local BaseRequest = Remotes:WaitForChild("BaseRequest") :: RemoteEvent
+local ProgressRequest = Remotes:WaitForChild("ProgressRequest") :: RemoteEvent
 
 local WorldFxController = {}
 
@@ -43,6 +44,12 @@ function WorldFxController:Start()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt)
 		local action = prompt:GetAttribute("Action")
 		if typeof(action) ~= "string" then
+			return
+		end
+		-- A recovered Archive file (ids have underscores, so this comes before the general pattern)
+		local loreId = string.match(action, "^Lore:([%w_]+)$")
+		if loreId then
+			ProgressRequest:FireServer(Protocol.ProgressAction.FindLore, loreId)
 			return
 		end
 		local kind, argument = string.match(action, "^(%w+):(%w+)$")
