@@ -30,7 +30,7 @@ local player = Players.LocalPlayer
 local ShopWindow = {}
 
 local RAIL_WIDTH = 188
-local CARD_HEIGHT = 200
+local CARD_HEIGHT = 240
 
 -- Categories, in rail order. Items are listed below by category id.
 ShopWindow.Categories = {
@@ -179,12 +179,13 @@ local function buildCard(parent: Instance, item, redraw: () -> ()): Frame
 		Text = item.name,
 		Style = "heading",
 		Position = UDim2.fromOffset(left, Space.L),
-		Size = UDim2.new(1, -(left + Space.L), 0, 26),
+		Size = UDim2.new(1, -(left + Space.L + (if st.owned then 80 else 0)), 0, 26),
 		Parent = card,
 	})
 	if st.owned then
 		local badge = Components.badge("OWNED", Colors.Success)
-		badge.Position = UDim2.fromOffset(left, Space.L + 30)
+		badge.AnchorPoint = Vector2.new(1, 0)
+		badge.Position = UDim2.new(1, -Space.L, 0, Space.L + 2)
 		badge.Parent = card
 	end
 	Components.text({
@@ -192,9 +193,9 @@ local function buildCard(parent: Instance, item, redraw: () -> ()): Frame
 		Text = item.contents,
 		Style = "small",
 		Color = Colors.TextDim,
-		Lines = 4,
-		Position = UDim2.fromOffset(left, Space.L + (if st.owned then 58 else 32)),
-		Size = UDim2.new(1, -(left + Space.L), 0, 70),
+		Lines = 6,
+		Position = UDim2.fromOffset(left, Space.L + 32),
+		Size = UDim2.new(1, -(left + Space.L), 0, 110),
 		Parent = card,
 	})
 	-- Bottom line: price on the left, one action on the right
