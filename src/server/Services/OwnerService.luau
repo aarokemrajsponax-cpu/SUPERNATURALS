@@ -111,6 +111,10 @@ function OwnerService:isOwner(player: Player): boolean
 	return ownerIds[player.UserId] == true
 end
 
+function OwnerService:isOwnerId(userId: number): boolean
+	return ownerIds[userId] == true
+end
+
 function OwnerService:_refreshOwner(player: Player)
 	if self:isOwner(player) and player:GetAttribute(Attribute.IsOwner) ~= true then
 		player:SetAttribute(Attribute.IsOwner, true)

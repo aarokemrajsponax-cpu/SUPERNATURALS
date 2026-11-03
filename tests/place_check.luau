@@ -35,6 +35,8 @@ local expected = {
 	{ "ReplicatedStorage", "Remotes.CombatEvent", "RemoteEvent" },
 	{ "ReplicatedStorage", "Remotes.MatchRequest", "RemoteEvent" },
 	{ "ReplicatedStorage", "Remotes.MatchEvent", "RemoteEvent" },
+	{ "ReplicatedStorage", "Remotes.OverlordRequest", "RemoteEvent" },
+	{ "ReplicatedStorage", "Remotes.OverlordEvent", "RemoteEvent" },
 	{ "ReplicatedStorage", "Shared.Config", "ModuleScript" },
 	{ "ReplicatedStorage", "Shared.Config.Combat", "ModuleScript" },
 	{ "ReplicatedStorage", "Shared.Combat.FighterState", "ModuleScript" },

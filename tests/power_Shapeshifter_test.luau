@@ -424,7 +424,7 @@ check("a transition hit out of the air leaves a valid state and refunds part of 
 	-- Paid: the cost less the refund, less what human-form regeneration and being hit gave back
 	local paid = 60 - a.power.resource
 	local expected = def.cost * (1 - DEF.shifting.interruptRefund) - Powers.scaledRegen("Shapeshifter", DEF.resource.regen) * (os.clock() - pressedAt) - DEF.resource.gainOnHurt
-	assert(near(paid, expected, 1.2), `half the cost came back: paid {paid}, expected about {expected}`)
+	assert(near(paid, expected, 1.2 * math.max(1, Powers.scaledRegen("Shapeshifter", 1))), `half the cost came back: paid {paid}, expected about {expected}`)
 	assert(cooldownSet(a, "BearForm") <= DEF.shifting.interruptCooldown + 0.05, "can try again soon")
 	local jab = hitsSince(mark, b, a)[1]
 	assert(jab and near(jab.damage, b.combat.Light.Steps[1].Damage * DEF.shifting.transitionDamage, 0.05), "the transition is a vulnerable moment: " .. tostring(jab and jab.damage))

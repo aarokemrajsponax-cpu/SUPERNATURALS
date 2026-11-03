@@ -42,6 +42,36 @@ CpuService.Difficulties = {
 }
 CpuService.DifficultyOrder = { "Easy", "Normal", "Hard" }
 
+-- Behaviour profiles (Jeffery's practice fights). A profile tunes a copy of the chosen
+-- difficulty: scale multiplies a setting, set replaces it. attackGap = the shortest pause, in
+-- seconds, between attack decisions once in reach (a slow, readable rhythm); abilities = false
+-- stops the brain using abilities and ultimates. Chances stay within 0 to 1.
+CpuService.Profiles = {
+	Balanced = {},
+	Beginner = { scale = { reaction = 1.3, think = 1.5, blockChance = 0.6, dodgeChance = 0.5 }, attackGap = 2.6, abilities = false },
+	Intermediate = { scale = { think = 1.0 }, set = { feintChance = 0.1 }, attackGap = 1.2 },
+	Advanced = { scale = { reaction = 0.9 }, set = { feintChance = 0.35, parryChance = 0.5 } },
+	Aggressive = { scale = { think = 0.8, abilityRate = 1.25, sprintChance = 1.3, blockChance = 0.7 } },
+	Defensive = { scale = { blockChance = 1.4, parryChance = 1.4, dodgeChance = 1.3, sprintChance = 0.6 }, attackGap = 1.8 },
+	Evasive = { scale = { dodgeChance = 1.7, perfectChance = 1.3, sprintChance = 1.2 }, attackGap = 1.4, strafe = 0.6 },
+}
+
+local function applyProfile(base, profile)
+	local copy = table.clone(base)
+	for key, factor in profile.scale or {} do
+		if typeof(copy[key]) == "number" then
+			copy[key] *= factor
+			if string.match(key, "Chance$") or key == "abilityRate" then
+				copy[key] = math.min(1, copy[key])
+			end
+		end
+	end
+	for key, value in profile.set or {} do
+		copy[key] = value
+	end
+	return copy
+end
+
 local MELEE_RANGE = 5.5
 
 -- fighter id -> the brain's settings
@@ -63,10 +93,18 @@ function CpuService:Start()
 end
 
 -- Starts the brain for a CPU fighter (DummyService calls this when it builds one)
-function CpuService:run(fighter, difficultyName: string?)
+-- profileName / options.abilities are optional (see CpuService.Profiles)
+function CpuService:run(fighter, difficultyName: string?, profileName: string?, options: { abilities: boolean? }?)
 	local difficulty = CpuService.Difficulties[difficultyName or "Normal"] or CpuService.Difficulties.Normal
+	local profile = if profileName then CpuService.Profiles[profileName] else nil
+	if profile then
+		difficulty = applyProfile(difficulty, profile)
+	end
 	local brain = {
 		difficulty = difficulty,
+		profile = profile,
+		abilities = not (profile and profile.abilities == false) and not (options and options.abilities == false),
+		nextAttack = 0,
 		reactedTo = 0,
 		blockingUntil = 0,
 		strafe = if math.random() < 0.5 then 1 else -1,
@@ -339,7 +377,7 @@ function CpuService:_think(fighter, brain)
 	local preferred = powerAi.preferredRange or 6
 	if time >= brain.strafeUntil then
 		brain.strafe = -brain.strafe
-		brain.strafeUntil = time + 1 + math.random() * 1.5
+		brain.strafeUntil = time + (1 + math.random() * 1.5) * ((brain.profile and brain.profile.strafe) or 1)
 	end
 	local side = Vector3.new(-flat.Z, 0, flat.X) * brain.strafe
 	local destination
@@ -358,6 +396,15 @@ function CpuService:_think(fighter, brain)
 		return
 	end
 
+	-- A profile with an attack gap keeps a readable rhythm between attack decisions
+	local gap = brain.profile and brain.profile.attackGap
+	if gap and distance <= MELEE_RANGE + 2 then
+		if time < brain.nextAttack then
+			return
+		end
+		brain.nextAttack = time + gap * (0.85 + math.random() * 0.3)
+	end
+
 	-- Attack: ultimate when it's charged and in reach, then abilities, then basics
 	if not runtime then
 		if distance <= MELEE_RANGE then
@@ -367,7 +414,7 @@ function CpuService:_think(fighter, brain)
 	end
 	local aim = aimAt(fighter, target)
 	local degree = runtime.degree
-	if runtime.ultimate and runtime.ult >= 100 then
+	if brain.abilities and runtime.ultimate and runtime.ult >= 100 then
 		local def = Powers.abilityFor(runtime.id, runtime.ultimate, degree)
 		if def and distance <= ((def.ai and def.ai.range) or 12) and math.random() < difficulty.abilityRate then
 			if abilities:use(fighter, runtime.ultimate, aim) then
@@ -376,7 +423,7 @@ function CpuService:_think(fighter, brain)
 		end
 	end
 	local aggression = powerAi.aggression or 0.6
-	if math.random() < difficulty.abilityRate * aggression then
+	if brain.abilities and math.random() < difficulty.abilityRate * aggression then
 		local healthShare = humanoid.Health / math.max(1, humanoid.MaxHealth)
 		for _, abilityId in runtime.loadout do
 			local def = Powers.abilityFor(runtime.id, abilityId, degree)

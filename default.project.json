@@ -44,6 +44,12 @@
         "AdminEvent": {
           "$className": "RemoteEvent"
         },
+        "OverlordRequest": {
+          "$className": "RemoteEvent"
+        },
+        "OverlordEvent": {
+          "$className": "RemoteEvent"
+        },
         "AbilityRequest": {
           "$className": "RemoteEvent"
         },

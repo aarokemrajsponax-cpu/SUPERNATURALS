@@ -27,9 +27,11 @@ local ORDER = {
 	"ProgressionService",
 	"ReplayService",
 	"TutorialService",
+	"PracticeService",
 	"LoreService",
 	"AdminEventService",
 	"OwnerService",
+	"OverlordService",
 	"BaseService",
 }
 

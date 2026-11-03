@@ -103,9 +103,9 @@ Match.Arenas = {
 	},
 }
 
--- The practice dummies area near spawn
+-- The Training Studio (a room west of the hub, matching Hub.TrainingCenter)
 Match.TrainingGround = {
-	Center = Vector3.new(-90, 0, 0),
+	Center = Vector3.new(-236, 0, 0),
 }
 
 return Match

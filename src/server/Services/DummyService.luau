@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Combat = require(ReplicatedStorage.Shared.Config.Combat)
 local FighterState = require(ReplicatedStorage.Shared.Combat.FighterState)
 local Powers = require(ReplicatedStorage.Shared.Powers)
+local Practice = require(ReplicatedStorage.Shared.Config.Practice)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 
 local DummyService = {}
@@ -25,7 +26,7 @@ local KINDS = {
 	Cpu = { name = "CPU", behavior = "Cpu", color = rgb(120, 120, 140) },
 }
 
-local TRAINING_ORDER = { "PunchingBag", "Guard", "Sparring" }
+local TRAINING_ORDER = { "PunchingBag", "Guard", "Sparring", "PunchingBag", "Guard" }
 local SIGHT_RANGE = 30
 local RETRY_DELAY = 2
 -- Training dummies knocked further than this from their spot walk back to it
@@ -43,13 +44,129 @@ export type Dummy = {
 	active: boolean,
 	model: Model?,
 	fighter: any?,
-	-- CPU opponents: which power and degree they play, and how well
-	cpu: { power: string, degree: number, difficulty: string }?,
+	-- CPU opponents: which power and degree they play, and how well. profile, abilities and look
+	-- are optional (Jeffery's practice unit: a CpuService profile, abilities on or off, "Jeffery")
+	cpu: { power: string, degree: number, difficulty: string, profile: string?, abilities: boolean?, look: string? }?,
+	-- Training readout (bays only): real hit numbers, see _record. labels = the bay screen's text
+	readout: Readout?,
+}
+
+export type Readout = {
+	last: number,
+	lastResult: string,
+	combo: number,
+	best: number,
+	comboAt: number,
+	attacker: string?,
+	hits: { { at: number, damage: number } },
+	labels: { last: TextLabel?, combo: TextLabel?, dps: TextLabel?, note: TextLabel? }?,
+	shown: { [string]: string },
 }
 
 local dummies: { [string]: Dummy } = {}
 local counter = 0
 local folder: Folder
+
+local function newReadout(labels): Readout
+	return { last = 0, lastResult = "", combo = 0, best = 0, comboAt = -math.huge, attacker = nil, hits = {}, labels = labels, shown = {} }
+end
+
+local function now(): number
+	return workspace:GetServerTimeNow()
+end
+
+-- Damage dealt in the last Practice.DpsWindow seconds, per second
+local function dpsOf(readout: Readout, time: number): number
+	local total = 0
+	for index = #readout.hits, 1, -1 do
+		local hit = readout.hits[index]
+		if time - hit.at > Practice.DpsWindow then
+			table.remove(readout.hits, index)
+		else
+			total += hit.damage
+		end
+	end
+	return total / Practice.DpsWindow
+end
+
+local function setText(readout: Readout, key: string, text: string)
+	local labels = readout.labels
+	local label = labels and labels[key]
+	if label and readout.shown[key] ~= text then
+		readout.shown[key] = text
+		label.Text = text
+	end
+end
+
+-- The numbers a bay screen shows (also what tests read): { last, lastResult, combo, best, dps }
+function DummyService:readoutFor(dummy: Dummy)
+	local readout = dummy.readout
+	if not readout then
+		return nil
+	end
+	local time = now()
+	return {
+		last = readout.last,
+		lastResult = readout.lastResult,
+		combo = if time - readout.comboAt <= Practice.ComboGap then readout.combo else 0,
+		best = readout.best,
+		dps = dpsOf(readout, time),
+	}
+end
+
+function DummyService:_refresh(dummy: Dummy)
+	local readout = dummy.readout
+	if not readout then
+		return
+	end
+	local numbers = self:readoutFor(dummy)
+	setText(readout, "last", if readout.last > 0 then string.format("%.1f", readout.last) .. (if readout.lastResult == "Hit" then "" else " " .. string.lower(readout.lastResult)) else "-")
+	setText(readout, "combo", tostring(numbers.combo))
+	setText(readout, "dps", string.format("%.1f", numbers.dps))
+	setText(readout, "note", if readout.best > 0 then `Best combo {readout.best}` else "Hit the dummy to start")
+end
+
+-- A real hit on a bay dummy: only resolved hits that dealt damage count, never requests or guesses
+function DummyService:_record(attacker, target, outcome)
+	local dummy = dummies[target.id]
+	local readout = dummy and dummy.readout
+	if not dummy or not readout or dummy.cpu or not attacker or attacker == target or not outcome then
+		return
+	end
+	local dealt = outcome.dealt or 0
+	if dealt <= 0 then
+		return
+	end
+	local time = now()
+	if outcome.result == "Hit" then
+		if readout.attacker == attacker.id and time - readout.comboAt <= Practice.ComboGap then
+			readout.combo += 1
+		else
+			readout.combo = 1
+		end
+		readout.attacker = attacker.id
+		readout.comboAt = time
+		readout.best = math.max(readout.best, readout.combo)
+		table.insert(readout.hits, { at = time, damage = dealt })
+	end
+	readout.last = dealt
+	readout.lastResult = outcome.result
+	self:_refresh(dummy)
+end
+
+-- The bay dummies (training, not CPU), in bay order
+function DummyService:bayDummies(): { Dummy }
+	local list = {}
+	for _, dummy in dummies do
+		if dummy.training and dummy.readout and not dummy.cpu then
+			table.insert(list, dummy)
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.id < b.id
+	end)
+	return list
+end
 
 function DummyService:Init(services)
 	self.services = services
@@ -74,14 +191,30 @@ function DummyService:Start()
 		end
 	end)
 
+	self.combat:onHit(function(attacker, target, outcome)
+		self:_record(attacker, target, outcome)
+	end)
+	local bays = self.arenas:trainingBays()
 	for index, spot in self.arenas:trainingDummySpots() do
 		self:spawn(TRAINING_ORDER[index] or "PunchingBag", {
 			spawnAt = function()
 				return spot
 			end,
 			training = true,
+			labels = bays[index] and bays[index].labels or nil,
 		})
 	end
+	-- Readouts fade (the combo count falls to 0, DPS decays) without a new hit
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			for _, dummy in dummies do
+				if dummy.readout then
+					self:_refresh(dummy)
+				end
+			end
+		end
+	end)
 end
 
 -- A fresh fighter id for a dummy that will be spawned later
@@ -92,7 +225,7 @@ end
 
 -- Creates a dummy that respawns at spawnAt() whenever it's knocked out, until despawned
 -- options.cpu = { power, degree, difficulty } for a CPU opponent
-function DummyService:spawn(kindName: string, options: { spawnAt: () -> CFrame, id: string?, training: boolean?, parent: Instance?, cpu: { power: string, degree: number, difficulty: string }? }): Dummy
+function DummyService:spawn(kindName: string, options: { spawnAt: () -> CFrame, id: string?, training: boolean?, parent: Instance?, cpu: { power: string, degree: number, difficulty: string, profile: string?, abilities: boolean?, look: string? }?, labels: any? }): Dummy
 	local dummy: Dummy = {
 		id = options.id or self:reserveId(),
 		kind = KINDS[kindName] or KINDS.PunchingBag,
@@ -103,6 +236,7 @@ function DummyService:spawn(kindName: string, options: { spawnAt: () -> CFrame, 
 		model = nil,
 		fighter = nil,
 		cpu = options.cpu,
+		readout = if options.labels then newReadout(options.labels) else nil,
 	}
 	dummies[dummy.id] = dummy
 	self:_build(dummy)
@@ -162,7 +296,7 @@ function DummyService:_build(dummy: Dummy)
 	end
 
 	local model = result :: Model
-	local displayName = if powerDef and cpu then `{powerDef.name} CPU` else kind.name
+	local displayName = if cpu and cpu.look == "Jeffery" then "Jeffery" elseif powerDef and cpu then `{powerDef.name} CPU` else kind.name
 	model.Name = displayName
 	local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -182,14 +316,62 @@ function DummyService:_build(dummy: Dummy)
 		trainingDummy = dummy.training,
 	})
 	model:SetAttribute("DummyKind", kind.behavior)
+	if dummy.training and not cpu then
+		self:_dress(model, kind)
+	end
 	if cpu and powerDef then
 		-- A CPU plays its power's default loadout for that degree
 		self.services.PowerService:equip(dummy.fighter, cpu.power, cpu.degree, Powers.defaultLoadout(cpu.power, cpu.degree))
 		model:SetAttribute("CpuDifficulty", cpu.difficulty)
-		self.services.CpuService:run(dummy.fighter, cpu.difficulty)
+		if cpu.look == "Jeffery" then
+			require(script.Parent.Parent.World.Jeffery).dress(model)
+			model:SetAttribute("Practice", true)
+		end
+		self.services.CpuService:run(dummy.fighter, cpu.difficulty, cpu.profile, { abilities = cpu.abilities })
 		return
 	end
 	task.spawn(self._behave, self, dummy, dummy.fighter)
+end
+
+-- Welds a small prop to a body part
+local function attach(model: Model, partName: string, name: string, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material, shape: Enum.PartType?)
+	local base = model:FindFirstChild(partName)
+	if not base or not base:IsA("BasePart") then
+		return
+	end
+	local piece = Instance.new("Part")
+	piece.Name = name
+	piece.Size = size
+	piece.Color = color
+	piece.Material = material
+	if shape then
+		piece.Shape = shape
+	end
+	piece.CanCollide = false
+	piece.CanQuery = false
+	piece.CanTouch = false
+	piece.Massless = true
+	piece.CFrame = base.CFrame * offset
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = base
+	weld.Part1 = piece
+	weld.Parent = piece
+	piece.Parent = model
+end
+
+-- Bay dummies get a look of their own: a painted chest target, plus a cap on the punching bag,
+-- a plate on the guard's forearm and a headband on the sparring dummy
+function DummyService:_dress(model: Model, kind)
+	local ring = rgb(236, 232, 220)
+	attach(model, "UpperTorso", "ChestTarget", Vector3.new(0.12, 1.5, 1.5), CFrame.new(0, 0.1, -0.55) * CFrame.Angles(0, math.rad(90), 0), rgb(214, 70, 56), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	attach(model, "UpperTorso", "ChestCentre", Vector3.new(0.14, 0.6, 0.6), CFrame.new(0, 0.1, -0.58) * CFrame.Angles(0, math.rad(90), 0), ring, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	if kind.behavior == "Idle" then
+		attach(model, "Head", "Cap", Vector3.new(1.35, 0.4, 1.35), CFrame.new(0, 0.62, 0), kind.color, Enum.Material.Fabric)
+	elseif kind.behavior == "Guard" then
+		attach(model, "LeftLowerArm", "ForearmPlate", Vector3.new(0.3, 1.1, 0.9), CFrame.new(0.32, 0, 0), rgb(150, 160, 176), Enum.Material.Metal)
+	else
+		attach(model, "Head", "Headband", Vector3.new(1.3, 0.22, 1.3), CFrame.new(0, 0.28, 0), kind.color, Enum.Material.Fabric)
+	end
 end
 
 -- Dummies raise their block with "Held", so they never parry (CPU parries come later)

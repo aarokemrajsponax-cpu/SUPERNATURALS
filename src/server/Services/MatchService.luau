@@ -174,6 +174,14 @@ function MatchService:canDamage(attacker, target): boolean
 	if attackerMatch or targetMatch then
 		return attackerMatch == targetMatch and MatchFlow.isFighting(attackerMatch.flow)
 	end
+	-- Jeffery's practice fights (PracticeService) decide who may hurt whom in their own pairs
+	local practice = self.practiceRule
+	if practice then
+		local verdict = practice(attacker, target)
+		if verdict ~= nil then
+			return verdict
+		end
+	end
 	return target.trainingDummy
 end
 

@@ -215,6 +215,54 @@ function Jeffery.model(): Model
 	return model
 end
 
+-- Dresses an R15 fighter rig as Jeffery (the practice sparring unit): the rig's own body is made
+-- invisible (it still does the hit detection) and Jeffery's parts are scaled to fit and welded to
+-- its root. Hover base and the original Root are left out. Returns the dressing model.
+local RIG_SCALE = 0.56
+function Jeffery.dress(rig: Model): Model?
+	local root = rig:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return nil
+	end
+	for _, item in rig:GetDescendants() do
+		if item:IsA("BasePart") and item ~= root then
+			item.Transparency = 1
+		elseif item:IsA("Decal") or item:IsA("Accessory") or item:IsA("Shirt") or item:IsA("Pants") then
+			item:Destroy()
+		end
+	end
+	local look = Jeffery.model()
+	look.Name = "JefferyLook"
+	for _, name in { "HoverDisc", "HoverRing" } do
+		local item = look:FindFirstChild(name)
+		if item then
+			item:Destroy()
+		end
+	end
+	look:SetAttribute("Face", "thinking")
+	-- Feet of the look on the rig's feet: the root sits about 3 studs above the ground
+	look:PivotTo(root.CFrame * CFrame.new(0, -2.9, 0))
+	pcall(function()
+		look:ScaleTo(RIG_SCALE)
+	end)
+	look.Parent = rig
+	for _, item in look:GetDescendants() do
+		if item:IsA("BasePart") then
+			item.Anchored = false
+			item.CanCollide = false
+			item.CanQuery = false
+			item.CanTouch = false
+			item.Massless = true
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = root
+			weld.Part1 = item
+			weld.Parent = item
+		end
+	end
+	rig:SetAttribute("Look", "Jeffery")
+	return look
+end
+
 -- Places Jeffery beside the JEFFERY'S BASE door and gives him a "Talk" prompt
 function Jeffery.build(folder: Instance): Model
 	local Hub = require(script.Parent.Hub)

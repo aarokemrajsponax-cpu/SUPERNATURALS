@@ -132,6 +132,9 @@ Protocol.DataEvent = {
 	Reward = "Reward", -- { money, gems, xp, lines: { { label, money?, gems?, xp? } } } after a match
 	Tutorial = "Tutorial", -- { active, replay, index, total, step, face, lines, goal, done, complete, exited } Jeffery's tutorial state
 	Hint = "Hint", -- { id, text, face } one contextual hint from Jeffery
+	-- Practice fights: { kind = "State", active, mode, theme, endsAt, duration, hints } | { kind = "Line", id, text, face }
+	-- (during a round) | { kind = "Result", mode, outcome, stats, lines, face, next } | { kind = "Refused", reason, text }
+	Practice = "Practice",
 	Toast = "Toast", -- { text, kind: "info" | "success" | "error" | "reward" }
 	-- Selection screens (docs/specs/SelectionContract.md)
 	Selection = "Selection", -- the whole snapshot: context, balances, equipped selection, every power and degree with price and status
@@ -181,6 +184,10 @@ Protocol.ProgressAction = {
 	TutorialReplay = "TutorialReplay", -- () start Jeffery's tutorial again
 	HintWindow = "HintWindow", -- (windowId) a hint window was opened (Powers, Market)
 	SeenHint = "SeenHint", -- (hintId) a one-time hint was shown; remembered in tutorial.done (ReplayService)
+	-- Jeffery's practice fights in the Training Studio (PracticeService); nothing is saved or at stake
+	PracticeStart = "PracticeStart", -- (modeId, options?) options = { theme, hints, difficulty, behavior, duration, abilities }
+	PracticeRestart = "PracticeRestart", -- () the same round again
+	PracticeStop = "PracticeStop", -- () exit the practice fight
 }
 
 -- Client -> server, through Remotes.SettingsRequest: (settings table, sanitized on the server)
@@ -203,6 +210,35 @@ Protocol.AdminSignal = {
 	Strike = "Strike", -- { position: Vector3, impactAt: number }
 	BlackHoleBlast = "BlackHoleBlast", -- { position: Vector3 }
 	Announce = "Announce", -- { text: string, from: string }
+}
+
+-- Client -> server, through Remotes.OverlordRequest: (requestId: number, action: string, payload: table?)
+-- Owner only, checked on the server by UserId. The answer comes back on Remotes.OverlordEvent as
+-- ("Result", requestId, { ok, code?, message?, data? }). The screens keep one request in flight
+-- per action. Payload shapes are documented in src/server/Services/OverlordService.luau.
+Protocol.OverlordAction = {
+	Catalogue = "Catalogue",
+	State = "State",
+	Servers = "Servers",
+	Activate = "Activate", -- { entries = { { preset, overrides? } }, scope, eventMode? }
+	Preview = "Preview", -- { preset, seconds? } (this server only)
+	Stop = "Stop", -- { target = eventOrCommandId, scope }
+	StopAll = "StopAll", -- { scope }
+	RestoreEnvironment = "RestoreEnvironment", -- { scope }
+	ClearEffects = "ClearEffects", -- { scope }
+	RestorePlayers = "RestorePlayers", -- { scope }
+	ReturnToDefault = "ReturnToDefault", -- { scope }
+	ListCombos = "ListCombos",
+	SaveCombo = "SaveCombo", -- { id, name, entries }
+	DeleteCombo = "DeleteCombo", -- { id }
+	Audit = "Audit", -- { limit? }
+	Summon = "Summon", -- { jobId }
+}
+
+-- Server -> owner, through Remotes.OverlordEvent
+Protocol.OverlordSignal = {
+	Result = "Result", -- (requestId, result)
+	State = "State", -- (state) pushed after every change
 }
 
 -- Attributes the server sets on fighter models (times use workspace:GetServerTimeNow())

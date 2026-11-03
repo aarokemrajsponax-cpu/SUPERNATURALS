@@ -477,7 +477,7 @@ check("Shadow Step: teleports to the aimed spot (validated), costs and cools dow
 	assert(flatDistance(a.root.Position, target) < 1, "landed on the spot")
 	assert(math.abs(a.root.Position.Y - 3) < 0.01, "standing on the ground")
 	assert(#fxSince(mark, "ShadowStepMark", a) == 1 and #fxSince(mark, "ShadowStep", a) == 1, "marked and drawn")
-	assert(a.power.resource < 45, "Spirit spent")
+	assert(a.power.resource < 60 - Powers.abilityFor("Ghost", "ShadowStep", 1).cost + Powers.scaledRegen("Ghost", GHOST.resource.regen) * 0.5 + 1, "Spirit spent")
 	assert(cooldownSet(a, "ShadowStep"), "cooldown")
 	-- Onto Bob: lands just short of him
 	task.wait(0.3)

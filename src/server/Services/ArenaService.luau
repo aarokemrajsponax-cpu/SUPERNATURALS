@@ -69,6 +69,7 @@ export type Arena = {
 local slots: { Arena } = {}
 local arenaFolder: Folder
 local trainingSpots: { CFrame } = {}
+local trainingLayout: any = nil
 local services: any = {}
 local concourse: Concourse.Built? = nil
 local ticking = false
@@ -265,9 +266,10 @@ function ArenaService:Init(allServices)
 end
 
 function ArenaService:Start()
-	local model, spots = TrainingHall.build(MatchConfig.TrainingGround.Center)
+	local model, spots, layout = TrainingHall.build(MatchConfig.TrainingGround.Center)
 	model.Parent = workspace
 	trainingSpots = spots
+	trainingLayout = layout
 	local ok, result = pcall(Concourse.build, workspace, {
 		watch = function(player: Player, number: number)
 			ArenaService:watchChamber(player, number)
@@ -393,11 +395,21 @@ end
 
 function ArenaService:trainingSpawn(): CFrame
 	local center = MatchConfig.TrainingGround.Center
-	return CFrame.lookAt(center + Vector3.new(12, 4, 0), center + Vector3.new(0, 4, 0))
+	return CFrame.lookAt(center + Vector3.new(20, 4, 0), center + Vector3.new(0, 4, 0))
 end
 
 function ArenaService:trainingDummySpots(): { CFrame }
 	return trainingSpots
+end
+
+-- The studio's practice bays: { { labels, spot, name } } (labels are the readout screen's text)
+function ArenaService:trainingBays(): { any }
+	return if trainingLayout then trainingLayout.bays else {}
+end
+
+-- The Training Studio layout: { bays, floors (sparring floors), platform, console, jeffery }
+function ArenaService:trainingStudio(): any
+	return trainingLayout
 end
 
 return ArenaService

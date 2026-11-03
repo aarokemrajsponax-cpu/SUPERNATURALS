@@ -71,6 +71,8 @@ check("an ability hits a training dummy, costs grit and starts its cooldown", fu
 	end, 6, "a training dummy")
 	game.faceOff(fighter, dummy, 5)
 	ready(fighter)
+	-- Start half full so spending shows even with fast regeneration
+	fighter.power.resource = fighter.power.resourceMax * 0.5
 	local before = dummy.humanoid.Health
 	local grit = fighter.power.resource
 	request("AbilityRequest", alice, "Groundbreaker", aimAt(fighter, dummy))
