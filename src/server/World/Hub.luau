@@ -16,7 +16,7 @@
 -- ProximityPrompt whose attribute "Action" the client reads (WorldFxController):
 --   Entrance         Travel:Lobby      Test Chambers    Travel:Concourse
 --   Training Studio  Travel:Training   Jeffery's Base   Window:Learn (falls back to Play)
---   Spectating       Window:Watch      Master Shop      Window:Market
+--   Spectating       Travel:Lounge     Master Shop      Window:Market
 --   Player Base St.  Base:Street      Calibration      Window:Powers (+ CFrameValue "PreviewCamera")
 -- The Archive stand (Window:Archive) is a ninth entry, flagged `stand`, near the spawn.
 -- Wings behind the portals are built later; the prompts already route to what exists.
@@ -114,7 +114,7 @@ Hub.Gates = {
 	gate("Battle", "TEST CHAMBERS", "Battleground concourse", 0, COMBAT, "Travel:Concourse", "Enter the concourse"),
 	gate("Training", "TRAINING STUDIO", "Practise on dummies", 180, TRAINING, "Travel:Training", "Go to training", { open = true }),
 	gate("Learn", "JEFFERY'S BASE", "How to play", -135, SOCIAL, "Window:Learn", "Learn to play"),
-	gate("Watch", "SPECTATING LOUNGE", "Watch live matches", 45, SOCIAL, "Window:Watch", "Watch a match"),
+	gate("Watch", "SPECTATING LOUNGE", "Watch live matches", 45, SOCIAL, "Travel:Lounge", "Enter the lounge"),
 	gate("Market", "MASTER SHOP", "Powers, cosmetics, passes", 135, EXPANSION, "Window:Market", "Open the shop"),
 	gate("Homes", "PLAYER BASE STREET", "Your base and friends' bases", -90, PERSONAL, "Base:Street", "Enter the street"),
 	gate("Calibration", "CALIBRATION CHAMBER", "Meet the eight fighters", -45, SPECIAL, "Window:Powers", "View fighters"),

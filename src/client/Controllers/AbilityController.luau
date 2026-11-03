@@ -67,6 +67,7 @@ end
 function AbilityController:Init(controllers)
 	self.fx = controllers.PowerFxController
 	self.input = controllers.InputController
+	self.targeting = controllers.TargetingController
 end
 
 function AbilityController:Start()
@@ -161,11 +162,12 @@ local function attributeTime(character: Model, name: string): number
 	return if typeof(value) == "number" then value else 0
 end
 
--- Uses the ability in a slot (1-5) or "Ultimate"
-function AbilityController:use(slot: any)
+-- The equipped ability in a slot ("Ultimate" included) once the cheap local checks pass;
+-- a press that can't work explains itself here and returns nil
+function AbilityController:_ready(slot: any): (any?, Model?, Humanoid?, BasePart?)
 	local character, humanoid, root = myCharacter()
 	if not character or not humanoid or not root then
-		return
+		return nil
 	end
 	local entry = nil
 	for _, candidate in self:slots() do
@@ -174,30 +176,94 @@ function AbilityController:use(slot: any)
 		end
 	end
 	if not entry then
-		return
+		return nil
 	end
 	local def = entry.def
 	local time = serverNow()
-	-- Cheap local checks first, so a press that can't work explains itself
 	if time < attributeTime(character, Attribute.StunnedUntil) or humanoid.WalkSpeed <= 0 and time < attributeTime(character, Attribute.BusyUntil) then
-		return
+		return nil
 	end
 	if time + Combat.Abilities.CooldownLeeway < attributeTime(character, Attribute.CooldownPrefix .. entry.abilityId) then
 		rejectedEvent:Fire(entry.abilityId, MESSAGES.cooldown)
-		return
+		return nil
 	end
 	if slot == "Ultimate" then
 		if (character:GetAttribute(Attribute.Ultimate) or 0) < Combat.Ultimate.Max then
 			rejectedEvent:Fire(entry.abilityId, MESSAGES.charge)
-			return
+			return nil
 		end
 	elseif (character:GetAttribute(Attribute.Resource) or 0) + 0.5 < (def.cost or 0) then
 		local powerDef = Powers.get(character:GetAttribute(Attribute.Power))
 		rejectedEvent:Fire(entry.abilityId, `Not enough {if powerDef and powerDef.resource then powerDef.resource.name else "energy"}`)
+		return nil
+	end
+	return entry, character, humanoid, root
+end
+
+-- Uses the ability in a slot (1-5) or "Ultimate". Point and teleport abilities enter
+-- targeting mode first (or cast at the cursor with quick cast); everything else
+-- fires at once toward the aim.
+function AbilityController:use(slot: any)
+	local entry = self:_ready(slot)
+	if not entry then
 		return
 	end
+	local mode = entry.def.targeting
+	local targeting = self.targeting
+	if targeting and (mode == "point" or mode == "teleport") then
+		if targeting.quickCastOn() then
+			local aim = targeting:quickAim(entry)
+			if aim then
+				self:cast(entry, aim)
+				return
+			end
+		else
+			targeting:begin(entry, function(aim)
+				-- The world may have changed while aiming: check again, then cast
+				if self:_ready(slot) then
+					self:cast(entry, aim)
+				end
+			end)
+			return
+		end
+	end
+	self:cast(entry, self:aim())
+end
 
-	local aim = self:aim()
+-- Touch: a finger landing on a targeted ability's button starts an aim (drag, release
+-- to cast; drag back onto the button to cancel). Returns true when it took the press.
+function AbilityController:touchBegin(slot: any, input: InputObject, button: GuiObject): boolean
+	local targeting = self.targeting
+	if not targeting then
+		return false
+	end
+	local found = nil
+	for _, candidate in self:slots() do
+		if candidate.slot == slot then
+			found = candidate
+		end
+	end
+	if not found or not found.def.targeting then
+		return false
+	end
+	local entry = self:_ready(slot)
+	if not entry then
+		return true
+	end
+	return targeting:touchBegin(entry, input, button, function(aim)
+		if self:_ready(slot) then
+			self:cast(entry, aim)
+		end
+	end)
+end
+
+-- Sends the request with the given aim ({ direction, point? }) and shows the wind-up
+function AbilityController:cast(entry: any, aim: { direction: Vector3, point: Vector3? })
+	local character, humanoid, root = myCharacter()
+	if not character or not humanoid or not root then
+		return
+	end
+	local def = entry.def
 	-- Turn to face the aim right away (the server uses the aim, not the facing)
 	local flat = Vector3.new(aim.direction.X, 0, aim.direction.Z)
 	if flat.Magnitude > 0.1 and not def.instant then

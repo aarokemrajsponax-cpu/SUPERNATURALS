@@ -79,31 +79,124 @@ function AbilityService:Start()
 	end)
 end
 
+-- Fighters, effects and debris never count as geometry for a landing
+local function ignoreList(characters): { Instance }
+	local ignore: { Instance } = {}
+	for _, other in characters:all() do
+		table.insert(ignore, other.model)
+	end
+	for _, name in { "SNEffects", "SNLocalDebris" } do
+		local folder = workspace:FindFirstChild(name)
+		if folder then
+			table.insert(ignore, folder)
+		end
+	end
+	return ignore
+end
+
+local landingRay = RaycastParams.new()
+landingRay.FilterType = Enum.RaycastFilterType.Exclude
+local landingOverlap = OverlapParams.new()
+landingOverlap.FilterType = Enum.RaycastFilterType.Exclude
+
+-- A teleport request must end on solid floor, not inside geometry and inside the arena.
+-- A wall in the way shortens the jump to just short of it. Returns the standing
+-- position (or nil, why, and the wall-shortened wish).
+function AbilityService:_landing(fighter, wanted: Vector3): (Vector3?, string?, Vector3)
+	local settings = Combat.Targeting
+	local root = fighter.root
+	local from = root.Position
+	local ignore = ignoreList(self.characters)
+	landingRay.FilterDescendantsInstances = ignore
+	landingOverlap.FilterDescendantsInstances = ignore
+	-- Walls between here and there (checked at chest height from the feet-level position)
+	local path = wanted - from
+	local flatPath = Vector3.new(path.X, 0, path.Z)
+	if flatPath.Magnitude > 0.5 then
+		local wall = workspace:Raycast(from, flatPath, landingRay)
+		if wall then
+			local keep = math.max(0, (wall.Position - from).Magnitude - settings.WallMargin)
+			wanted = from + flatPath.Unit * keep
+		end
+	end
+	local match = self.services.MatchService:getMatchOf(fighter)
+	if match then
+		wanted = self.services.ArenaService:clampInside(match.arena, wanted, 4)
+	end
+	local ground = workspace:Raycast(wanted + Vector3.new(0, 8, 0), Vector3.new(0, -40, 0), landingRay)
+	if not ground then
+		return nil, "no floor there", wanted
+	end
+	local stand = ground.Position + Vector3.new(0, settings.LandingHeight, 0)
+	local blocking = workspace:GetPartBoundsInBox(CFrame.new(stand + Vector3.new(0, 0.3, 0)), settings.LandingBox, landingOverlap)
+	if #blocking > 0 then
+		return nil, "blocked", wanted
+	end
+	return stand, nil, wanted
+end
+
 -- Turns whatever the client sent as its aim into safe values: a flat unit
 -- direction (defaults to where the character faces), a 3D look direction, and
--- an optional target point no farther than the ability can reach.
+-- an optional target point no farther than the ability can reach. For targeted
+-- abilities (def.targeting) the checks are strict: non-finite numbers and absurdly
+-- distant points are refused, and a teleport must land somewhere safe.
+-- Returns (aim) or (nil, reason).
 function AbilityService:_aim(fighter, def, aim: any)
+	local settings = Combat.Targeting
 	local root = fighter.root
+	local mode = def.targeting
 	local facing = Hitbox.flatDirection(root.CFrame.LookVector) or Vector3.new(0, 0, -1)
-	local result = { direction = facing, look = root.CFrame.LookVector, point = nil :: Vector3? }
+	local result = { direction = facing, look = root.CFrame.LookVector, point = nil :: Vector3?, targeting = mode }
 	if typeof(aim) ~= "table" then
 		return result
 	end
-	local direction = finiteVector(aim.direction)
-	if direction and direction.Magnitude > 0.01 then
-		result.look = direction.Unit
-		result.direction = Hitbox.flatDirection(direction) or facing
-	end
-	local point = finiteVector(aim.point)
-	if point then
-		local reach = (def.range or def.reach or 40) + ABILITIES.AimSlack
-		local offset = point - root.Position
-		if offset.Magnitude > reach then
-			point = root.Position + offset.Unit * reach
+	local strict = mode ~= nil and not fighter.npc
+	if aim.direction ~= nil then
+		local direction = finiteVector(aim.direction)
+		if not direction then
+			if strict then
+				self:_flag(fighter, "bad aim direction")
+				return nil, "bad aim"
+			end
+		elseif direction.Magnitude > 0.01 then
+			result.look = direction.Unit
+			result.direction = Hitbox.flatDirection(direction) or facing
 		end
-		result.point = point
 	end
-	return result
+	if aim.point ~= nil then
+		local point = finiteVector(aim.point)
+		if not point then
+			if strict then
+				self:_flag(fighter, "bad aim point")
+				return nil, "bad aim"
+			end
+		else
+			local range = def.range or def.reach or (if mode then settings.DefaultRange else 40)
+			local reach = range + ABILITIES.AimSlack
+			local offset = point - root.Position
+			if strict and offset.Magnitude > reach * settings.AbsurdFactor + 20 then
+				self:_flag(fighter, "absurd aim point")
+				return nil, "bad aim"
+			end
+			if offset.Magnitude > reach then
+				point = root.Position + offset.Unit * reach
+			end
+			result.point = point
+		end
+	end
+	if mode == "teleport" and result.point then
+		-- Walls shorten the jump and the arena edge clamps it; a clear landing is snapped
+		-- onto the floor. If there's no safe landing the point is still handed on, and the
+		-- power's own safe-spot search fails the cast cleanly (refund, nobody moves).
+		local landing, _, shortened = self:_landing(fighter, result.point)
+		if landing then
+			result.point = landing
+		else
+			result.point = shortened
+			result.landingBlocked = true
+		end
+	end
+	return result, nil
 end
 
 -- Is this ability usable by this fighter right now? Returns (def, reason).
@@ -184,7 +277,10 @@ function AbilityService:use(fighter, abilityId: string, aim: any?, opts: { basic
 	if not handler then
 		return false, "unavailable"
 	end
-	local aimData = self:_aim(fighter, def, aim)
+	local aimData, aimReason = self:_aim(fighter, def, aim)
+	if not aimData then
+		return false, aimReason
+	end
 
 	-- Power-specific gates (e.g. a form that has to be active, a prop nearby)
 	if module.canUse then

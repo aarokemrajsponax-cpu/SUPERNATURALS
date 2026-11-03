@@ -279,6 +279,34 @@ Combat.Abilities = {
 	AimSlack = 4,
 }
 
+-- Energy. Costs and regeneration are scaled centrally (Powers.abilityFor for
+-- costs, PowerService tick for regeneration), so a power's own numbers stay as
+-- authored and balance is tuned here. Cooldowns and recovery windows are the
+-- real limiters. Per-power entries multiply on top: { cost = x, regen = x }.
+Combat.ResourceCostScale = 0.5
+Combat.ResourceRegenScale = 1.7
+Combat.ResourceTuning = {
+	-- Primal/Spirit/etc. use the defaults. Corruption only builds from fighting, so a
+	-- little less discount; the Grandmaster's Chi gets a smaller regen boost.
+	Corruption = { cost = 0.6 },
+	Grandmaster = { regen = 0.9 },
+}
+
+-- Targeted abilities (def.targeting = "point" | "direction" | "teleport"; nil = facing and lock-on)
+Combat.Targeting = {
+	-- Reach used when an ability has no range of its own
+	DefaultRange = 30,
+	-- A point further than this multiple of the reach is refused as absurd (nearer ones are clamped)
+	AbsurdFactor = 3,
+	-- A teleport stops this far short of a wall in its way
+	WallMargin = 2.5,
+	-- Standing height above the floor for a landing, and the box that must be clear
+	LandingHeight = 3,
+	LandingBox = Vector3.new(2, 4.4, 2),
+	-- Quick cast: skip aiming mode and cast at the cursor (off by default; Settings.quickCast)
+	QuickCastDefault = false,
+}
+
 -- Ultimate charge: fills from fighting; the ultimate needs a full bar
 Combat.Ultimate = {
 	Max = 100,

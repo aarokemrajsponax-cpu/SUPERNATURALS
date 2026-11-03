@@ -13,6 +13,9 @@ Audio.Sounds = {
 	Parry = { Id = "rbxasset://sounds/unsheath.wav", Volume = 0.7, Pitch = 1.2 },
 	GuardBreak = { Id = "rbxasset://sounds/swordlunge.wav", Volume = 0.8, Pitch = 0.6 },
 	Dodge = { Id = "rbxasset://sounds/swordslash.wav", Volume = 0.25, Pitch = 2.2 },
+	-- Aiming: a soft ping on confirm, a lower blip on cancel
+	TargetConfirm = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.3, Pitch = 1.5 },
+	TargetCancel = { Id = "rbxasset://sounds/switch.wav", Volume = 0.2, Pitch = 0.9 },
 	Countdown = nil :: { Id: string, Volume: number, Pitch: number }?,
 	Knockout = nil :: { Id: string, Volume: number, Pitch: number }?,
 }

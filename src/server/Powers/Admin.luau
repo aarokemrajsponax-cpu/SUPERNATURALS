@@ -456,7 +456,7 @@ end
 function abilities.Barrier(ctx)
 	local def = ctx.def
 	local facing = ctx.direction
-	local base = floorAt(ctx:origin() + facing * def.distance)
+	local base = floorAt(ctx.point or (ctx:origin() + facing * def.distance))
 	local center = base + UP * (def.height / 2)
 	local frame = CFrame.lookAt(center, center + facing)
 	ctx:fx("BarrierCast", { position = base, direction = facing, width = def.width, height = def.height, duration = def.startup })

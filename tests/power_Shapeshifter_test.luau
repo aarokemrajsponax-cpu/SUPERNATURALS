@@ -310,7 +310,7 @@ check("Wolf: the change costs Primal, applies the wolf's stats, and every form w
 	task.wait(def.startup + def.active + def.recovery + 0.1)
 	assert(a.power.form == "WolfForm" and a.model:GetAttribute(Attribute.Form) == "WolfForm", "a wolf")
 	assert(#fxSince(mark, "Shift", a) == 1, "the change shows")
-	assert(a.power.resource < 60 - def.cost + 1 and a.power.resource > 60 - def.cost - 4, "the change cost Primal: " .. a.power.resource)
+	assert(a.power.resource < 60 - def.cost + 1 + Powers.scaledRegen("Shapeshifter", DEF.resource.regen) * (def.startup + 0.1) and a.power.resource > 60 - def.cost - 4, "the change cost Primal: " .. a.power.resource)
 	local profile = profileOf(1, "WolfForm")
 	assert(a.combat == profile, "the wolf's combat profile")
 	assert(a.combat.TargetRadius == 1.8, "the wolf's hitbox")
@@ -423,7 +423,7 @@ check("a transition hit out of the air leaves a valid state and refunds part of 
 	assert(#fxSince(mark, "ShiftBroken", a) == 1 and #fxSince(mark, "Shift", a) == 0, "the change broke")
 	-- Paid: the cost less the refund, less what human-form regeneration and being hit gave back
 	local paid = 60 - a.power.resource
-	local expected = def.cost * (1 - DEF.shifting.interruptRefund) - DEF.resource.regen * (os.clock() - pressedAt) - DEF.resource.gainOnHurt
+	local expected = def.cost * (1 - DEF.shifting.interruptRefund) - Powers.scaledRegen("Shapeshifter", DEF.resource.regen) * (os.clock() - pressedAt) - DEF.resource.gainOnHurt
 	assert(near(paid, expected, 1.2), `half the cost came back: paid {paid}, expected about {expected}`)
 	assert(cooldownSet(a, "BearForm") <= DEF.shifting.interruptCooldown + 0.05, "can try again soon")
 	local jab = hitsSince(mark, b, a)[1]

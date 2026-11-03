@@ -15,6 +15,8 @@
 --   armor                         hits it shrugs off during startup without flinching
 --   damage, hitstun, knockback, launch, guardDamage, blockable, parryable
 --   range, radius, arc, width, speed, lifetime   shape and reach
+--   targeting                     optional: "point" (ground spot within range, radius shown) | "direction" (aim direction)
+--                                 | "teleport" (safe landing); nil = facing and lock-on. Validated in AbilityService
 --   tags                          what counters and defenses can answer it:
 --                                 Melee, Small, Heavy, Area, Grab, Projectile, Massive
 --   defense                       the interactive defense victims get: Prompt | Timing | Mash

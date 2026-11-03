@@ -245,7 +245,7 @@ function Grandmaster.tick(fighter, runtime, dt: number)
 	-- Focus State: Chi flows faster
 	if (data.focusedUntil or 0) > time then
 		local focus = Powers.abilityFor(POWER_ID, "FocusState", runtime.degree)
-		services.PowerService:gain(fighter, RESOURCE.regen * (focus.regenBoost - 1) * dt)
+		services.PowerService:gain(fighter, Powers.scaledRegen("Grandmaster", RESOURCE.regen) * (focus.regenBoost - 1) * dt)
 	end
 end
 

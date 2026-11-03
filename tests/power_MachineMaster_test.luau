@@ -28,6 +28,11 @@ local world, Engine = game.world, game.Engine
 local FighterState = world.require(world.find("ReplicatedStorage.Shared.Combat.FighterState"))
 local Protocol = world.require(world.find("ReplicatedStorage.Shared.Protocol"))
 local Powers = world.require(world.find("ReplicatedStorage.Shared.Powers"))
+-- Energy scaling (Config/Combat) is covered in targeting_test. These timing checks measure
+-- costs (which read the scaled def.cost) against the power's own regen, so regen is unscaled here.
+local CombatCfg = world.require(world.find("ReplicatedStorage.Shared.Config.Combat"))
+CombatCfg.ResourceRegenScale = 1
+CombatCfg.ResourceTuning = {}
 local Attribute = Protocol.Attribute
 local MM = Powers.get("MachineMaster")
 

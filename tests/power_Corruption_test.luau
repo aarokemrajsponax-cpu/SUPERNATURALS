@@ -285,7 +285,7 @@ check("Corruption's definition: card text, the meter, premium pass, AI hints, de
 	assert(ability("VoidStrike", 3).damage > ability("VoidStrike", 1).damage, "Void Strike scales")
 	assert(DEF.mark.maxStacks[1] == 1 and DEF.mark.maxStacks[3] == 3, "marks stack deeper each degree")
 	-- The strongest moves can't be kept up: one Cataclysm costs nearly half the meter
-	assert(ability("Cataclysm", 3).cost >= 40 and ability("DistortionZone", 3).cost >= 40, "the big moves cost a lot")
+	assert(ability("Cataclysm", 3).baseCost >= 40 and ability("DistortionZone", 3).baseCost >= 40, "the big moves cost a lot")
 	-- Weak point: fragile and a soft guard
 	local profile = Powers.combatProfile("Corruption", 1)
 	assert(profile.MaxHealth < 100 and profile.Block.MaxGuard < 100, "fragile with a soft guard")

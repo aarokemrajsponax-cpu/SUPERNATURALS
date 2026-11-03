@@ -119,6 +119,23 @@ Powers.merge = merge
 
 local abilityCache: { [string]: any } = {}
 
+-- Energy scaling from Config/Combat (see ResourceCostScale and friends)
+local function tuning(powerId: string?, key: string): number
+	local entry = powerId and Combat.ResourceTuning[powerId]
+	return if entry and typeof(entry[key]) == "number" then entry[key] else 1
+end
+
+function Powers.scaledCost(powerId: string?, base: number?): number
+	if not base or base <= 0 then
+		return 0
+	end
+	return math.max(1, math.floor(base * Combat.ResourceCostScale * tuning(powerId, "cost") + 0.5))
+end
+
+function Powers.scaledRegen(powerId: string?, base: number?): number
+	return (base or 0) * Combat.ResourceRegenScale * tuning(powerId, "regen")
+end
+
 -- An ability's stats at a degree: its base numbers with that degree's changes applied
 function Powers.abilityFor(powerId: string, abilityId: string, degree: number): any?
 	local key = `{powerId}/{abilityId}/{degree}`
@@ -142,6 +159,11 @@ function Powers.abilityFor(powerId: string, abilityId: string, degree: number): 
 		end
 	end
 	result.degree = degree
+	-- The authored cost stays in baseCost; everyone (server, UI, AI) reads the scaled cost
+	result.baseCost = result.cost
+	if result.cost then
+		result.cost = Powers.scaledCost(powerId, result.cost)
+	end
 	abilityCache[key] = result
 	return result
 end

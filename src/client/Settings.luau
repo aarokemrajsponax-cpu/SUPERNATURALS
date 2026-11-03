@@ -28,6 +28,8 @@ Settings.values = {
 	-- Lock-on: "toggle" (press to lock, tap to switch, hold to let go) or
 	-- "hold" (locked while the button is held)
 	lockOnMode = "toggle",
+	-- Targeted abilities cast at the cursor at once instead of entering aiming mode
+	quickCast = false,
 }
 
 local changed = Instance.new("BindableEvent")

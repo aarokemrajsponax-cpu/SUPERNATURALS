@@ -520,7 +520,7 @@ function abilities.HoloBarrier(ctx)
 		return
 	end
 	local direction = ctx.direction
-	local base = groundAt(inside(ctx, ctx:origin() + direction * def.range, 3))
+	local base = groundAt(inside(ctx, ctx.point or (ctx:origin() + direction * def.range), 3))
 	barrier(ctx, "HoloBarrier", base, direction, def.width, def.height, def.duration, def.health, false)
 end
 

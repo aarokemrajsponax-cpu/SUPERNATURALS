@@ -1807,7 +1807,7 @@ function PowerService:_tick(dt: number)
 		if runtime and self.characters:isAlive(fighter) then
 			local resourceDef = runtime.def.resource
 			if resourceDef and resourceDef.regen and resourceDef.regen ~= 0 then
-				runtime.resource = math.clamp(runtime.resource + resourceDef.regen * dt, 0, runtime.resourceMax)
+				runtime.resource = math.clamp(runtime.resource + Powers.scaledRegen(runtime.id, resourceDef.regen) * dt, 0, runtime.resourceMax)
 			end
 			local match = matchService:getMatchOf(fighter)
 			if match and matchService:isCombatAllowed(fighter) and runtime.ultimate then

@@ -29,6 +29,11 @@ local services, check, request = game.services, game.check, game.request
 local world, Engine = game.world, game.Engine
 local Protocol = world.require(world.find("ReplicatedStorage.Shared.Protocol"))
 local Powers = world.require(world.find("ReplicatedStorage.Shared.Powers"))
+-- Energy scaling (Config/Combat) is covered in targeting_test. These timing checks measure
+-- costs (which read the scaled def.cost) against the power's own regen, so regen is unscaled here.
+local CombatCfg = world.require(world.find("ReplicatedStorage.Shared.Config.Combat"))
+CombatCfg.ResourceRegenScale = 1
+CombatCfg.ResourceTuning = {}
 local Monetization = world.require(world.find("ReplicatedStorage.Shared.Config.Monetization"))
 local Combat = world.require(world.find("ReplicatedStorage.Shared.Config.Combat"))
 local Attribute = Protocol.Attribute
@@ -364,7 +369,7 @@ check("Syntax's definition: card text, Processing, premium, degrees, weakness an
 	local d1, d2, d3 = ability("SystemOverride", 1), ability("SystemOverride", 2), ability("SystemOverride", 3)
 	assert(d3.damage > d2.damage and d2.damage > d1.damage and d3.radius > d1.radius, "ultimate scales")
 	assert(d1.defense == "Timing" and d1.lock <= Combat.Statuses.Sealed.max, "telegraphed, lock within the Sealed cap")
-	local control = ability("RuleRewrite", 3).cost + ability("MovementOverride", 3).cost + ability("ConfinementField", 3).cost + ability("CommandZone", 3).cost
+	local control = ability("RuleRewrite", 3).baseCost + ability("MovementOverride", 3).baseCost + ability("ConfinementField", 3).baseCost + ability("CommandZone", 3).baseCost
 	assert(control > processing.max, "her whole control kit can't be dumped at once: " .. control)
 	-- Fragile: less health and guard than the default
 	local profile = Powers.combatProfile("Syntax", 1)

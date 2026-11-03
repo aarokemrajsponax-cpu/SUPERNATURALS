@@ -172,7 +172,7 @@ function Shapeshifter.tick(fighter, runtime, dt: number, kit)
 		return
 	end
 	-- No regeneration while transformed: the form drains Primal instead
-	local regen = DEF.resource.regen or 0
+	local regen = Powers.scaledRegen("Shapeshifter", DEF.resource.regen or 0)
 	runtime.resource = math.max(0, runtime.resource - (regen + form.form.drain) * dt)
 	if runtime.resource <= 0 then
 		revert(kit, "Exhausted")

@@ -55,7 +55,7 @@ Protocol.MatchAction = {
 	-- selection is refused nothing is charged and the player is not queued. Without it the saved selection is used.
 	Queue = "Queue", -- (modeName, options: { arena: string?, cpuPower: string?, cpuDifficulty: string?, selection: {}? }?)
 	LeaveQueue = "LeaveQueue",
-	Travel = "Travel", -- ("Lobby" | "Training" | "Base")
+	Travel = "Travel", -- ("Lobby" | "Training" | "Concourse" | "Lounge" | "Base")
 	ReturnToLobby = "ReturnToLobby",
 	Rematch = "Rematch", -- vote to play again from the results screen
 	ListMatches = "ListMatches", -- ask for the matches you can watch
@@ -72,10 +72,11 @@ Protocol.MatchEvent = {
 	Results = "Results", -- { reason, draw, winners: {string}, ranking: {{name, score, knockouts, deaths}} }
 	Ended = "Ended",
 	Notice = "Notice", -- { text: string }
-	Matches = "Matches", -- { { id, mode, arena, phase, names: {string} } } watchable matches
+	Matches = "Matches", -- watchable matches: { id, slot, mode, arena, phase, names, watchers, fighters = {{id,name,power}}, tally = {counts,total}, predictionOpen, closesAt, yours }
 	Spectating = "Spectating", -- { matchId, fighters: { Model } } or nil when you stop
 	Highlight = "Highlight", -- recorded final moments, see ReplayService
 	Rematch = "Rematch", -- { votes: number, needed: number }
+	PredictionResult = "PredictionResult", -- { matchId, yours, correct, winners, predictions, correctCount } informational only, no reward
 }
 
 -- Client -> server, through Remotes.AbilityRequest: (abilityId, aim: { direction: Vector3?, point: Vector3? }?)

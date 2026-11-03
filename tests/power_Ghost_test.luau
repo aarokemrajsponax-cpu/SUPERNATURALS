@@ -238,7 +238,7 @@ check("two players equip the Ghost: stats, Spirit and a sheathed katana", functi
 	assert(A().power.id == "Ghost" and B().power.id == "Ghost", "still Ghosts in the duel")
 	-- Reset to 50 when the duel set up, plus regen since then (never the 100 it had)
 	local spirit = A().power.resource
-	assert(spirit >= 49.5 and spirit <= 50 + GHOST.resource.regen * (now() - queuedAt) + 0.5, "Spirit starts at 50: " .. spirit)
+	assert(spirit >= 49.5 and spirit <= 50 + Powers.scaledRegen("Ghost", GHOST.resource.regen) * (now() - queuedAt) + 0.5, "Spirit starts at 50: " .. spirit)
 end)
 
 -- Degree 1: Phantom Blade ------------------------------------------------------------------------
@@ -273,7 +273,7 @@ check("Instant Draw (ability): fast long cut, costs Spirit, cooldown; a miss is 
 	assert(b.humanoid.Health < health, "Bob hurt")
 	-- 60, minus the cost, plus Spirit for landing it and a moment of regen
 	local spent = Powers.abilityFor("Ghost", "InstantDraw", 1).cost
-	assert(a.power.resource <= 60 - spent + GHOST.resource.gainOnHit + GHOST.resource.regen * 0.5, "Spirit spent: " .. a.power.resource)
+	assert(a.power.resource <= 60 - spent + GHOST.resource.gainOnHit + Powers.scaledRegen("Ghost", GHOST.resource.regen) * 0.5, "Spirit spent: " .. a.power.resource)
 	assert(cooldownSet(a, "InstantDraw"), "cooldown published")
 	assert(a.model:GetAttribute(Attribute.Phase) == 1, "katana drawn")
 	assert(#fxSince(mark, "InstantDraw", a) == 1, "the cut is drawn")
@@ -309,7 +309,7 @@ check("Spectral Dash: a real dash with afterimages, no hit, cost and cooldown", 
 	assert((mover.VectorVelocity - Vector3.new(0, 0, def.speed)).Magnitude < 0.01, "dashes where aimed at full speed")
 	assert(a.dashUntil > now(), "the dash is a legitimate move")
 	assert(#fxSince(mark, "SpectralDash", a) == 1, "afterimages drawn")
-	assert(a.power.resource < 45, "Spirit spent")
+	assert(a.power.resource < 60 - Powers.abilityFor("Ghost", "ShadowStep", 1).cost + Powers.scaledRegen("Ghost", GHOST.resource.regen) * 0.5 + 1, "Spirit spent")
 	assert(cooldownSet(a, "SpectralDash"), "cooldown")
 	task.wait(0.4)
 	assert(a.root:FindFirstChild("SNDash") == nil, "the dash ends")

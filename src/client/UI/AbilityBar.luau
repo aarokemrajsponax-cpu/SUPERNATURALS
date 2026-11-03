@@ -262,7 +262,19 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 			def = entry.def,
 			slot = entry.slot,
 		}
+		-- Targeted abilities on touch: press and drag to aim, release to cast
+		local touchTaken = false
+		frame.InputBegan:Connect(function(input)
+			touchTaken = false
+			if input.UserInputType == Enum.UserInputType.Touch and abilities.touchBegin then
+				touchTaken = abilities:touchBegin(entry.slot, input, frame)
+			end
+		end)
 		frame.Activated:Connect(function()
+			if touchTaken then
+				touchTaken = false
+				return
+			end
 			abilities:use(entry.slot)
 		end)
 		return button

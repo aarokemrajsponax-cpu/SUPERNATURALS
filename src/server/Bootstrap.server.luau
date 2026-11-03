@@ -23,12 +23,14 @@ local ORDER = {
 	"CpuService",
 	"DummyService",
 	"MatchService",
+	"LoungeService",
 	"ProgressionService",
 	"ReplayService",
 	"TutorialService",
 	"LoreService",
 	"AdminEventService",
 	"OwnerService",
+	"BaseService",
 }
 
 local services = {}

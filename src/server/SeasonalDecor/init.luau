@@ -2,6 +2,8 @@
 -- To add decorations for a new season, add a module next to this one and list it below.
 
 local Build = require(script.Build)
+local Lounge = require(script.Parent.World.Lounge)
+local LoungeSet = require(script.LoungeSet)
 
 local builders = {
 	Halloween = require(script.Halloween),
@@ -37,6 +39,14 @@ function SeasonalDecor.build(id: string)
 	local ok, err = pcall(builder, folder, Build)
 	if not ok then
 		warn(`[Seasons] Couldn't finish the {id} decorations: {err}`)
+	end
+	-- The Spectating Lounge changes with the season too (World/Lounge, SeasonalDecor/LoungeSet)
+	local loungeSet = (LoungeSet :: any)[id]
+	if loungeSet then
+		local loungeOk, loungeErr = pcall(loungeSet, folder, Build, Lounge.spots())
+		if not loungeOk then
+			warn(`[Seasons] Couldn't finish the {id} lounge accents: {loungeErr}`)
+		end
 	end
 	folder.Parent = workspace
 end

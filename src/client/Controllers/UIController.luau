@@ -55,6 +55,7 @@ function UIController:Start()
 	SettingsWindow.register()
 	require(script.Parent.Parent.UI.ArchiveWindow).register()
 	require(script.Parent.Parent.UI.LearnWindow).register()
+	require(script.Parent.Parent.UI.WatchWindow).register()
 
 	local hud = Hud.build(gui, self.input.Bindings, self.input.device, self.effects.currentGuard)
 	local abilityBar = AbilityBar.build(hud.abilityRow, self.abilities, self.input.device)
@@ -132,6 +133,13 @@ function UIController:Start()
 			matchHud.addKnockout(data)
 		elseif kind == Event.Results and typeof(data) == "table" then
 			matchHud.showResults(data)
+		elseif kind == Event.Spectating and data == nil then
+			-- A spectator's watching ended (match over, Exit or a fighter left): back to the lobby look
+			if inMatch then
+				inMatch = false
+				matchHud.clear()
+				Shell.setMode("Lobby")
+			end
 		elseif kind == Event.Ended then
 			inMatch = false
 			matchHud.clear()

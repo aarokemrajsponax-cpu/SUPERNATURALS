@@ -31,6 +31,11 @@ local world, Engine = game.world, game.Engine
 local FighterState = world.require(world.find("ReplicatedStorage.Shared.Combat.FighterState"))
 local Protocol = world.require(world.find("ReplicatedStorage.Shared.Protocol"))
 local Powers = world.require(world.find("ReplicatedStorage.Shared.Powers"))
+-- Energy scaling (Config/Combat) is covered in targeting_test. These timing checks measure
+-- costs (which read the scaled def.cost) against the power's own regen, so regen is unscaled here.
+local CombatCfg = world.require(world.find("ReplicatedStorage.Shared.Config.Combat"))
+CombatCfg.ResourceRegenScale = 1
+CombatCfg.ResourceTuning = {}
 local Monetization = world.require(world.find("ReplicatedStorage.Shared.Config.Monetization"))
 local Attribute = Protocol.Attribute
 local ADMIN = Powers.get("Admin")
@@ -371,7 +376,7 @@ check("Admin's definition: card text, Authority, premium pass, AI hints, degrees
 		assert((ability(abilityId, 3).damage or 0) <= 10, abilityId .. " keeps raw damage modest")
 	end
 	-- The strongest commands can't be kept up: a few casts empty a full bar
-	assert(ability("ArenaBarrier", 3).cost + ability("TeleportSequence", 3).cost + ability("Jail", 3).cost > authority.max, "big commands drain Authority")
+	assert(ability("ArenaBarrier", 3).baseCost + ability("TeleportSequence", 3).baseCost + ability("Jail", 3).baseCost > authority.max, "big commands drain Authority")
 	assert(Powers.combatProfile("Admin", 1).MaxHealth == 95, "a light body")
 end)
 
