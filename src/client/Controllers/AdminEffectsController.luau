@@ -252,7 +252,7 @@ function AdminEffectsController:_announcement(data)
 		Components.padding(14),
 		make("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
-	Components.label(`👑  ANNOUNCEMENT  ·  {data.from or "Owner"}`, {
+	Components.label(`ANNOUNCEMENT  ·  {data.from or "Owner"}`, {
 		LayoutOrder = 1,
 		Size = UDim2.new(1, 0, 0, 20),
 		Font = Theme.Fonts.Title,
@@ -415,27 +415,50 @@ local function buildCrown(head: BasePart): Model
 	return crown
 end
 
+-- The owner nameplate: a slim navy plate with a hairline, a small amber diamond
+-- and the word in tracked Michroma. No emoji, no gradient, no outline glow.
 local function buildTitle(head: BasePart): BillboardGui
 	local gui = make("BillboardGui", {
 		Name = "SNOwnerTitle",
-		Size = UDim2.fromOffset(170, 30),
+		Size = UDim2.fromOffset(132, 30),
 		StudsOffset = Vector3.new(0, 4.2, 0),
 		MaxDistance = 140,
 		LightInfluence = 0,
 		Adornee = head,
 		Parent = workspace.CurrentCamera,
 	})
-	local label = Components.label("👑  OWNER", {
-		Font = Theme.Fonts.Title,
-		TextColor3 = Color3.new(1, 1, 1),
-		TextStrokeTransparency = 0.3,
-		MaxTextSize = 22,
+	local plate = make("Frame", {
+		Name = "Plate",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundTransparency = 0.12,
+		BorderSizePixel = 0,
 		Parent = gui,
+	}, { Components.corner(UDim.new(0, 6)), Components.stroke(Theme.Colors.Accent, 1, 0.35) })
+	make("Frame", {
+		Name = "Mark",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0, 16, 0.5, 0),
+		Size = UDim2.fromOffset(8, 8),
+		Rotation = 45,
+		BackgroundColor3 = Theme.Colors.Accent,
+		BorderSizePixel = 0,
+		Parent = plate,
 	})
-	make("UIGradient", {
-		Color = ColorSequence.new(Color3.fromRGB(255, 240, 170), Color3.fromRGB(255, 170, 40)),
-		Rotation = 90,
-		Parent = label,
+	make("TextLabel", {
+		Name = "Title",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 30, 0.5, 0),
+		Size = UDim2.new(1, -38, 1, 0),
+		BackgroundTransparency = 1,
+		FontFace = Theme.Faces.Display,
+		Text = Theme.track("Owner"),
+		TextColor3 = Theme.Colors.Text,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = plate,
 	})
 	return gui
 end

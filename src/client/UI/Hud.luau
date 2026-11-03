@@ -214,6 +214,7 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		})
 		local outline = cap:FindFirstChildOfClass("UIStroke") :: UIStroke
 		local key = cap:FindFirstChild("Key") :: TextLabel
+		key.ZIndex = 6
 		Components.text({
 			Name = "Label",
 			Text = binding.label,

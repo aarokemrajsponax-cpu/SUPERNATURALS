@@ -356,7 +356,7 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 				button.outline.Transparency = if ready then 0.1 + 0.3 * (math.sin(os.clock() * 5) + 1) / 2 else 0.45
 			else
 				local affordable = resource + 0.5 >= (button.def.cost or 0)
-				Icons.tint(button.icon, if affordable then Colors.Text else Colors.TextMuted)
+				Icons.tint(button.icon, if affordable then Colors.Text else Colors.TextDim)
 				button.cost.TextColor3 = if affordable then Colors.TextDim else Colors.Danger
 			end
 		end

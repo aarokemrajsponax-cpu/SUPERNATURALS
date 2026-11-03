@@ -81,7 +81,7 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		Parent = parent,
 	})
 	Components.list(top, Space.S, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
-	local timerPill = glass({ Name = "Timer", LayoutOrder = 1, Size = UDim2.fromOffset(240, 66), Parent = top })
+	local timerPill = glass({ Name = "Timer", LayoutOrder = 1, Size = UDim2.fromOffset(320, 66), Parent = top })
 	local timerStroke = Components.stroke(Colors.Stroke, 1, 0.5)
 	timerStroke.Parent = timerPill
 	local modeLabel = Components.text({
