@@ -316,6 +316,9 @@ local DEFAULT = {
 		playSeconds = 0,
 		streak = 0,
 		bestStreak = 0,
+		-- Spectator predictions (informational only, nothing is ever paid for them)
+		predictions = 0,
+		predictionsCorrect = 0,
 	},
 	powers = {},
 	loadouts = {},

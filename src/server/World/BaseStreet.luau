@@ -39,7 +39,7 @@ local SLATE = rgb(46, 49, 55)
 local STEEL = rgb(150, 156, 164)
 local CERAMIC = rgb(222, 220, 212)
 local WALNUT = rgb(96, 64, 42)
-local PANEL = rgb(70, 52, 40)
+local PANEL = rgb(104, 76, 56)
 local CONCRETE = rgb(78, 80, 86)
 
 export type Door = { prompt: ProximityPrompt, label: TextLabel, strip: BasePart, front: CFrame }

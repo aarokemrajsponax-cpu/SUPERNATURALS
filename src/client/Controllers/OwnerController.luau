@@ -145,6 +145,15 @@ local function build()
 end
 
 function OwnerController:Start()
+	-- The vault console (BaseService) asks the owner's client to open the panel; the panel's
+	-- own server checks still decide what any button does
+	local baseEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BaseEvent") :: RemoteEvent
+	baseEvent.OnClientEvent:Connect(function(kind)
+		if kind == Protocol.BaseEvent.OpenConsole and built then
+			OwnerPanel.toggle()
+		end
+	end)
+
 	player:GetAttributeChangedSignal(Attribute.IsOwner):Connect(build)
 	build()
 
