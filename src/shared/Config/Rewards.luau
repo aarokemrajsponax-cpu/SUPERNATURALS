@@ -24,8 +24,8 @@ Rewards.Match = {
 	ModeShare = { Duel = 1, FreeForAll = 1.15, Practice = 0.5 },
 	-- CPU practice pays more against harder CPUs
 	CpuShare = { Easy = 0.5, Normal = 1, Hard = 1.4 },
-	-- A correct (free) spectator prediction
-	PredictionMoney = 15,
+	-- Spectator predictions never pay anything (owner rule, P.S. 13.0)
+	PredictionMoney = 0,
 }
 
 -- Anti-farming

@@ -224,11 +224,15 @@ function ProgressionService:_payMatch(match, result)
 		end
 	end
 
-	-- Free spectator predictions: a small reward if right, nothing lost if wrong
+	-- Free spectator predictions are just for fun: no stake, no currency, no items for a right
+	-- guess (owner rule, P.S. 13.0, and Roblox's rules on simulated gambling)
 	for player, fighterId in match.predictions do
-		if player.Parent and winners[fighterId] and not result.draw then
-			self.currency:add(player, { money = Rewards.Match.PredictionMoney }, "prediction")
-			toast(player, `Your prediction was right! +{Rewards.Match.PredictionMoney} Money`, "reward")
+		if player.Parent and not result.draw then
+			if winners[fighterId] then
+				toast(player, "Your prediction was right.", "info")
+			else
+				toast(player, "Not this time. The winner surprised you.", "info")
+			end
 		end
 	end
 	for _, participant in match.participants do

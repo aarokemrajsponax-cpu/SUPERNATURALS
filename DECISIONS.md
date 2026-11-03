@@ -23,28 +23,37 @@ Newest first within each group. "Pending" means the owner has been asked to conf
 7. **Seasons.** Halloween content is retired for the year; the November calendar is the
    "Remember November" polar bear plus a Thanksgiving build-up (Thanksgiving 2026 is
    26 November: the fourth Thursday is computed, never hard-coded).
-8. **Facility layout** (pending): proposed as an octagonal central hub with the statues and
-   the Lantern, with wings for the battlegrounds and their spectator rooms, the Training
-   Studio, Jeffery's Base, the Vault, the Spectating Lounge with the Master Shop behind it,
-   Player Base Street and reserved expansion rooms. Built after the owner approves.
-9. **The Vault's purpose** is unclear from the sketch (pending owner answer).
-10. **Meme Vault** lives in the basement of each personal base, reached by a low-key luxury
-    lift (owner note in 25.7).
+8. **Facility layout** (owner answer, 3 Nov): a blend of the proposal (octagonal central hub
+   with the statues and the Lantern) and the generated blueprint, with touches of the sketch.
+   Wings: a Battlegrounds concourse with about **20 battleground chambers** (servers are big;
+   each chamber has an environment theme and its own spectator gallery), the Training Studio,
+   Jeffery's Base, the Spectating Lounge with the Master Shop behind it, Player Base Street
+   and reserved expansion rooms. Chambers are built on demand and streamed, so 20 stay cheap.
+9. **The Vault is per player**, in the basement of each personal base (owner answer): mostly
+   a trophy and collection vault (achievements, mastery, titles, cosmetics), a small secret
+   lore section unlocked by discoveries, and a premium-fighter display. AJKR's own vault also
+   holds the Owner Control Center. The Meme Vault archive shares the basement, reached by a
+   low-key luxury lift (owner note in 25.7).
 11. **Reference images** are kept in the session scratchpad, not the repo, because most are
     screenshots of other studios' games. The roadmap's reference audit describes each one.
 
 ## Characters and fighters
 12. **Jeffery** is the guide robot's only name (owner correction). Nameplate: JEFFERY.
-13. **"Ninja" = The Ghost** (the katana fighter); pending confirmation.
-14. **Premium "phases" = degrees** (pending). Corruption, Syntax and Admin phases 1–3 map to
-    their degrees 1–3: each degree is a phase with its own kit, aura, idle, transformation and
-    ultimate. No mid-fight paid escalation.
+13. **"Ninja" = The Ghost** (the katana fighter); confirmed by the owner.
+14. **Phases transform during a match** (owner answer, 3 Nov), for every fighter. A power's
+    degrees are its phases. Every match starts in Phase 1; a player who has unlocked a higher
+    degree can evolve mid-fight once the Phase meter (earned through combat) is full, paying
+    that phase's fee in Money (earned currency, never Gems or Robux). Fees are shown before
+    confirming, charged only on the transformation, and last for that match. Training: free
+    and instant. Owner: free. Premium fighters also need their one-time Robux unlock. This
+    replaces the earlier "pay once when switching degree before a match" design and satisfies
+    section 14 (exact price, temporary, affordability shown, charged only on confirm).
 15. **Lobby rule.** Combat powers are disabled in the lobby on the server. They work in
     matches and in training (free trials of every power and degree) and for the owner in
     showcase mode.
-16. **Degree pricing.** Selecting or switching to a higher degree costs in-game currency by
-    tier, shown before confirming and charged only on confirmation. Premium fighters need a
-    one-time Robux unlock *and* use their in-game selection price.
+16. **Degree pricing** is the phase fee in item 14. Before a match the player chooses fighter
+    and loadout; each phase's fee, unlock state and affordability are shown there and in the
+    showcase.
 
 ## Content and policy
 17. **"Bomboclat Wallahi"** is built as an original reaction event under an original name. The
