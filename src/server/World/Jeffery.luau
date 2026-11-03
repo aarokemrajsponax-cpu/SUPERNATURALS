@@ -236,6 +236,9 @@ function Jeffery.build(folder: Instance): Model
 	prompt.ActionText = "Talk to Jeffery"
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = false
+	-- Same keys as the hub's doors; E and F are combat keys
+	prompt.KeyboardKeyCode = Enum.KeyCode.T
+	prompt.GamepadKeyCode = Enum.KeyCode.DPadRight
 	prompt:SetAttribute("Action", "Window:Learn")
 	prompt.Parent = model:FindFirstChild("Torso")
 	model.Parent = folder

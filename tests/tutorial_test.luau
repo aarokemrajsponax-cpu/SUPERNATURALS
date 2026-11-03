@@ -162,7 +162,6 @@ check("training, attack, block, dodge, ability, evolve, showcase run on real eve
 	task.wait(1.2)
 	local trial = api.lastSent("DataEvent", "SelectionResult", alice)
 	assert(trial and trial.action == "Trial" and trial.ok, "a trial was started for the evolve step: " .. tostring(trial and trial.action) .. " " .. tostring(trial and trial.message) .. " training=" .. tostring(fighter.power.training))
-	print("DEBUG training", fighter.power.training, fighter.power.degree, fighter.power.id)
 	api.request("PowerRequest", alice, "Evolve")
 	task.wait(0.5)
 	local res = api.lastSent("DataEvent", "SelectionResult", alice)

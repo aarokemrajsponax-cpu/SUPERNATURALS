@@ -797,7 +797,6 @@ function abilities.TeleportSequence(ctx)
 			break
 		end
 		local outcome = nil
-		warn("DBGSEQ", tostring(target.root.Position) .. " " .. tostring(ctx:origin()) .. " " .. tostring(ctx.fighter.root.CFrame.Position))
 		if (target.root.Position - ctx:origin()).Magnitude <= def.reach then
 			outcome = ctx:hit(target, nil, { direction = awayFrom(ctx:origin(), target) or ctx.direction, cueId = cues[index] })
 		end

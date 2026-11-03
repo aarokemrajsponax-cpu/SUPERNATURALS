@@ -159,7 +159,13 @@ function TutorialService:_event(player: Player?, kind: string)
 		run.finished = true
 		self:_finish(player, run)
 	else
-		self:_prepare(player, Tutorial.Steps[run.index])
+		local nextStep = Tutorial.Steps[run.index]
+		-- A moment later: saving the step re-equips the saved power, which would end the trial
+		task.delay(0.6, function()
+			if runs[player] == run and Tutorial.Steps[run.index] == nextStep then
+				self:_prepare(player, nextStep)
+			end
+		end)
 		self:_send(player, { event = "step", completed = step.id })
 	end
 end

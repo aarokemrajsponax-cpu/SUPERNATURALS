@@ -146,32 +146,18 @@ local function B()
 end
 
 -- The stand-in engine keeps Position and CFrame apart, and Admin moves fighters by CFrame
--- (teleports, blinks, steps aside). Roblox derives Position from CFrame, so mirror that for
--- the fighters' roots continuously.
-task.spawn(function()
-	local n = 0
-	while true do
-		n += 1
-		if n % 100 == 1 then
-			print("LOOP", n, alice ~= nil)
-		end
-		for _, player in { alice, bob } do
-			local fighter = player and game.fighter(player)
-			if fighter and fighter.root then
-				local ok, err = pcall(function()
-					fighter.root.Position = fighter.root.CFrame.Position
-				end)
-				if not ok and n % 50 == 1 then
-					print("SYNCERR", err)
-				end
-				if (fighter.root.Position - fighter.root.CFrame.Position).Magnitude > 1 and n % 20 == 1 then
-					print("DESYNC", tostring(fighter.root.Position), tostring(fighter.root.CFrame.Position))
-				end
-			end
-		end
-		task.wait()
+-- (teleports, blinks, steps aside). Roblox derives Position from CFrame, so mirror that
+-- whenever the character service moves someone.
+do
+	local original = services.CharacterService.teleport
+	services.CharacterService.teleport = function(self, fighter, ...)
+		local result = original(self, fighter, ...)
+		pcall(function()
+			fighter.root.Position = fighter.root.CFrame.Position
+		end)
+		return result
 	end
-end)
+end
 
 local function ability(id: string, degree: number)
 	return Powers.abilityFor("Admin", id, degree)
@@ -511,14 +497,6 @@ end)
 
 -- Every ability at every degree ---------------------------------------------------------------
 
-local origApply = services.CombatService.applyHit
-services.CombatService.applyHit = function(self, att, tgt, hit, opts)
-	local r = origApply(self, att, tgt, hit, opts)
-	if opts and opts.ability == "TeleportSequence" then
-		print("DBGAPPLY", r and r.result, r and r.reason, att.humanoid.Health, tgt.humanoid.Health)
-	end
-	return r
-end
 local function exercise(abilityId: string, degree: number)
 	local def = ability(abilityId, degree)
 	local label = `{abilityId} (Degree {degree})`
@@ -577,7 +555,7 @@ local function exercise(abilityId: string, degree: number)
 		assert(status(b, "Gravity") and status(b, "Slow"), label .. ": Bob heavy inside the field")
 		assert(not status(a, "Slow"), label .. ": the caster is not slowed")
 	elseif abilityId == "TeleportSequence" then
-		assert(#fxSince(mark, "SequenceStrike", a) >= 1 and #hits >= 1, label .. `: struck Bob (strikes {#fxSince(mark, "SequenceStrike", a)}, hits {#hits}, blink {#fxSince(mark, "SequenceBlink", a)}, broken {#fxSince(mark, "SequenceBroken", a)}, rej {rejection(mark, alice, abilityId)}) dist {flatDistance(a.root.Position, b.root.Position)} ` .. (function() local t = "" for _, h in game.sentSince(mark, "CombatEvent", "Hit") do t ..= tostring(h.ability) .. "/" .. tostring(h.result) .. " " end for _, f in fxSince(mark, "SequenceStrike", a) do t ..= " landed=" .. tostring(f.landed) end return t end)())
+		assert(#fxSince(mark, "SequenceStrike", a) >= 1 and #hits >= 1, label .. `: struck Bob (strikes {#fxSince(mark, "SequenceStrike", a)}, hits {#hits}, blink {#fxSince(mark, "SequenceBlink", a)}, broken {#fxSince(mark, "SequenceBroken", a)}, rej {rejection(mark, alice, abilityId)}))
 	elseif abilityId == "AreaCommand" then
 		assert(#hits >= 1 and status(b, "Slow"), label .. ": Bob slowed")
 	end
