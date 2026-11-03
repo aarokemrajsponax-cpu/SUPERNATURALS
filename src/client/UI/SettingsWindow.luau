@@ -87,6 +87,18 @@ function SettingsWindow.register()
 			setters.lockOnMode = function(value)
 				setLockMode(value == "hold")
 			end
+			local _, setQuickCast = Components.toggle("Quick cast", Settings.get("quickCast") == true, function(on)
+				Settings.set("quickCast", on)
+			end, {
+				Name = "Toggle_quickCast",
+				LayoutOrder = #TOGGLES + 2,
+				Description = "Aimed abilities cast at your cursor straight away, without the aiming step",
+				Grouped = true,
+				Parent = comfort,
+			})
+			setters.quickCast = function(value)
+				setQuickCast(value == true)
+			end
 
 			local guidance = group(2, "GUIDANCE")
 			local _, setHints = Components.toggle("Hints", Settings.get("hints") ~= false, function(on)

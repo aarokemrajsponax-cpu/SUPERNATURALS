@@ -8,11 +8,13 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Seasons = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Seasons"))
+local Theme = require(script.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local rng = Random.new()
 local Tags = Seasons.Tags
+local Colors = Theme.Colors
 
 local function keypoints(points: { { number } }): NumberSequence
 	local list = {}
@@ -65,81 +67,8 @@ local function startWeather(weather)
 	end
 end
 
--- Sprites: emoji that drift around the player (leaves, hearts, bats...)
-local SPRITE_AREA = 45
-
-local function startSprites(sprites)
-	local folder = Instance.new("Folder")
-	folder.Name = "SeasonalSprites"
-	folder.Parent = camera
-
-	local items = {}
-	local function respawn(item, anywhere: boolean)
-		local origin = camera.CFrame.Position
-		local y
-		if anywhere then
-			y = origin.Y + rng:NextNumber(-8, 30)
-		elseif sprites.fall > 0 then
-			y = origin.Y + rng:NextNumber(25, 35)
-		elseif sprites.fall < 0 then
-			y = origin.Y - rng:NextNumber(8, 12)
-		else
-			y = origin.Y + rng:NextNumber(5, 25)
-		end
-		item.position = Vector3.new(
-			origin.X + rng:NextNumber(-SPRITE_AREA, SPRITE_AREA),
-			y,
-			origin.Z + rng:NextNumber(-SPRITE_AREA, SPRITE_AREA)
-		)
-		local heading = rng:NextNumber(0, math.pi * 2)
-		item.drift = Vector3.new(math.cos(heading), 0, math.sin(heading)) * sprites.drift * rng:NextNumber(0.6, 1.2)
-		item.phase = rng:NextNumber(0, math.pi * 2)
-		item.spinSpeed = rng:NextNumber(-90, 90)
-	end
-
-	for _ = 1, sprites.count do
-		local anchor = effectPart(Vector3.new(0.1, 0.1, 0.1))
-		local gui = Instance.new("BillboardGui")
-		local size = sprites.size * rng:NextNumber(0.8, 1.2)
-		gui.Size = UDim2.fromScale(size, size)
-		gui.LightInfluence = 0
-		gui.MaxDistance = 120
-		gui.Adornee = anchor
-		local label = Instance.new("TextLabel")
-		label.BackgroundTransparency = 1
-		label.Size = UDim2.fromScale(1, 1)
-		label.TextScaled = true
-		label.Text = sprites.glyphs[rng:NextInteger(1, #sprites.glyphs)]
-		label.Parent = gui
-		gui.Parent = anchor
-		anchor.Parent = folder
-
-		local item = { part = anchor, label = label }
-		respawn(item, true)
-		table.insert(items, item)
-	end
-
-	local connection = RunService.Heartbeat:Connect(function(dt)
-		local origin = camera.CFrame.Position
-		local t = os.clock()
-		for _, item in items do
-			item.position += (Vector3.new(0, -sprites.fall, 0) + item.drift) * dt
-			local sway = Vector3.new(math.sin(t * 0.8 + item.phase), 0, math.cos(t * 0.6 + item.phase) * 0.5) * sprites.sway
-			item.part.CFrame = CFrame.new(item.position + sway)
-			if sprites.spin then
-				item.label.Rotation = (t * item.spinSpeed) % 360
-			end
-			local offset = item.position - origin
-			if offset.Y < -15 or offset.Y > 40 or math.abs(offset.X) > SPRITE_AREA + 5 or math.abs(offset.Z) > SPRITE_AREA + 5 then
-				respawn(item, false)
-			end
-		end
-	end)
-	return function()
-		connection:Disconnect()
-		folder:Destroy()
-	end
-end
+-- (Emoji sprites were retired in the craft pass: no emoji anywhere in the game. Each season
+-- is carried by its decorations, weather particles and lighting instead.)
 
 -- Fireworks launched around the spawn area
 local FIREWORK_COLORS = {
@@ -280,7 +209,9 @@ local function startDecorAnimations()
 	end
 end
 
--- A banner that slides in to welcome the player to the holiday
+-- A quiet welcome card for the season, in the interface's own style (docs/specs/UI_Craft_Pass.md):
+-- a solid panel with a light top lip, a thin bar in the season's accent colour, the season's
+-- name in Michroma and one plain line under it. It eases in under the top bar and leaves.
 local function showBanner(theme)
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "SeasonalBanner"
@@ -288,65 +219,65 @@ local function showBanner(theme)
 	gui.DisplayOrder = 10
 
 	local frame = Instance.new("Frame")
+	frame.Name = "Card"
 	frame.AnchorPoint = Vector2.new(0.5, 0)
-	frame.Position = UDim2.new(0.5, 0, 0, -160)
-	frame.Size = UDim2.new(0.9, 0, 0, 104)
-	frame.BackgroundColor3 = Color3.new(1, 1, 1)
+	frame.Position = UDim2.new(0.5, 0, 0, -120)
+	frame.Size = UDim2.new(0.9, 0, 0, 76)
+	frame.BackgroundColor3 = Colors.Panel
+	frame.BorderSizePixel = 0
 	frame.Parent = gui
-
 	local maxSize = Instance.new("UISizeConstraint")
-	maxSize.MaxSize = Vector2.new(480, 104)
+	maxSize.MaxSize = Vector2.new(460, 76)
 	maxSize.Parent = frame
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 20)
+	corner.CornerRadius = Theme.Corner
 	corner.Parent = frame
-	local gradient = Instance.new("UIGradient")
-	gradient.Color = ColorSequence.new(theme.palette.primary, theme.palette.secondary)
-	gradient.Rotation = 20
-	gradient.Parent = frame
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = theme.palette.accent
-	stroke.Thickness = 3
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Parent = frame
+	local edge = Instance.new("UIStroke")
+	edge.Color = Colors.Stroke
+	edge.Transparency = 0.6
+	edge.Thickness = 1
+	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	edge.Parent = frame
+	local lip = Instance.new("Frame")
+	lip.Name = "Lip"
+	lip.BorderSizePixel = 0
+	lip.BackgroundColor3 = Colors.PanelHover
+	lip.Position = UDim2.fromOffset(4, 1)
+	lip.Size = UDim2.new(1, -8, 0, 1)
+	lip.Parent = frame
+	local bar = Instance.new("Frame")
+	bar.Name = "Accent"
+	bar.BorderSizePixel = 0
+	bar.BackgroundColor3 = theme.palette.accent
+	bar.Position = UDim2.fromOffset(0, 14)
+	bar.Size = UDim2.new(0, 3, 1, -28)
+	bar.Parent = frame
 
-	local icon = Instance.new("TextLabel")
-	icon.BackgroundTransparency = 1
-	icon.Position = UDim2.fromOffset(14, 14)
-	icon.Size = UDim2.fromOffset(76, 76)
-	icon.Text = theme.icon
-	icon.TextScaled = true
-	icon.Parent = frame
-
-	local function text(content: string, y: number, height: number, font: Enum.Font)
+	local function line(name: string, content: string, y: number, size: number, face: Font, color: Color3)
 		local label = Instance.new("TextLabel")
+		label.Name = name
 		label.BackgroundTransparency = 1
-		label.Position = UDim2.new(0, 100, 0, y)
-		label.Size = UDim2.new(1, -116, 0, height)
+		label.Position = UDim2.fromOffset(20, y)
+		label.Size = UDim2.new(1, -36, 0, size + 4)
 		label.Text = content
-		label.Font = font
-		label.TextScaled = true
+		label.FontFace = face
+		label.TextSize = size
+		label.TextColor3 = color
 		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextColor3 = Color3.new(1, 1, 1)
-		local outline = Instance.new("UIStroke")
-		outline.Color = Color3.new(0, 0, 0)
-		outline.Transparency = 0.6
-		outline.Thickness = 2
-		outline.Parent = label
+		label.TextTruncate = Enum.TextTruncate.AtEnd
 		label.Parent = frame
 	end
-	text(theme.greeting, 16, 44, Enum.Font.FredokaOne)
-	text(theme.subtitle, 62, 26, Enum.Font.GothamMedium)
+	line("Title", Theme.track(theme.name), 14, 20, Theme.Faces.Display, Colors.Text)
+	line("Subtitle", theme.subtitle, 42, 16, Theme.Faces.Medium, Colors.TextDim)
 
 	gui.Parent = player:WaitForChild("PlayerGui")
-
-	local slideIn = TweenService:Create(frame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	local slideIn = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 		Position = UDim2.new(0.5, 0, 0, 16),
 	})
 	slideIn:Play()
 	task.delay(7, function()
-		local slideOut = TweenService:Create(frame, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = UDim2.new(0.5, 0, 0, -160),
+		local slideOut = TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0, -120),
 		})
 		slideOut.Completed:Once(function()
 			gui:Destroy()
@@ -376,9 +307,6 @@ Seasons.observe(function(_, theme)
 	end
 	if theme.weather then
 		table.insert(stopFunctions, startWeather(theme.weather))
-	end
-	if theme.sprites then
-		table.insert(stopFunctions, startSprites(theme.sprites))
 	end
 	if theme.fireworks then
 		table.insert(stopFunctions, startFireworks())

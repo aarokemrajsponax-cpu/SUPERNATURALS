@@ -24,11 +24,11 @@ Tutorial.Steps = {
 	{
 		id = "welcome", event = "ack", face = "happy", title = "Welcome",
 		lines = {
-			"HELLO, NEW RECRUIT. I am Jeffery, your officially unofficial facility assistant.",
+			"Hello, new recruit. I am Jeffery, your officially unofficial facility assistant.",
 			"This is the training facility. Eight fighters, one hall, and a lot of people pressing buttons.",
-			"The doors around the hall lead to fights, training, the shop and fighter selection. My own door is JEFFERY'S BASE.",
+			"The doors around the hall lead to fights, training, the shop and fighter selection. My own door is Jeffery's Base.",
 		},
-		goal = "Press CONTINUE",
+		goal = "Press Continue",
 	},
 	{
 		id = "move", event = "move", face = "thinking", title = "Move",
@@ -51,7 +51,7 @@ Tutorial.Steps = {
 	{
 		id = "camera", event = "ack", face = "thinking", title = "Camera",
 		lines = { "Turn the camera and look around. I will wait. I am very patient." },
-		goal = "Look around, then press CONTINUE",
+		goal = "Look around, then press Continue",
 		keys = { "camera" },
 	},
 	{
@@ -107,7 +107,7 @@ Tutorial.Steps = {
 Tutorial.Outro = {
 	face = "victory",
 	lines = {
-		"CONGRATULATIONS, RECRUIT. You are now officially less likely to press random buttons and hope for the best.",
+		"Congratulations, recruit. You are now officially less likely to press random buttons and hope for the best.",
 		"Your welcome reward is on the way. I will keep an eye on you. For safety. Mostly yours.",
 	},
 }

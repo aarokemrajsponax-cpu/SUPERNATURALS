@@ -21,85 +21,82 @@ local PROFILE = {
 	settings = { uiScale = 1 },
 }
 
-local function degreeButtons(detail): { any }
+-- The Fighter Showcase picks a phase with a segmented control named PhaseTabs
+local function phaseSegments(detail): { any }
 	local list = {}
-	for _, item in detail:GetDescendants() do
-		if item:IsA("TextButton") and string.match(item.Text, "^[^%d]*%d  ·  ") then
-			table.insert(list, item)
+	local tabs = detail:FindFirstChild("PhaseTabs", true)
+	if tabs then
+		for _, item in tabs:GetDescendants() do
+			if item:IsA("TextButton") and string.match(item.Name, "^Segment_%d+$") then
+				table.insert(list, item)
+			end
 		end
 	end
+	table.sort(list, function(a, b)
+		return tonumber(string.match(a.Name, "%d+")) < tonumber(string.match(b.Name, "%d+"))
+	end)
 	return list
 end
 
-t.check("the Powers window lays out four degrees and the cosmetic pass", function()
+-- Does any label under root contain this text?
+local function containsText(root, fragment: string): boolean
+	if not root then
+		return false
+	end
+	for _, item in root:GetDescendants() do
+		if (item:IsA("TextLabel") or item:IsA("TextButton")) and string.find(item.Text, fragment, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local function pickFighter(gui, name: string)
+	local list = t.findNamed(gui, "PowerList")
+	for _, item in list:GetDescendants() do
+		if item:IsA("TextButton") and t.findText(item, name) then
+			t.press(item)
+			return true
+		end
+	end
+	local label = t.findText(list, name)
+	if label then
+		t.press(label.Parent)
+		return true
+	end
+	return false
+end
+
+t.check("the Fighter Showcase shows the Grandmaster's four phases; the style pass is in the shop", function()
 	local ui = t.startUI(PROFILE)
 	local gui, Shell = ui.gui, ui.Shell
 	for _, size in { { 1920, 1080 }, { 667, 375 } } do
 		t.setScreen(size[1], size[2])
 		Shell.open("Powers")
-		assert(Shell.isOpen("Powers"), "the Powers window opens")
-		local list = t.findNamed(gui, "PowerList")
-		local card = nil
-		for _, item in list:GetDescendants() do
-			if item:IsA("TextButton") and t.findText(item, "The Grandmaster") then
-				card = item
-				break
-			end
+		assert(Shell.isOpen("Powers"), "the Fighter Showcase opens")
+		assert(pickFighter(gui, "The Grandmaster"), "The Grandmaster is listed")
+		local segments = phaseSegments(t.findNamed(gui, "PowerDetail"))
+		assert(#segments == 4, "four phase tabs: " .. #segments)
+		for phase = 1, 4 do
+			t.press(phaseSegments(t.findNamed(gui, "PowerDetail"))[phase])
+			local card = t.findNamed(gui, "PhaseCard")
+			assert(containsText(card, `Phase {phase}:`), "the card shows Phase " .. phase)
+			t.auditLayout(t.findNamed(gui, "PowerDetail"), `Showcase detail, phase {phase}`)
 		end
-		card = card or t.findText(list, "The Grandmaster")
-		assert(card, "The Grandmaster is listed")
-		if card:IsA("TextButton") then
-			t.press(card)
-		else
-			t.press(card.Parent)
-		end
-		local detail = t.findNamed(gui, "PowerDetail")
-		local buttons = degreeButtons(detail)
-		assert(#buttons == 4, "four degree buttons: " .. #buttons)
-		-- Two columns, two rows, same size
-		local grid = buttons[1].Parent:FindFirstChildOfClass("UIGridLayout")
-		assert(grid, "a grid holds them")
-		assert(grid.CellSize.X.Scale == 0.5, "two columns")
-		local named = false
-		for _, button in buttons do
-			named = named or string.find(button.Text, "4  ·  ASCENDANT DRAGON", 1, true) ~= nil
-		end
-		assert(named, "degree IV is named")
-		for degree = 1, 4 do
-			local found = nil
-			for _, button in degreeButtons(t.findNamed(gui, "PowerDetail")) do
-				if string.find(button.Text, `{degree}  ·`, 1, true) then
-					found = button
-				end
-			end
-			assert(found, "degree button " .. degree)
-			t.press(found)
-			t.auditLayout(t.findNamed(gui, "PowerDetail"), `Powers detail, degree {degree}`)
-		end
-		local cosmetic = t.findNamed(gui, "CosmeticPass")
-		assert(cosmetic, "the Celestial Dragon Style panel")
-		local buy = t.findNamed(cosmetic, "CosmeticBuy")
-		assert(buy and buy.Text == "Not on sale yet", "not on sale while the id is 0: " .. tostring(buy and buy.Text))
-		local says = false
-		for _, item in cosmetic:GetDescendants() do
-			says = says or (item:IsA("TextLabel") and string.find(item.Text, "Cosmetic only", 1, true) ~= nil)
-		end
-		assert(says, "says it's cosmetic only")
-		t.auditLayout(cosmetic, "Cosmetic panel")
-		t.auditLayout(t.findNamed(gui, "PowerActions"), "Powers actions")
-		-- Back to a three-degree power: three buttons, one row
-		for _, item in list:GetDescendants() do
-			if item:IsA("TextButton") and t.findText(item, "Strong Dude") then
-				t.press(item)
-				break
-			end
-		end
-		local strongButtons = degreeButtons(t.findNamed(gui, "PowerDetail"))
-		assert(#strongButtons == 3, "three degree buttons for Strong Dude: " .. #strongButtons)
-		assert(t.findNamed(gui, "CosmeticPass") == nil, "no cosmetic panel for Strong Dude")
+		assert(containsText(t.findNamed(gui, "PhaseCard"), "Ascendant Dragon"), "Phase 4 is named")
+		t.auditLayout(t.findNamed(gui, "PowerActions"), "Showcase actions")
+		-- A three-phase power shows three tabs
+		assert(pickFighter(gui, "Strong Dude"), "Strong Dude is listed")
+		local strong = phaseSegments(t.findNamed(gui, "PowerDetail"))
+		assert(#strong == 3, "three phase tabs for Strong Dude: " .. #strong)
 		Shell.close()
 	end
 	t.setScreen(1920, 1080)
+	-- Celestial Dragon Style is sold in the Master Shop, not on the fighter
+	Shell.open("Shop", "Cosmetics")
+	assert(Shell.isOpen("Shop"), "the shop opens on Cosmetics")
+	assert(containsText(gui, "Celestial Dragon Style"), "the Grandmaster style pass is listed in the shop")
+	Shell.close()
 end)
 
 t.check("the ability bar shows Focus and Perfect Form next to Chi", function()

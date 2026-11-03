@@ -241,12 +241,13 @@ Theme.Grid = {
 	Section = 32,
 }
 
--- Corners: 6 px on panels and controls, 3 px on small marks (badges, bars,
--- key caps). Round is only for things that are truly circular (rings, dots).
-Theme.Corner = UDim.new(0, 6)
-Theme.SmallCorner = UDim.new(0, 6)
-Theme.TinyCorner = UDim.new(0, 3)
-Theme.PillCorner = UDim.new(0, 4)
+-- Corners: 4 px on windows and panels, 3 px on controls, 2 px on small marks (badges,
+-- bars, key caps): tight, machined corners rather than soft bubbles (craft pass, 3 Nov).
+-- Round is only for things that are truly circular (rings, dots).
+Theme.Corner = UDim.new(0, 4)
+Theme.SmallCorner = UDim.new(0, 3)
+Theme.TinyCorner = UDim.new(0, 2)
+Theme.PillCorner = UDim.new(0, 3)
 Theme.Round = UDim.new(1, 0)
 
 -- Control sizes (touch targets are never shorter than 44)
@@ -266,11 +267,12 @@ Theme.Scale = {
 	Max = 1.25,
 }
 
--- Panel opacity (about 92%) and the hairline's transparency (steel at about 30%)
+-- Panel opacity and the hairline's transparency (steel at about 30%). Windows are solid:
+-- nothing shows through a surface that holds text (docs/specs/UI_Craft_Pass.md).
 Theme.Glass = {
-	Window = 0.06,
-	Panel = 0.08,
-	Chip = 0.1,
+	Window = 0,
+	Panel = 0.03,
+	Chip = 0.06,
 	StrokeTransparency = 0.7,
 }
 

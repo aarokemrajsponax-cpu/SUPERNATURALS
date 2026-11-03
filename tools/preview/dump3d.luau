@@ -106,7 +106,7 @@ local function sequenceNumber(sequence, default)
 	return default
 end
 
-local out = { parts = {}, lights = {}, particles = {}, beams = {}, terrain = {}, texts = {}, cameras = {} }
+local out = { parts = {}, lights = {}, particles = {}, beams = {}, terrain = {}, texts = {}, guis = {}, cameras = {} }
 
 local function exportPart(part)
 	local transparency = get(part, "Transparency") or 0
@@ -134,6 +134,122 @@ local function exportPart(part)
 		reflectance = get(part, "Reflectance") or 0,
 		shadow = get(part, "CastShadow") ~= false,
 	})
+end
+
+
+-- GUI export (SurfaceGui / BillboardGui) -------------------------------------------------
+
+local function color255(c)
+	return { math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5) }
+end
+
+local function udim2(v)
+	return { v.X.Scale, v.X.Offset, v.Y.Scale, v.Y.Offset }
+end
+
+local function gradientStops(seq)
+	local list = {}
+	if typeof(seq) == "ColorSequence" then
+		for _, k in seq.Keypoints do
+			table.insert(list, { k.Time, k.Value.R, k.Value.G, k.Value.B })
+		end
+	elseif typeof(seq) == "NumberSequence" then
+		for _, k in seq.Keypoints do
+			table.insert(list, { k.Time, k.Value })
+		end
+	end
+	return list
+end
+
+local function exportGuiNode(item)
+	local node: any = { class = item.ClassName, name = item.Name, children = {} }
+	if item:IsA("GuiObject") then
+		node.size = udim2(item.Size)
+		node.pos = udim2(item.Position)
+		node.anchor = { item.AnchorPoint.X, item.AnchorPoint.Y }
+		node.rotation = item.Rotation
+		node.visible = item.Visible
+		node.bg = color255(item.BackgroundColor3)
+		node.bgAlpha = item.BackgroundTransparency
+		node.z = item.ZIndex
+		node.order = item.LayoutOrder
+		if item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox") then
+			node.text = item.Text
+			node.textSize = item.TextSize
+			node.textColor = color255(item.TextColor3)
+			node.textAlpha = item.TextTransparency
+			node.alignX = enumName(item.TextXAlignment)
+			node.alignY = enumName(item.TextYAlignment)
+			node.wrap = item.TextWrapped
+			node.scaled = item.TextScaled
+			node.lineHeight = get(item, "LineHeight") or 1
+			local face = get(item, "FontFace")
+			if face then
+				node.family = face.Family
+				node.weight = face.Weight.Name
+				node.style = face.Style.Name
+			end
+		end
+		if item:IsA("ImageLabel") then
+			node.image = true
+		end
+	elseif item:IsA("UICorner") then
+		node.radius = { item.CornerRadius.Scale, item.CornerRadius.Offset }
+	elseif item:IsA("UIStroke") then
+		node.color = color255(item.Color)
+		node.thickness = item.Thickness
+		node.alpha = item.Transparency
+		node.mode = enumName(item.ApplyStrokeMode)
+	elseif item:IsA("UIGradient") then
+		node.colors = gradientStops(item.Color)
+		node.alphas = gradientStops(item.Transparency)
+		node.rotation = item.Rotation
+	elseif item:IsA("UITextSizeConstraint") then
+		node.maxTextSize = item.MaxTextSize
+		node.minTextSize = item.MinTextSize
+	elseif item:IsA("UIPadding") then
+		node.pad = { item.PaddingTop.Offset, item.PaddingRight.Offset, item.PaddingBottom.Offset, item.PaddingLeft.Offset }
+	end
+	for _, child in item:GetChildren() do
+		table.insert(node.children, exportGuiNode(child))
+	end
+	return node
+end
+
+local function exportGui(gui)
+	local adornee = get(gui, "Adornee") or gui.Parent
+	local entry: any = { class = gui.ClassName, name = gui.Name, brightness = get(gui, "Brightness") or 1, alwaysOnTop = get(gui, "AlwaysOnTop") == true, lightInfluence = get(gui, "LightInfluence") or 0 }
+	if gui:IsA("SurfaceGui") then
+		if not (adornee and adornee:IsA("BasePart")) then
+			return
+		end
+		entry.face = enumName(gui.Face)
+		entry.sizingMode = enumName(gui.SizingMode)
+		entry.pixelsPerStud = gui.PixelsPerStud
+		entry.canvasSize = { gui.CanvasSize.X, gui.CanvasSize.Y }
+		entry.cf = cf(adornee.CFrame)
+		entry.partSize = v3(adornee.Size)
+	else
+		local position = nil
+		if adornee and adornee:IsA("BasePart") then
+			position = adornee.CFrame.Position
+			entry.partSize = v3(adornee.Size)
+		elseif adornee and adornee:IsA("Attachment") then
+			position = attachmentPosition(adornee)
+		end
+		if not position then
+			return
+		end
+		entry.position = v3(position)
+		entry.size = udim2(gui.Size)
+		entry.studsOffset = v3(gui.StudsOffset)
+		entry.studsOffsetWorld = v3(gui.StudsOffsetWorldSpace)
+	end
+	entry.children = {}
+	for _, child in gui:GetChildren() do
+		table.insert(entry.children, exportGuiNode(child))
+	end
+	table.insert(out.guis, entry)
 end
 
 local function export(root)
@@ -191,6 +307,10 @@ local function export(root)
 					transparency = sequenceNumber(get(item, "Transparency"), 0),
 				})
 			end
+		elseif item:IsA("SurfaceGui") or item:IsA("BillboardGui") then
+			if get(item, "Enabled") ~= false then
+				exportGui(item)
+			end
 		elseif (item:IsA("TextLabel") or item:IsA("TextButton")) and item.Text ~= "" then
 			-- Signs: SurfaceGui / BillboardGui text, placed at their part or attachment
 			local gui = item:FindFirstAncestorWhichIsA("SurfaceGui") or item:FindFirstAncestorWhichIsA("BillboardGui")
@@ -239,7 +359,7 @@ elseif string.sub(scene, 1, 5) == "path:" then
 	table.insert(roots, world.find(string.sub(scene, 6)))
 elseif scene == "setup" then
 	assert(setupPath, "the setup scene needs a setup.luau path")
-	local env = setmetatable({ api = api, Vector3 = roblox.Vector3, CFrame = roblox.CFrame, Color3 = roblox.Color3, Enum = roblox.Enum, Instance = world.Instance, workspace = workspace }, { __index = getfenv(0) })
+	local env = setmetatable({ api = api, Vector3 = roblox.Vector3, CFrame = roblox.CFrame, Color3 = roblox.Color3, Enum = roblox.Enum, UDim = roblox.UDim, UDim2 = roblox.UDim2, Vector2 = roblox.Vector2, Font = roblox.Font, Instance = world.Instance, workspace = workspace }, { __index = getfenv(0) })
 	local chunk = luau.load(fs.readFile(setupPath), { debugName = setupPath, environment = env })
 	local result = chunk()
 	if typeof(result) == "Instance" then
@@ -318,6 +438,6 @@ for _, effect in lighting:GetChildren() do
 end
 
 fs.writeFile(outPath, serde.encode("json", out))
-print(`exported {#out.parts} parts, {#out.lights} lights, {#out.particles} emitters, {#out.beams} beams, {#out.terrain} terrain fills to {outPath}`)
+print(`exported {#out.parts} parts, {#out.lights} lights, {#out.particles} emitters, {#out.guis} guis, {#out.beams} beams, {#out.terrain} terrain fills to {outPath}`)
 api.stop()
 process.exit(0)

@@ -425,7 +425,8 @@ check("premium rules: a trial outside ranked fights, refused in a Duel queue, un
 	end, 2, "Admin selected")
 	assert(A().power.trial == true, "equipped as a trial")
 	local allowed, reason = services.PowerService:queueCheck(alice, "Duel")
-	assert(not allowed and reason and string.find(reason, "12000 Robux", 1, true) and string.find(reason, "Gems", 1, true), "no Duels on a trial: " .. tostring(reason))
+	-- No Robux amount in the text (prices are regional; the Showcase shows the live one)
+	assert(not allowed and reason and string.find(reason, "Fighter Showcase", 1, true) and string.find(reason, "Gems", 1, true) and not string.find(reason, "12000", 1, true), "no Duels on a trial: " .. tostring(reason))
 	assert(services.PowerService:queueCheck(alice, "Practice"), "CPU Practice is fine")
 	-- The Gems path unlocks it for good
 	assert(services.CurrencyService:add(alice, { gems = ADMIN.premium.gems }, "test"), "gems granted")

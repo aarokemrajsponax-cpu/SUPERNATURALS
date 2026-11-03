@@ -106,7 +106,7 @@ function JefferyController:_showHint(hint)
 		Parent = self.gui,
 	}, { Components.corner(), Components.stroke(Colors.Cyan, 1, 0.5) })
 	Components.text({
-		Name = "Eyebrow", Text = "JEFFERY", Style = "Micro", Track = true, Color = Colors.Cyan,
+		Name = "Eyebrow", Text = "Jeffery", Style = "label", Weight = "Bold", Color = Colors.Cyan,
 		Position = UDim2.fromOffset(16, 8), Size = UDim2.new(1, -32, 0, 18), ZIndex = 16, Parent = card,
 	})
 	Components.text({
@@ -230,7 +230,7 @@ function JefferyController:_sayStep(stepId: string)
 			ProgressRequest:FireServer(Protocol.ProgressAction.TutorialAck, step.id)
 		end
 	end
-	self:_say(step.lines, step.face, { title = "Jeffery", onDone = ack, onSkip = ack })
+	self:_say(step.lines, step.face, { title = "Jeffery", skipLabel = "Skip tutorial", onDone = ack, onSkip = ack })
 end
 
 function JefferyController:_onTutorial(payload)
@@ -335,6 +335,16 @@ function JefferyController:Start()
 	self.panel = DialoguePanel.build(self.gui, function()
 		return self.worldModel
 	end)
+	-- While he talks the combat HUD fades out, so nothing shows through or behind the panel
+	self.panel.onVisibility = function(open: boolean)
+		local folder = script.Parent
+		local module = folder:FindFirstChild("UIController")
+		local ok, ui = pcall(require, module)
+		local hud = ok and ui and ui.hud
+		if hud and hud.setFaded then
+			hud.setFaded(open)
+		end
+	end
 	self:_buildCard()
 
 	task.spawn(function()

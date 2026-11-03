@@ -55,6 +55,15 @@ function Overlord.explain(code: string): string
 		store_failed = "Saving failed. Try again.",
 		expired = "That command is out of date.",
 		bad_command = "The command was malformed.",
+		filter_failed = "Roblox's text filter could not check that text, so nothing was sent.",
+		text_filtered = "Roblox's text filter changed that text, so it was refused. Reword it.",
+		not_pending = "Only pending items can be cancelled.",
+		bad_time = "The time must be between one minute and 30 days from now.",
+		schedule_full = "The schedule is full of pending items. Cancel some first.",
+		unknown_item = "No such item.",
+		custom_limit = "The limit of saved custom events is reached. Delete one first.",
+		too_many_effects = "A custom event holds 1 to 6 effects.",
+		unknown_effect = "That effect does not exist.",
 	}
 	return text[head] or code
 end
@@ -124,10 +133,16 @@ function Overlord:_plan(actor, entry): (any?, string?)
 	if not preset then
 		return nil, "unknown_preset"
 	end
+	return self:planPreset(actor, preset, entry.overrides)
+end
+
+-- Validates one preset object (catalogue or custom) with optional owner overrides: effect
+-- allowlist, parameter rules, channels and cost. Returns a plan or nil, code.
+function Overlord:planPreset(actor, preset, rawOverrides): (any?, string?)
 	if preset.ownerOnly and not actor.isOwner then
 		return nil, "not_owner"
 	end
-	local overrides, why = Params.cleanOverrides(entry.overrides)
+	local overrides, why = Params.cleanOverrides(rawOverrides)
 	if not overrides then
 		return nil, "bad_params:" .. tostring(why)
 	end
@@ -144,8 +159,9 @@ function Overlord:_plan(actor, entry): (any?, string?)
 		if not clean then
 			return nil, "bad_params:" .. tostring(reason)
 		end
-		table.insert(effects, { module = effect, params = clean })
-		for _, channel in Registry.channelsOf(effect, clean) do
+		local own = Registry.channelsOf(effect, clean)
+		table.insert(effects, { module = effect, params = clean, channels = own })
+		for _, channel in own do
 			channels[channel] = true
 		end
 		cost += Registry.costOf(effect, clean)
@@ -168,7 +184,9 @@ end
 
 -- Activates one or several presets together, all or nothing.
 -- actor: { userId = number, isOwner = boolean }
--- opts: { eventMode = boolean?, eventId = string?, startedAt = number?, origin = "local"|"global", scope = table? }
+-- opts: { eventMode = boolean?, eventId = string?, startedAt = number?, origin = "local"|"global", scope = table?,
+--         dryRun = boolean? }  dryRun runs every check against an empty server (no match or running-event
+--         checks) and starts nothing: how a scheduled event is validated when it is added.
 -- Returns true, { ids = { string }, replaced = { string } } or false, code
 function Overlord:activate(actor, entries, opts)
 	opts = opts or {}
@@ -190,15 +208,17 @@ function Overlord:activate(actor, entries, opts)
 		table.insert(plans, plan)
 	end
 
+	local dryRun = opts.dryRun == true
+	local running = if dryRun then {} else self.active
 	local wantsGameplay = false
 	for _, plan in plans do
 		if plan.preset.eventMode then
 			wantsGameplay = true
-			if not (opts.eventMode or self.eventMode) then
+			if not (opts.eventMode or (self.eventMode and not dryRun)) then
 				return false, "event_mode_required"
 			end
 			for _, effect in plan.effects do
-				if effect.module.id == "Gravity" and self.deps.matchActive() then
+				if effect.module.id == "Gravity" and not dryRun and self.deps.matchActive() then
 					return false, "match_in_progress"
 				end
 			end
@@ -214,7 +234,7 @@ function Overlord:activate(actor, entries, opts)
 				return false, `incompatible_tags:{plan.preset.id}:{plans[j].preset.id}`
 			end
 		end
-		for _, event in self.active do
+		for _, event in running do
 			if tagsClash(plan.preset, event.preset) or tagsClash(event.preset, plan.preset) then
 				return false, `incompatible_tags:{plan.preset.id}:{event.preset.id}`
 			end
@@ -224,7 +244,7 @@ function Overlord:activate(actor, entries, opts)
 				return false, `entries_conflict:{channel}`
 			end
 			claimed[channel] = true
-			for _, event in self.active do
+			for _, event in running do
 				if event.channels[channel] then
 					if plan.preset.onConflict == "replace" then
 						replace[event.id] = event
@@ -239,13 +259,17 @@ function Overlord:activate(actor, entries, opts)
 	for _, plan in plans do
 		total += plan.cost
 	end
-	for _, event in self.active do
+	for _, event in running do
 		if not replace[event.id] then
 			total += event.cost
 		end
 	end
 	if total > (self.deps.costCap or Overlord.COST_CAP) then
 		return false, "performance_cap"
+	end
+
+	if dryRun then
+		return true, { ids = {}, replaced = {} }
 	end
 
 	-- Go. First clear what is being replaced.

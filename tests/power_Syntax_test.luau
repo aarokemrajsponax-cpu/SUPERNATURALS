@@ -427,7 +427,8 @@ check("premium: unowned Syntax is a trial (Practice yes, Duel no); the pass and 
 	local toasts = game.sentSince(mark, "DataEvent", "Toast", alice)
 	assert(#toasts > 0 and string.find(toasts[#toasts].text, "trial", 1, true), "the toast says it's a trial")
 	local allowed, reason = services.PowerService:queueCheck(alice, "Duel")
-	assert(not allowed and string.find(reason, "9999 Robux", 1, true) and string.find(reason, "4500 Gems", 1, true), "no ranked duels on a trial: " .. tostring(reason))
+	-- No Robux amount in the text (prices are regional; the Showcase shows the live one)
+	assert(not allowed and string.find(reason, "Fighter Showcase", 1, true) and string.find(reason, "4500 Gems", 1, true) and not string.find(reason, "9999", 1, true), "no ranked duels on a trial: " .. tostring(reason))
 	assert(services.PowerService:queueCheck(alice, "Practice"), "CPU Practice is fine")
 	-- Queueing a duel on a trial is refused by the match system too
 	request("MatchRequest", alice, "Queue", "Duel")

@@ -3,7 +3,7 @@
 --   dock      vertical navigation on the left, one item per registered window
 --   windows   one open at a time, built the first time they open; opening one dims
 --             and blurs the world (a BlurEffect the Shell owns and always restores)
---   toasts    short messages stacked top-right that fade on their own
+--   toasts    short messages stacked bottom right (top left on touch) that fade on their own
 --   confirm   a modal "are you sure?" that shows the price before anything is bought
 -- It also owns the interface's single UIScale, so the whole interface fits
 -- phones, tablets, monitors and TVs. Modes hide whatever shouldn't cover a fight.
@@ -13,6 +13,7 @@ local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
@@ -48,8 +49,6 @@ local TOAST_WIDTH = 320
 local MAX_TOASTS = 4
 local TOAST_SECONDS = 3.5
 local MIN_WINDOW = Vector2.new(360, 260)
--- In fights toasts start below the knockout feed
-local MATCH_TOAST_TOP = 236
 -- Below this many screen points the dock shows icons only
 local COMPACT_WIDTH = 900
 local COMPACT_HEIGHT = 500
@@ -134,6 +133,8 @@ local powerNames: { [string]: string } = {}
 local openId: string? = nil
 local mode = "Lobby"
 local compact = false
+-- Toasts sit bottom right (bottom left of the top bar on touch, where the thumb buttons live)
+local toastLeft = false
 
 -- Pieces built in init
 local playerCard: Frame
@@ -319,9 +320,45 @@ local function relayout()
 	end
 
 	-- Toasts sit on the right under the top bar (under the feed in fights)
-	local toastTop = if mode == "Match" or mode == "Spectate" then math.max(top, MATCH_TOAST_TOP) else top
-	toastStack.Position = UDim2.new(1, -EDGE, 0, toastTop)
-	toastStack.Size = UDim2.new(0, TOAST_WIDTH, 1, -toastTop - EDGE)
+	local okTouch, touchOnly = pcall(function()
+		return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	end)
+	touchOnly = okTouch and touchOnly == true
+	toastLeft = touchOnly
+	local list = toastStack:FindFirstChildOfClass("UIListLayout")
+	if touchOnly then
+		-- Top left, under the top bar: the thumb buttons own the bottom corners
+		local room = math.clamp((width - 460) / 2 - EDGE * 2, 160, TOAST_WIDTH)
+		toastStack.AnchorPoint = Vector2.new(0, 0)
+		toastStack.Position = UDim2.new(0, EDGE, 0, top)
+		toastStack.Size = UDim2.new(0, room, 1, -top - EDGE)
+		if list then
+			list.HorizontalAlignment = Enum.HorizontalAlignment.Left
+			list.VerticalAlignment = Enum.VerticalAlignment.Top
+		end
+	elseif openId then
+		-- A window is open: one toast at a time, centred in the strip under the top bar, between
+		-- the player card and the currencies, so it never covers the window or its buttons
+		local room = math.clamp(width - 2 * 300, 260, TOAST_WIDTH + 120)
+		toastStack.AnchorPoint = Vector2.new(0.5, 0)
+		toastStack.Position = UDim2.new(0.5, 0, 0, top)
+		toastStack.Size = UDim2.new(0, room, 0, TOP_BAR)
+		if list then
+			list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			list.VerticalAlignment = Enum.VerticalAlignment.Top
+		end
+	else
+		-- Bottom right, clear of the kill feed, the top bar and windows' headers; the HUD column
+		-- is centred, so the stack narrows on small screens rather than covering it
+		local room = math.clamp((width - 460) / 2 - EDGE * 2, 180, TOAST_WIDTH)
+		toastStack.AnchorPoint = Vector2.new(1, 1)
+		toastStack.Position = UDim2.new(1, -EDGE, 1, -EDGE)
+		toastStack.Size = UDim2.new(0, room, 0, math.max(120, height * 0.5))
+		if list then
+			list.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			list.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end
+	end
 
 	-- Dock: items shrink to fit the height; icons only on phones
 	local items = navEntries()
@@ -930,6 +967,7 @@ function Shell.close()
 	setBackdrop(false)
 	updateBlur()
 	syncBackBinding()
+	relayout()
 end
 
 function Shell.toggle(id: string)
@@ -994,8 +1032,9 @@ end
 -- Toasts ----------------------------------------------------------------------------------------
 
 local toastOrder = 0
+local TOAST_SLIDE = 24
 
--- A short message top-right: "info" | "success" | "error" | "reward"
+-- A short message at the screen's edge: "info" | "success" | "error" | "reward"
 function Shell.toast(message: string, kind: string?)
 	if not initialized or typeof(message) ~= "string" or message == "" then
 		return
@@ -1010,44 +1049,41 @@ function Shell.toast(message: string, kind: string?)
 		BackgroundTransparency = 1,
 		Parent = toastStack,
 	})
+	local slide = if toastLeft then -TOAST_SLIDE else TOAST_SLIDE
 	local panel = make("TextButton", {
 		Name = "Panel",
 		AutoButtonColor = false,
 		Text = "",
 		Selectable = false,
-		Position = UDim2.fromOffset(32, 0),
+		Position = UDim2.fromOffset(slide, 0),
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = Colors.Panel,
-		BackgroundTransparency = Theme.Glass.Window,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 		Parent = holder,
 	}, {
 		Components.corner(Theme.SmallCorner),
-		Components.stroke(Colors.Stroke, 1, 0.5),
-		Components.padding(Space.M, Space.L, Space.M, Space.L + 4),
+		Components.stroke(Colors.Stroke, 1, 0.6),
+		Components.padding(Space.S + 2, Space.M, Space.S + 2, Space.M + 4),
 	})
+	-- The one accent: a bar down the left edge in the kind's colour
 	make("Frame", {
 		Name = "Accent",
-		Position = UDim2.fromOffset(-(Space.L + 4), -Space.M),
-		Size = UDim2.new(0, 3, 1, Space.M * 2),
+		Position = UDim2.fromOffset(-(Space.M + 4), -(Space.S + 2)),
+		Size = UDim2.new(0, 3, 1, (Space.S + 2) * 2),
 		BackgroundColor3 = look.color,
 		BorderSizePixel = 0,
 		Parent = panel,
 	})
-	local drawn = Components.icon(look.icon, 20, look.color)
-	drawn.Position = UDim2.fromOffset(0, 1)
-	drawn.Parent = panel
 	Components.text({
 		Name = "Message",
 		Text = message,
-		Style = "strong",
+		Style = "small",
 		Weight = "Medium",
 		Color = Colors.Text,
 		Wrap = true,
-		Position = UDim2.fromOffset(32, 0),
-		Size = UDim2.new(1, -32, 0, 22),
 		Parent = panel,
 	})
 
@@ -1060,7 +1096,7 @@ function Shell.toast(message: string, kind: string?)
 			return
 		end
 		gone = true
-		tween(panel, Motion.In, { Position = UDim2.fromOffset(32, 0) })
+		tween(panel, Motion.In, { Position = UDim2.fromOffset(slide, 0) })
 		Components.fade(panel, false, Motion.In, function()
 			holder:Destroy()
 		end)
@@ -1076,11 +1112,13 @@ function Shell.toast(message: string, kind: string?)
 			table.insert(stack, child)
 		end
 	end
-	if #stack > MAX_TOASTS then
+	-- While a window is open only the newest toast shows (see relayout)
+	local limit = if openId and not toastLeft then 1 else MAX_TOASTS
+	if #stack > limit then
 		table.sort(stack, function(a, b)
 			return a.LayoutOrder > b.LayoutOrder
 		end)
-		for index = 1, #stack - MAX_TOASTS do
+		for index = 1, #stack - limit do
 			stack[index]:Destroy()
 		end
 	end

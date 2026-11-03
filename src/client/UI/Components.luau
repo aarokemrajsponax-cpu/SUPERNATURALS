@@ -1243,6 +1243,17 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 		corner(Theme.Corner),
 		stroke(Colors.Stroke, 1, 0.55),
 	})
+	-- The lip: a lighter line just inside the top edge, so the plate reads as a solid,
+	-- machined surface catching the light rather than a flat card
+	make("Frame", {
+		Name = "Lip",
+		Position = UDim2.fromOffset(4, 1),
+		Size = UDim2.new(1, -8, 0, 1),
+		BackgroundColor3 = Colors.PanelHover,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+		Parent = panel,
+	})
 
 	local headerHeight = props.HeaderHeight or 60
 	local pad = props.Padding or Theme.Grid.Pad

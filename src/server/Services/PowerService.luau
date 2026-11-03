@@ -276,12 +276,13 @@ function PowerService:check(player: Player, powerId: string, degree: number): (b
 	return true, nil, trial
 end
 
--- The refusal for a premium power that isn't owned, in Duel and Free-for-All
+-- The refusal for a premium power that isn't owned, in Duel and Free-for-All. It names no Robux
+-- amount: Robux prices are regional and only Roblox knows the player's (the Fighter Showcase
+-- shows the live price from GetProductInfoAsync). Gems are the game's own currency.
 local function premiumRefusal(def): string
 	local premium = def.premium
-	local price = if premium and premium.robux then `{premium.robux} Robux` else "Robux"
-	local gems = if premium and premium.gems then ` or {premium.gems} Gems` else ""
-	return `{def.name} is a premium power. Try it in Training or CPU Practice, or unlock it ({price}{gems}).`
+	local gems = if premium and premium.gems then ` with Robux or {premium.gems} Gems` else " with Robux"
+	return `{def.name} is a premium power. Try it in Training or CPU Practice, or unlock it in the Fighter Showcase{gems}.`
 end
 
 -- The saved selection: what stays equipped until the player switches (the default fighter
@@ -723,7 +724,6 @@ function PowerService:snapshot(player: Player)
 					key = Selection.ExtraSlot.PassKey,
 					name = slotPass.name,
 					benefit = slotPass.benefit,
-					robux = slotPass.robux,
 					onSale = validId(slotPass.id),
 				}
 				else nil,
@@ -749,7 +749,6 @@ function PowerService:snapshot(player: Player)
 				unlock = if def.premium
 					then {
 						passKey = def.premium.pass,
-						robux = def.premium.robux,
 						gems = def.premium.gems,
 						onSale = passOnSale(def.premium.pass),
 					}

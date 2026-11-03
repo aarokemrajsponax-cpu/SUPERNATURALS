@@ -77,3 +77,16 @@ Newest first within each group. "Pending" means the owner has been asked to conf
     owner task in published servers.
 23. **Refreshments** cost earned credits, work only in casual modes and training, never in
     ranked; no paid random rewards anywhere.
+24. **Interface craft pass (owner, 3 Nov: "looks too AI generated").** Rules in
+    `docs/specs/UI_Craft_Pass.md`: solid surfaces where text sits over interface, one outer
+    edge with a light top lip, tight 4 px corners, no outlines on cards inside windows, Title
+    or sentence case for titles and copy (capitals only for tiny labels), nothing truncated,
+    thin dark outlines on text over the 3D world instead of boxes.
+25. **Hub doors are numbered 01 to 08** on their signs (round the hall from the entrance),
+    as facility wayfinding. The sealed door beside the Training Studio is 09, which gives the
+    Archive's door 09 note its meaning. Sign names use one size; long names wrap.
+26. **Statue plaques** read like museum plaques: the codename spaced between two fine rules
+    in the power's colour, a small first word ("THE", "ANIMAL") above long names, the name
+    engraved, rivets in the corners.
+27. **No Robux amount in player-facing text** except where the live, regional price from
+    Roblox is shown. Config keeps the intended Creator Hub prices for the owner's handoff.

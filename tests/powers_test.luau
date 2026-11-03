@@ -76,9 +76,12 @@ check("an ability hits a training dummy, costs grit and starts its cooldown", fu
 	local before = dummy.humanoid.Health
 	local grit = fighter.power.resource
 	request("AbilityRequest", alice, "Groundbreaker", aimAt(fighter, dummy))
+	-- The cost comes off at the cast; regeneration is fast, so look for the dip as it happens
+	game.waitFor(function()
+		return fighter.power.resource < grit
+	end, 0.6, "grit spent")
 	task.wait(0.8)
 	assert(dummy.humanoid.Health < before, `dummy took damage ({before} -> {dummy.humanoid.Health})`)
-	assert(fighter.power.resource < grit, "grit spent")
 	assert((fighter.model:GetAttribute(Attribute.CooldownPrefix .. "Groundbreaker") or 0) > now(), "cooldown published")
 end)
 

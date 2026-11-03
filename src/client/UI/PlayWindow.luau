@@ -36,10 +36,10 @@ local PRESS_COOLDOWN = 0.6
 
 -- Per-choice look (the match rules themselves come from the config)
 local LOOK = {
-	Duel = { icon = "swords", accent = Colors.Cyan, tag = "1V1", action = "CONFIRM AND FIND A DUEL", subtitle = "Ranked by knockouts" },
-	FreeForAll = { icon = "users", accent = Colors.Purple, tag = "3-4 FIGHTERS", action = "CONFIRM AND FIND A MATCH", subtitle = "Everyone for themselves" },
-	Practice = { icon = "target", accent = Colors.Cyan, tag = "VS CPU", action = "CONFIRM AND START PRACTICE", subtitle = "Learn the controls" },
-	Training = { icon = "fight", accent = Colors.Success, tag = "FREE", action = "GO TO TRAINING (FREE)", subtitle = "No timer, no score, nothing charged" },
+	Duel = { icon = "swords", accent = Colors.Cyan, tag = "1V1", action = "Confirm and find a duel", subtitle = "Ranked by knockouts" },
+	FreeForAll = { icon = "users", accent = Colors.Purple, tag = "3-4 FIGHTERS", action = "Confirm and find a match", subtitle = "Everyone for themselves" },
+	Practice = { icon = "target", accent = Colors.Cyan, tag = "VS CPU", action = "Confirm and start practice", subtitle = "Learn the controls" },
+	Training = { icon = "fight", accent = Colors.Success, tag = "FREE ROAM", action = "Go to training (free)", subtitle = "No timer, no score, nothing charged" },
 }
 
 local TRAINING_INFO = {
@@ -106,6 +106,69 @@ local function infoFor(id: string): { DisplayName: string, Description: string }
 	return if id == TRAINING then TRAINING_INFO else MatchConfig.Modes[id]
 end
 
+-- A mode card: icon tile, title, small tag, and the full description below. No outline; the
+-- row grows to fit its copy. Selected = Selected fill plus a 3 px cyan bar on the left edge.
+local function buildModeCard(parent: Instance, props: { [string]: any }): (TextButton, Components.Card)
+	local selectedNow = false
+	local button = make("TextButton", {
+		Name = props.Name,
+		LayoutOrder = props.LayoutOrder,
+		Size = UDim2.new(1, -4, 0, 84),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.PanelLight,
+		BorderSizePixel = 0,
+		Parent = parent,
+	}, {
+		Components.corner(Theme.SmallCorner),
+		Components.padding(Space.M, Space.M, Space.M, Space.L),
+	})
+	local bar = make("Frame", {
+		Name = "SelectedBar",
+		Size = UDim2.new(0, 3, 1, 0),
+		BackgroundColor3 = Colors.Cyan,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = button,
+	})
+	local tile = Components.iconTile(props.Icon, 48, props.Accent)
+	tile.Position = UDim2.fromOffset(0, 0)
+	tile.Parent = button
+	local column = make("Frame", {
+		Name = "Copy",
+		Position = UDim2.fromOffset(48 + Space.M, 0),
+		Size = UDim2.new(1, -(48 + Space.M), 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = button,
+	})
+	Components.list(column, 2)
+	Components.text({ Name = "Title", Text = props.Title, Style = "Heading", Weight = "Bold", Wrap = true, LayoutOrder = 1, Parent = column })
+	Components.text({ Name = "Tag", Text = props.Tag, Style = "Micro", Color = props.Accent, Wrap = true, LayoutOrder = 2, Parent = column })
+	local body = Components.text({ Name = "Body", Text = props.Body, Style = "Body", Weight = "Medium", Color = Colors.TextDim, Wrap = true, LayoutOrder = 3, Parent = column })
+	-- Keep a few pixels between the tag and the copy
+	body.Size = UDim2.fromScale(1, 0)
+	make("UIPadding", { PaddingTop = UDim.new(0, 4), Parent = body })
+	local function paint(state, instant)
+		button.BackgroundColor3 = if selectedNow then Colors.Selected elseif state.hovered or state.focused then Colors.PanelHover else Colors.PanelLight
+		bar.Visible = selectedNow
+	end
+	local state, refresh = Components.interactive(button, paint)
+	local card = {
+		frame = button,
+		setSelected = function(value: boolean)
+			selectedNow = value
+			refresh(true)
+		end,
+		isSelected = function()
+			return selectedNow
+		end,
+	}
+	button.Activated:Connect(props.onClick)
+	return button, card :: any
+end
+
 -- The queue pill ----------------------------------------------------------------------------
 
 local function buildPill(parent: Instance, onCancel: () -> ())
@@ -163,6 +226,7 @@ local function buildPill(parent: Instance, onCancel: () -> ())
 	Components.button("Cancel", {
 		Name = "Cancel",
 		Variant = "Danger",
+		KeepCase = true,
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -4, 0.5, 0),
 		Size = UDim2.fromOffset(100, 44),
@@ -222,11 +286,11 @@ function PlayWindow.register(): Controller
 				BackgroundTransparency = 1,
 				Parent = body,
 			})
-			Components.text({ Text = "STEP 1: CHOOSE A MODE", Style = "Micro", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 18), Parent = left })
+			Components.text({ Text = "Step 1: choose a mode", Style = "Heading", Weight = "Bold", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 24), Parent = left })
 			local list = Components.scroll({
 				Name = "Cards",
-				Position = UDim2.fromOffset(0, 26),
-				Size = UDim2.new(1, 0, 1, -26 - Theme.Size.Control - Space.M),
+				Position = UDim2.fromOffset(0, 32),
+				Size = UDim2.new(1, 0, 1, -32 - Theme.Size.Control - Space.M),
 				Padding = 2,
 				Parent = left,
 			})
@@ -251,13 +315,12 @@ function PlayWindow.register(): Controller
 				AnchorPoint = Vector2.new(1, 0),
 				Position = UDim2.fromScale(1, 0),
 				Size = UDim2.new(0.56, -Space.S, 1, 0),
-				BackgroundColor3 = Colors.Ink,
-				BackgroundTransparency = 0.55,
+				BackgroundColor3 = Colors.Background,
+				BackgroundTransparency = 0.2,
 				BorderSizePixel = 0,
 				Parent = body,
 			}, {
 				Components.corner(Theme.Corner),
-				Components.stroke(Colors.Stroke, 1, 0.82),
 				Components.padding(Space.L),
 			})
 			local info = Components.scroll({
@@ -271,7 +334,8 @@ function PlayWindow.register(): Controller
 			local headIcon: Frame? = nil
 			local headTitle = Components.text({ Name = "Title", Style = "Title", Position = UDim2.fromOffset(70, 2), Size = UDim2.new(1, -70, 0, 32), Parent = head })
 			local headSubtitle = Components.text({ Name = "Subtitle", Style = "Caption", Weight = "SemiBold", Position = UDim2.fromOffset(70, 34), Size = UDim2.new(1, -70, 0, 18), Parent = head })
-			local description = Components.text({ Name = "Description", Style = "Body", Color = Colors.TextDim, Wrap = true, LayoutOrder = 2, Parent = info })
+			-- The mode's description is already on its card on the left; the pane shows the rules
+			local description = Components.text({ Name = "Description", Style = "Body", Color = Colors.TextDim, Wrap = true, LayoutOrder = 2, Visible = false, Parent = info })
 
 			local rules = make("Frame", {
 				Name = "Rules",
@@ -281,23 +345,24 @@ function PlayWindow.register(): Controller
 				BackgroundTransparency = 1,
 				Parent = info,
 			})
-			Components.grid(rules, UDim2.new(0.5, -Space.S / 2, 0, 58), Space.S)
+			Components.grid(rules, UDim2.new(0.5, -Space.S / 2, 0, 68), Space.S)
 			local ruleTiles = {}
 			for index = 1, 4 do
 				local tile = make("Frame", {
 					Name = "Rule" .. index,
 					LayoutOrder = index,
 					BackgroundColor3 = Colors.PanelLight,
-					BackgroundTransparency = 0.35,
+					BackgroundTransparency = 0,
 					BorderSizePixel = 0,
 					Parent = rules,
 				}, {
 					Components.corner(Theme.SmallCorner),
-					Components.stroke(Colors.Stroke, 1, 0.85),
 					Components.padding(Space.S, Space.M, Space.S, Space.M),
 				})
 				local label = Components.text({ Style = "Micro", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 16), Parent = tile })
-				local value = Components.text({ Style = "Label", Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 22), Parent = tile })
+				local value = Components.text({ Style = "Label", Position = UDim2.fromOffset(0, 20), Size = UDim2.new(1, 0, 0, 40), Wrap = true, Parent = tile })
+				value.AutomaticSize = Enum.AutomaticSize.None
+				value.Size = UDim2.new(1, 0, 0, 40)
 				ruleTiles[index] = { label = label, value = value }
 			end
 			local note = Components.text({ Name = "Note", Style = "Caption", Color = Colors.TextMuted, Wrap = true, LayoutOrder = 4, Parent = info })
@@ -322,7 +387,7 @@ function PlayWindow.register(): Controller
 				BorderSizePixel = 0,
 				Visible = false,
 				Parent = info,
-			}, { Components.corner(Theme.SmallCorner), Components.stroke(Colors.Success, 1, 0.6), Components.padding(Space.M) })
+			}, { Components.corner(Theme.SmallCorner), Components.padding(Space.M) })
 			Components.list(trainingBox, Space.XS)
 			Components.text({ Text = "Training is free", Style = "strong", Color = Colors.Success, LayoutOrder = 1, Wrap = true, Parent = trainingBox })
 			Components.text({
@@ -618,7 +683,7 @@ function PlayWindow.register(): Controller
 				local tile = Components.iconTile(look.icon, 56, look.accent)
 				tile.Parent = head
 				headIcon = tile
-				headTitle.Text = string.upper(data.DisplayName)
+				headTitle.Text = data.DisplayName
 				headSubtitle.Text = look.subtitle
 				headSubtitle.TextColor3 = look.accent
 				description.Text = data.Description
@@ -639,22 +704,18 @@ function PlayWindow.register(): Controller
 			for order, id in choices() do
 				local look = LOOK[id] or { icon = "dot", accent = Colors.Cyan, tag = "", subtitle = "" }
 				local data = infoFor(id)
-				local frame, card = Components.storeCard({
-					Name = string.upper(data.DisplayName),
+				local frame, card = buildModeCard(list, {
+					Name = "Mode_" .. id,
 					LayoutOrder = if id == TRAINING then 91 else order,
-					Size = UDim2.new(1, -4, 0, 84),
 					Icon = look.icon,
 					Accent = look.accent,
-					Subtitle = look.subtitle,
-					Chip = look.tag,
-					ChipColor = if id == TRAINING then Colors.Success else look.accent,
-					PriceText = if id == TRAINING then "Free" else nil,
-					Parent = list,
+					Title = data.DisplayName,
+					Tag = look.tag,
+					Body = data.Description,
 					onClick = function()
 						show(id)
 					end,
 				})
-				frame.Name = "Mode_" .. id
 				cards[id] = card
 			end
 
@@ -662,6 +723,7 @@ function PlayWindow.register(): Controller
 				return {
 					Name = name,
 					Variant = variant,
+					KeepCase = true,
 					AnchorPoint = Vector2.new(0, 1),
 					Position = UDim2.fromScale(0, 1),
 					Size = UDim2.new(1, 0, 0, 48),
@@ -684,7 +746,7 @@ function PlayWindow.register(): Controller
 				end
 				api.close()
 			end)
-			cancelButton = Components.button("CANCEL SEARCH", actionProps("CancelSearch", "Danger"), function()
+			cancelButton = Components.button("Cancel search", actionProps("CancelSearch", "Secondary"), function()
 				if pressed() then
 					leaveQueue()
 				end
@@ -751,6 +813,8 @@ function PlayWindow.register(): Controller
 		if not current then
 			return
 		end
+		-- One cancel at a time: the pill steps aside while the Play window (which has its own) is open
+		holder.Visible = not Shell.isOpen("Play")
 		spin = (spin + 18) % 360
 		ringGradient.Rotation = spin
 		dots = (dots + 1) % 30

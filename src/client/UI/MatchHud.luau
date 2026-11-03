@@ -1,7 +1,8 @@
--- Everything shown during a match: the timer plate and a score card per
--- fighter at the top, the knockout feed on the right (newest on top), the big
--- countdown numbers in the middle, and the results panel at the end. Navy plates,
--- hairlines and one signal colour at a time; no emoji, no gradients.
+-- Everything shown during a match: a fighting-game top bar (the clock in Michroma, the mode
+-- and arena as a small line, one light entry per fighter), the knockout feed on the right
+-- (newest on top), announcements and the big countdown numbers in the middle, and the
+-- results panel at the end. Text over the world has a thin dark outline instead of a box;
+-- no emoji, no gradients.
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -27,7 +28,9 @@ local REASONS = {
 	Forfeit = "A fighter left the match",
 }
 
-local SCORE_CARD = Vector2.new(152, 52)
+local SCORE_CARD = Vector2.new(176, 48)
+local CLOCK_SIZE = 34
+local NOTICE_HOLD = 3
 local FEED_WIDTH = 320
 local FEED_MAX = 5
 local FEED_SECONDS = 5
@@ -68,41 +71,45 @@ local function glass(props: { [string]: any }): Frame
 	})
 end
 
+-- A thin dark outline on text that sits over the 3D world (instead of a box behind it)
+local function outlineText(label: TextLabel, thickness: number?): UIStroke
+	return make("UIStroke", { Color = Colors.Ink, Thickness = thickness or 1.5, Transparency = 0.35, Parent = label })
+end
+
 function MatchHud.build(parent: Instance, onReturn: () -> ())
-	-- Top: timer pill and score cards ----------------------------------------------------
+	-- Top: clock, mode line and one entry per fighter ------------------------------------
 	local top = make("Frame", {
 		Name = "MatchTop",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, Space.M),
+		Position = UDim2.new(0.5, 0, 0, Space.S),
 		Size = UDim2.fromOffset(SCORE_CARD.X * 4 + Space.S * 3, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		Visible = false,
 		Parent = parent,
 	})
-	Components.list(top, Space.S, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
-	local timerPill = glass({ Name = "Timer", LayoutOrder = 1, Size = UDim2.fromOffset(320, 66), Parent = top })
-	local timerStroke = Components.stroke(Colors.Stroke, 1, 0.5)
-	timerStroke.Parent = timerPill
-	local modeLabel = Components.text({
-		Name = "Mode",
-		Style = "overline",
-		AlignX = "Center",
-		Position = UDim2.fromOffset(Space.M, 7),
-		Size = UDim2.new(1, -Space.M * 2, 0, 16),
-		Parent = timerPill,
-	})
+	Components.list(top, 2, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
+	local timerPill = make("Frame", { Name = "Timer", LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 62), BackgroundTransparency = 1, Parent = top })
 	local timer = Components.text({
 		Name = "Clock",
 		Text = "0:00",
-		Style = "number",
-		Weight = "Bold",
-		TextSize = 30,
+		Style = "display",
+		TextSize = CLOCK_SIZE,
 		AlignX = "Center",
-		Position = UDim2.fromOffset(Space.S, 24),
-		Size = UDim2.new(1, -Space.S * 2, 0, 36),
+		Size = UDim2.new(1, 0, 0, 42),
 		Parent = timerPill,
 	})
+	outlineText(timer, 2)
+	local modeLabel = Components.text({
+		Name = "Mode",
+		Style = "caption",
+		Color = Colors.TextDim,
+		AlignX = "Center",
+		Position = UDim2.fromOffset(0, 42),
+		Size = UDim2.new(1, 0, 0, 18),
+		Parent = timerPill,
+	})
+	outlineText(modeLabel, 1.5)
 	local scores = make("Frame", {
 		Name = "Scores",
 		LayoutOrder = 2,
@@ -242,57 +249,60 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 
 	local function scoreCard(order: number, entry)
 		local mine = entry.id == myId
-		local box = glass({
+		local gone = entry.left == true
+		-- Tone only: no outline. Yours is lighter with a cyan bar; a fighter who left is dimmed
+		local box = make("Frame", {
 			Name = "Score",
 			LayoutOrder = order,
 			Size = UDim2.fromOffset(SCORE_CARD.X, SCORE_CARD.Y),
-			BackgroundColor3 = if mine then Colors.PanelLight else Colors.Panel,
-			Parent = scores,
-		})
-		local outline = Components.stroke(if mine then Colors.Cyan else Colors.Stroke, 1.5, if mine then 0.1 else 0.7)
-		outline.Parent = box
-		make("Frame", {
-			Name = "Strip",
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 6, 0.5, 0),
-			Size = UDim2.new(0, 3, 1, -18),
-			BackgroundColor3 = if mine then Colors.Cyan elseif entry.npc then Colors.TextMuted else Colors.Purple,
+			BackgroundColor3 = if mine then Colors.Selected else Colors.Panel,
+			BackgroundTransparency = if gone then 0.75 elseif mine then 0.1 else 0.35,
 			BorderSizePixel = 0,
-			Parent = box,
-		}, { Components.corner(Theme.PillCorner) })
-		local alpha = if entry.left then 0.55 else 0
+			Parent = scores,
+		}, { Components.corner(Theme.SmallCorner) })
+		if mine then
+			make("Frame", {
+				Name = "You",
+				Size = UDim2.new(0, 3, 1, 0),
+				BackgroundColor3 = Colors.Cyan,
+				BorderSizePixel = 0,
+				Parent = box,
+			}, { Components.corner(Theme.TinyCorner) })
+		end
+		local alpha = if gone then 0.55 else 0
 		Components.text({
 			Name = "Name",
 			Text = entry.name,
-			Style = "Caption",
+			Style = "label",
 			Weight = "Bold",
+			TextSize = 15,
 			Color = if mine then Colors.Text else Colors.TextDim,
 			TextTransparency = alpha,
-			Position = UDim2.fromOffset(16, 8),
-			Size = UDim2.new(1, -16 - 56, 0, 18),
+			Position = UDim2.fromOffset(14, 5),
+			Size = UDim2.new(1, -14 - 52, 0, 20),
 			Parent = box,
 		})
 		Components.text({
 			Name = "Detail",
-			Text = if entry.left then "LEFT" else `{entry.knockouts or 0} KO`,
-			Style = "Micro",
+			Text = if gone then "Left" else `{entry.knockouts or 0} KO`,
+			Style = "caption",
 			Color = Colors.TextMuted,
 			TextTransparency = alpha,
-			Position = UDim2.fromOffset(16, 27),
-			Size = UDim2.new(1, -16 - 56, 0, 16),
+			Position = UDim2.fromOffset(14, 25),
+			Size = UDim2.new(1, -14 - 52, 0, 18),
 			Parent = box,
 		})
 		Components.text({
 			Name = "Points",
 			Text = tostring(entry.score),
-			Style = "Title",
-			Weight = "Heavy",
+			Style = "number",
+			TextSize = 22,
 			AlignX = "Right",
 			Color = if entry.score < 0 then Colors.Danger elseif entry.score > 0 then Colors.Gold else Colors.Text,
 			TextTransparency = alpha,
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.new(1, -Space.M, 0.5, 0),
-			Size = UDim2.fromOffset(52, 32),
+			Size = UDim2.fromOffset(46, 30),
 			Parent = box,
 		})
 	end
@@ -301,13 +311,13 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		local previous = state
 		state = snapshot
 		top.Visible = true
-		modeLabel.Text = string.upper(`{snapshot.modeName}  ·  {snapshot.arena}`)
+		modeLabel.Text = `{snapshot.modeName}  ·  {snapshot.arena}`
 		clearChildren(scores)
 		for order, entry in snapshot.participants do
 			scoreCard(order, entry)
 		end
 		local count = #snapshot.participants
-		top.Size = UDim2.fromOffset(math.max(240, count * SCORE_CARD.X + (count - 1) * Space.S), 0)
+		top.Size = UDim2.fromOffset(math.max(320, count * SCORE_CARD.X + (count - 1) * Space.S), 0)
 		if previous and previous.phase == "Countdown" and snapshot.phase == "Active" then
 			pop("FIGHT!", Colors.AccentHover)
 			task.delay(0.9, function()
@@ -474,12 +484,104 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		Components.fade(card, true, Motion.Slow)
 	end
 
+	-- Announcements: a headline in Michroma capitals with a thin dark outline, a short
+	-- sentence-case line under it and fine rules either side. "SUDDEN DEATH! Next knockout
+	-- wins." splits into headline and line at the first "! " or ". ".
+	local noticeToken = 0
+	local notice = make("Frame", {
+		Name = "Announcement",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.3),
+		Size = UDim2.fromOffset(640, 100),
+		BackgroundTransparency = 1,
+		Active = false,
+		Visible = false,
+		Parent = parent,
+	})
+	local noticeHead = Components.text({
+		Name = "Headline",
+		Style = "display",
+		TextSize = 30,
+		AlignX = "Center",
+		Size = UDim2.new(1, 0, 0, 40),
+		Parent = notice,
+	})
+	outlineText(noticeHead, 2)
+	local noticeSub = Components.text({
+		Name = "Subtitle",
+		Style = "strong",
+		Weight = "Medium",
+		TextSize = 18,
+		Color = Colors.Text,
+		AlignX = "Center",
+		Position = UDim2.fromOffset(0, 44),
+		Lines = 2,
+		Parent = notice,
+	})
+	outlineText(noticeSub, 1.5)
+	local rules = {}
+	for _, side in { -1, 1 } do
+		table.insert(rules, make("Frame", {
+			Name = "Rule",
+			AnchorPoint = Vector2.new(if side < 0 then 1 else 0, 0.5),
+			Size = UDim2.fromOffset(72, 1),
+			BackgroundColor3 = Colors.Text,
+			BackgroundTransparency = 0.55,
+			BorderSizePixel = 0,
+			Parent = notice,
+		}))
+	end
+	local noticeScale = make("UIScale", { Parent = notice })
+
+	local function announce(text: string, color: Color3?)
+		noticeToken += 1
+		local token = noticeToken
+		local head, sub = string.match(text, "^(.-)[!%.]%s+(.+)$")
+		if not head then
+			head, sub = string.gsub(text, "[!%.]$", ""), ""
+		end
+		-- Only a short phrase is a headline; a long notice reads as a plain line
+		if utf8.len(head) == nil or utf8.len(head) > 24 then
+			head, sub = "", text
+		end
+		noticeSub.Position = UDim2.fromOffset(0, if head == "" then 8 else 44)
+		local tracked = Theme.track(head)
+		noticeHead.Text = tracked
+		noticeHead.TextColor3 = color or (if string.find(head, "^SUDDEN DEATH") then Colors.Danger else Colors.Text)
+		noticeSub.Text = sub
+		local half = Components.textWidth(tracked, 30, Theme.Faces.Display) * 0.6 + Space.L
+		rules[1].Position = UDim2.new(0.5, -half, 0, 20)
+		rules[2].Position = UDim2.new(0.5, half, 0, 20)
+		for _, rule in rules do
+			rule.Visible = head ~= "" and half * 2 < 600
+		end
+		-- On a short screen the scoreboard reaches further down, so the notice drops below it
+		local camera = workspace.CurrentCamera
+		local short = camera ~= nil and camera.ViewportSize.Y < 500
+		notice.Position = UDim2.fromScale(0.5, if short then 0.42 else 0.3)
+		notice.Visible = true
+		noticeScale.Scale = 0.92
+		TweenService:Create(noticeScale, Motion.Pop, { Scale = 1 }):Play()
+		Components.fade(notice, true, Motion.Normal)
+		task.delay(NOTICE_HOLD, function()
+			if token == noticeToken then
+				Components.fade(notice, false, TweenInfo.new(0.4), function()
+					if token == noticeToken then
+						notice.Visible = false
+					end
+				end)
+			end
+		end)
+	end
+
 	local function clear()
 		state = nil
 		results = nil
 		lastCount = nil
 		top.Visible = false
 		countdown.Visible = false
+		notice.Visible = false
+		noticeToken += 1
 		dim.Visible = false
 		clearChildren(feed)
 	end
@@ -493,11 +595,12 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 			return
 		end
 		local remaining = state.phaseEndsAt - workspace:GetServerTimeNow()
+		local info = `{state.modeName}  ·  {state.arena}`
 		if state.phase == "Countdown" then
-			timer.Text = "GET READY"
-			timer.TextSize = Theme.TextSize.Heading
+			timer.Text = Theme.track("Get ready")
+			timer.TextSize = 24
 			timer.TextColor3 = Colors.Text
-			timerStroke.Color = Colors.Stroke
+			modeLabel.Text = info
 			local count = math.max(1, math.ceil(remaining))
 			if remaining <= 0 then
 				countdown.Visible = false
@@ -507,20 +610,19 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 			end
 		elseif state.phase == "Active" then
 			timer.Text = formatTime(remaining)
-			timer.TextSize = 30
-			local urgent = remaining <= 10
-			timer.TextColor3 = if urgent then Colors.Danger else Colors.Text
-			timerStroke.Color = if urgent then Colors.Danger else Colors.Stroke
+			timer.TextSize = CLOCK_SIZE
+			timer.TextColor3 = if remaining <= 10 then Colors.Danger else Colors.Text
+			modeLabel.Text = info
 		elseif state.phase == "SuddenDeath" then
-			timer.Text = "SUDDEN DEATH  " .. formatTime(remaining)
-			timer.TextSize = Theme.TextSize.Heading
+			timer.Text = formatTime(remaining)
+			timer.TextSize = CLOCK_SIZE
 			timer.TextColor3 = Colors.Danger
-			timerStroke.Color = Colors.Danger
+			modeLabel.Text = `Sudden death  ·  {state.arena}`
 		else
-			timer.Text = "MATCH OVER"
-			timer.TextSize = Theme.TextSize.Heading
+			timer.Text = Theme.track("Match over")
+			timer.TextSize = 24
 			timer.TextColor3 = Colors.TextDim
-			timerStroke.Color = Colors.Stroke
+			modeLabel.Text = info
 		end
 	end
 
@@ -530,6 +632,7 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		showResults = showResults,
 		clear = clear,
 		update = update,
+		announce = announce,
 	}
 end
 

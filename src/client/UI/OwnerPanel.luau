@@ -456,7 +456,7 @@ local function buildServer(page: Frame, send: Send)
 	} }
 	for id, theme in Seasons.Themes do
 		table.insert(seasons, {
-			label = `{theme.icon} {theme.name}`,
+			label = theme.name,
 			onClick = function()
 				send(Action.SetSeason, id)
 			end,

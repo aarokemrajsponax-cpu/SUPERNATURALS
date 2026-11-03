@@ -1,6 +1,6 @@
 # Project status (checkpoint)
 
-**Updated:** 3 November 2026, 12:00 UTC. Branch `claude/friendly-turing-1hh9nu`.
+**Updated:** 3 November 2026, 18:30 UTC. Branch `claude/friendly-turing-1hh9nu`.
 Tests run in Lune on a stand-in engine; nothing has been verified in a live Roblox server.
 
 ## Batch 1 (release blockers): what landed today
@@ -19,26 +19,42 @@ Tests run in Lune on a stand-in engine; nothing has been verified in a live Robl
 | Jeffery, first-time tutorial, hints, How to Play | In progress | |
 | Corruption, Shapeshifter, Syntax, Admin power tests | In progress | |
 
+## Afternoon, 3 November: owner feedback "looks too AI generated"
+| Item | State | Evidence |
+|---|---|---|
+| Faithful preview renders (real fonts, sign text laid out on its face, rotated icons, 3D views in the interface) | Done | tools/uipreview, tools/preview, tools/fonts |
+| Craft pass rules (`docs/specs/UI_Craft_Pass.md`): solid windows, one edge with a lip, 4 px corners, sentence case | Done | Theme, Components |
+| Jeffery's dialogue: opaque card, HUD fades while he talks, portrait setting, name tab, sentence case | Done | smoke_learn 9/9, smoke_ui, tutorial_test 10/10, renders |
+| Play window: no truncated text, cards without boxes, one Cancel | Done | smoke_ui, smoke, renders |
+| Match HUD: fighting-game top bar, outlined announcements, key caps under slots, quiet key hints, toasts that never cover windows | Done | smoke_combat 11/11, renders |
+| Statue plaques (codename between rules, engraved name, rivets) and numbered door signs 01 to 08 | Done | statues_test 10/10, renders |
+| Season welcome card restyled; emoji sprites retired; Thanksgiving lighting warmed | Done | |
+| Thanksgiving "Harvest Week": facility vitrines, banners, sign, warm drift (no farm props) | Done | smoke 12/12, renders |
+| Owner Control Center server: cross-server announcements (text filtered), scheduler, custom event creator | Done on fakes | overlord_ext_test 10/10 |
+| Owner Control Center screens (17 sections) | In progress | |
+| Settings: Quick cast toggle; lock-on and quick cast now actually save | Done | unit 117/117 |
+| No Robux amount in player text outside live regional prices | Done | phase, data, shop tests |
+
 ## Known defects
 - Grandmaster power test fails a different timing check each run under heavy machine load;
   to re-check on a quiet machine.
-- Hard-coded Robux numbers remain in PowerService messages and power definitions (not in the
-  shop or showcase).
-- Thanksgiving dressing builds but still uses the old styling.
 - Every product and pass id is 0 until the owner creates them (see FINAL_OWNER_HANDOFF.md).
 
-## Next (batch 2, in order)
-1. Combat: click-to-target for Corruption, Syntax and Admin; aimed shots for Machine Master;
-   teleport targeting and directional slashes for the Ghost; much lower energy costs and
-   faster regeneration, all in config.
-2. Flight for the three premium fighters; the Admin fighter's small chat-command set.
-3. Facility wings: battleground concourse (about 20 themed chambers with spectator rooms),
-   Training Studio, Jeffery's Base room, Spectating Lounge (screens, refreshments, free
-   prediction board, Founders' Archive), Master Shop room, Player Base Street with bases and
-   basement vaults.
-4. Premium fighter overhaul (Corruption, Syntax, Admin phases, effects, ultimates).
-Then batch 3 (Owner Control Center v2 across servers, live meme calendar and content, sound
-manager, Jeffery's knowledge base) and batch 4 (polish, mastery and achievements, QA).
+## Next, in order
+1. Owner Control Center screens (in progress), then live multi-server checks by the owner.
+2. Premium fighter overhaul (P.S. 3.0): phase identities, transformation sequences, ultimates,
+   effects and sound for Corruption, Syntax and Admin; flight for the three; the Admin
+   fighter's small set of in-match commands (never real admin rights).
+3. Spectating Lounge refreshments counter (P.S. 13.0), Master Shop room, Jeffery in the lounge.
+4. Live meme calendar, brainrot content and the Meme Vault (section 25).
+5. Sound manager and manifest (P.S. 7.0; audio ids need the owner's verification).
+6. Mastery, achievements, rivals and leaderboards (P.S. 15, 19); cinematic camera (P.S. 9.0).
+7. Polish: base sofa and rug colours, lounge floor, Founders' Archive illustrations (owner art).
+
+Done since the last checkpoint: click-to-target and aimed abilities with lower costs and faster
+regeneration (targeting_test 10/10), battleground concourse with 20 themed chambers, Training
+Studio with practice fights against Jeffery (practice_test 14/14), Spectating Lounge with the free
+prediction board, Player Base Street with homes and basement vaults.
 
 ## Usage notes
 A 5-hour window has supported roughly 30 to 90 minutes of three or four Sonnet agents. Narrow

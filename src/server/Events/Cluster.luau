@@ -9,7 +9,10 @@
 -- UserId, expiry, replay) and applies it to its own Overlord core. Messages can be lost, so
 -- every server also reads the MemoryStore on start and every RECONCILE_EVERY seconds and
 -- starts or stops what differs. Nothing here runs code from a message: a command is data
--- naming a preset id and validated numbers.
+-- naming a preset id and validated numbers. Two more data-only commands travel the same way:
+-- "announce" (already filtered text, a style and a duration; each server hands it to
+-- deps.announce) and "customs" (a notice that the saved custom events changed; each server
+-- calls deps.reloadCustoms).
 
 local Audit = require(script.Parent.Audit)
 
@@ -25,7 +28,7 @@ Cluster.MAX_RATE = 12 -- commands per RATE_WINDOW seconds
 Cluster.RATE_WINDOW = 10
 Cluster.MAX_STATE_TTL = 3888000 -- MemoryStore's 45 day limit
 
-local ACTIONS = { activate = true, stop = true, stopAll = true, restoreEnvironment = true, clearEffects = true, restorePlayers = true, returnToDefault = true }
+local ACTIONS = { activate = true, stop = true, stopAll = true, restoreEnvironment = true, clearEffects = true, restorePlayers = true, returnToDefault = true, announce = true, customs = true }
 local MAX_SEEN = 500
 
 local function size(value: any): number
@@ -47,7 +50,8 @@ local function validId(value: any): boolean
 	return type(value) == "string" and #value >= 4 and #value <= 64 and string.find(value, "^[%w%-_%.]+$") ~= nil
 end
 
--- deps: messaging, memory, auditStore, clock, wait, jobId, isTest, isOwnerId(userId), playerCount(), randomId()
+-- deps: messaging, memory, auditStore, clock, wait, jobId, isTest, isOwnerId(userId), playerCount(), randomId(),
+--       announce(text, style, seconds)?, reloadCustoms()?
 function Cluster.new(core, deps)
 	local self = setmetatable({}, Cluster)
 	self.core = core
@@ -162,6 +166,8 @@ local function validScope(scope: any): boolean
 	return false
 end
 
+Cluster.validScope = validScope
+
 -- Shape and trust checks for a command, whether it came from a message or the MemoryStore.
 -- Returns nil, code on refusal.
 function Cluster:validate(cmd: any, fromStore: boolean?): string?
@@ -186,6 +192,16 @@ function Cluster:validate(cmd: any, fromStore: boolean?): string?
 		end
 	elseif cmd.a == "stop" then
 		if not validId(cmd.g) then
+			return "bad_command"
+		end
+	elseif cmd.a == "announce" then
+		if type(cmd.tx) ~= "string" or #cmd.tx < 1 or #cmd.tx > 640 or utf8.len(cmd.tx) == nil or utf8.len(cmd.tx) > 160 then
+			return "bad_command"
+		end
+		if cmd.sy ~= "banner" and cmd.sy ~= "toast" then
+			return "bad_command"
+		end
+		if type(cmd.sc) ~= "number" or cmd.sc ~= cmd.sc or cmd.sc < 3 or cmd.sc > 15 then
 			return "bad_command"
 		end
 	end
@@ -270,6 +286,16 @@ function Cluster:_apply(cmd: any, origin: string)
 		local report = core:returnToDefault()
 		table.clear(self.applied)
 		return true, nil, report
+	elseif cmd.a == "announce" then
+		if self.deps.announce then
+			self.deps.announce(cmd.tx, cmd.sy, cmd.sc)
+		end
+		return true, nil, { announced = self.deps.announce ~= nil }
+	elseif cmd.a == "customs" then
+		if self.deps.reloadCustoms then
+			self.deps.reloadCustoms()
+		end
+		return true, nil, {}
 	end
 	return false, "bad_command"
 end
@@ -377,6 +403,9 @@ function Cluster:_issue(actor: any, action: string, payload: any, scope: any)
 		ev = payload.eventMode == true,
 		st = now,
 		g = payload.target,
+		tx = payload.text,
+		sy = payload.style,
+		sc = payload.seconds,
 	}
 	local code = self:validate(cmd)
 	if code then
@@ -414,6 +443,8 @@ function Cluster:_issue(actor: any, action: string, payload: any, scope: any)
 	local stored = true
 	if action == "activate" then
 		stored = self:_storeActive(cmd)
+	elseif action == "announce" or action == "customs" then
+		stored = true -- one-shot notices: nothing to reconcile later
 	else
 		stored = self:_clearActive(cmd)
 	end

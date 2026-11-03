@@ -101,12 +101,16 @@ Schema.Settings = {
 	cameraSensitivity = { default = 1, min = 0.2, max = 2 },
 	damageNumbers = { default = true },
 	hints = { default = true },
+	-- Lock-on: press to lock and tap to switch, or locked only while held
+	lockOnMode = { default = "toggle", options = { "toggle", "hold" } },
+	-- Aimed abilities cast at the cursor at once instead of entering aiming mode
+	quickCast = { default = false },
 }
 
 -- Saved data the client never sees
 local PRIVATE = { receipts = true, rewardLog = true, meta = true }
 
-export type Settings = { [string]: boolean | number }
+export type Settings = { [string]: boolean | number | string }
 export type PowerData = {
 	xp: number,
 	-- Degrees beyond the first that were unlocked: { ["2"] = true }
@@ -352,6 +356,9 @@ end
 local function settingValue(rule, value: any): any
 	if typeof(rule.default) == "boolean" then
 		return if typeof(value) == "boolean" then value else nil
+	end
+	if rule.options then
+		return if typeof(value) == "string" and table.find(rule.options, value) then value else nil
 	end
 	if not isFinite(value) then
 		return nil

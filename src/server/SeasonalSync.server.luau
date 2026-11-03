@@ -129,7 +129,7 @@ local function applySeason(id: string?)
 	if theme then
 		applyLighting(theme)
 		SeasonalDecor.build(id :: string)
-		print(`[Seasons] {theme.icon} {theme.name} is live!`)
+		print(`[Seasons] {theme.name} is live`)
 	else
 		print("[Seasons] No holiday right now, using the normal look.")
 	end

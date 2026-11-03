@@ -6,11 +6,9 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Components = require(script.Parent.Parent.UI.Components)
-local Theme = require(script.Parent.Parent.UI.Theme)
 local Shell = require(script.Parent.Parent.UI.Shell)
 local Hud = require(script.Parent.Parent.UI.Hud)
 local PlayWindow = require(script.Parent.Parent.UI.PlayWindow)
@@ -24,14 +22,10 @@ local MatchRequest = Remotes:WaitForChild("MatchRequest") :: RemoteEvent
 local MatchEvent = Remotes:WaitForChild("MatchEvent") :: RemoteEvent
 
 local Event = Protocol.MatchEvent
-local Colors = Theme.Colors
 
 local player = Players.LocalPlayer
 
 local UIController = {}
-
--- How long a notice stays in the middle of the screen during a fight
-local NOTICE_SECONDS = 2.5
 
 function UIController:Init(controllers)
 	self.input = controllers.InputController
@@ -68,56 +62,7 @@ function UIController:Start()
 	self.play = play
 	self.matchHud = matchHud
 
-	-- Notices: a ribbon in the middle during fights, a toast otherwise
-	local ribbon = Components.panel({
-		Name = "Notice",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.26),
-		Size = UDim2.fromOffset(0, 48),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 0.12,
-		Active = false,
-		Visible = false,
-		Parent = gui,
-	})
-	local ribbonStroke = ribbon:FindFirstChildOfClass("UIStroke") :: UIStroke
-	ribbonStroke.Color = Colors.Gold
-	ribbonStroke.Transparency = 0.3
-	Components.padding(0, Theme.Space.XL, 0, Theme.Space.XL).Parent = ribbon
-	local ribbonText = Components.text({
-		Style = "Heading",
-		Weight = "ExtraBold",
-		Color = Colors.Gold,
-		AlignX = "Center",
-		Size = UDim2.fromScale(0, 1),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextTruncate = Enum.TextTruncate.None,
-		Parent = ribbon,
-	})
-	local ribbonScale = Components.make("UIScale", { Parent = ribbon })
-	local noticeToken = 0
-	local function showRibbon(text: string)
-		noticeToken += 1
-		local token = noticeToken
-		ribbonText.Text = text
-		-- On a short screen the scoreboard reaches far down, so the notice drops below it
-		local camera = workspace.CurrentCamera
-		local short = camera ~= nil and camera.ViewportSize.Y < 500
-		ribbon.Position = UDim2.fromScale(0.5, if short then 0.46 else 0.26)
-		ribbon.Visible = true
-		ribbonScale.Scale = 0.85
-		TweenService:Create(ribbonScale, Theme.Motion.Pop, { Scale = 1 }):Play()
-		Components.fade(ribbon, true, Theme.Motion.Normal)
-		task.delay(NOTICE_SECONDS, function()
-			if token == noticeToken then
-				Components.fade(ribbon, false, TweenInfo.new(0.4), function()
-					if token == noticeToken then
-						ribbon.Visible = false
-					end
-				end)
-			end
-		end)
-	end
+	-- Notices: an announcement in the middle during fights (MatchHud.announce), a toast otherwise
 
 	local inMatch = false
 	MatchEvent.OnClientEvent:Connect(function(kind, data)
@@ -147,7 +92,7 @@ function UIController:Start()
 			Shell.setMode("Lobby")
 		elseif kind == Event.Notice and typeof(data) == "table" and typeof(data.text) == "string" then
 			if inMatch then
-				showRibbon(data.text)
+				matchHud.announce(data.text)
 			else
 				Shell.toast(data.text, "info")
 			end

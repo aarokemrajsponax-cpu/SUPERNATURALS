@@ -534,6 +534,49 @@ local function buildStatues(folder: Instance)
 	end
 end
 
+-- Door numbers round the hall from the entrance. The sealed door beside Training is 09.
+local DOOR_NUMBERS = { Entrance = "01", Market = "02", Training = "03", Learn = "04", Homes = "05", Calibration = "06", Battle = "07", Watch = "08" }
+-- The sign canvas: 30 x 10 studs at 24 pixels a stud
+local SIGN_PX = Vector2.new(720, 240)
+local INK = rgb(14, 20, 30)
+
+local function signText(gui: Instance, name: string, text: string, font: Font, size: number, color: Color3, area: { number }, wrap: boolean, yAlign: Enum.TextYAlignment): TextLabel
+	local item = Instance.new("TextLabel")
+	item.Name = name
+	item.BackgroundTransparency = 1
+	item.Position = UDim2.fromScale(area[1] / SIGN_PX.X, area[2] / SIGN_PX.Y)
+	item.Size = UDim2.fromScale(area[3] / SIGN_PX.X, area[4] / SIGN_PX.Y)
+	item.Text = text
+	item.FontFace = font
+	item.TextSize = size
+	item.TextColor3 = color
+	item.TextWrapped = wrap
+	item.TextXAlignment = Enum.TextXAlignment.Left
+	item.TextYAlignment = yAlign
+	item.Parent = gui
+	return item
+end
+
+local function signFace(gui: Instance, entry, color: Color3)
+	local tile = Instance.new("Frame")
+	tile.Name = "NumberTile"
+	tile.BorderSizePixel = 0
+	tile.BackgroundColor3 = color
+	tile.Position = UDim2.fromScale(28 / SIGN_PX.X, 40 / SIGN_PX.Y)
+	tile.Size = UDim2.fromScale(136 / SIGN_PX.X, 160 / SIGN_PX.Y)
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0, 6)
+	round.Parent = tile
+	tile.Parent = gui
+	local number = signText(tile, "Number", DOOR_NUMBERS[entry.id] or "", Font.new(FONT_DISPLAY), 64, INK, { 0, 0, SIGN_PX.X, SIGN_PX.Y }, false, Enum.TextYAlignment.Center)
+	number.Position = UDim2.fromScale(0, 0)
+	number.Size = UDim2.fromScale(1, 1)
+	number.TextXAlignment = Enum.TextXAlignment.Center
+	signText(gui, "Title", entry.name, Font.new(FONT_DISPLAY), 38, TEXT, { 196, 28, 496, 104 }, true, Enum.TextYAlignment.Bottom)
+	swatch(gui, { 196 / SIGN_PX.X, 146 / SIGN_PX.Y, 56 / SIGN_PX.X, 4 / SIGN_PX.Y }, color)
+	signText(gui, "Subtitle", entry.subtitle, Font.new(FONT_SANS, Enum.FontWeight.Medium), 26, MUTED, { 196, 162, 496, 40 }, false, Enum.TextYAlignment.Top)
+end
+
 -- Portals ------------------------------------------------------------------------------------------------
 
 local function buildPortal(folder: Instance, entry)
@@ -557,13 +600,12 @@ local function buildPortal(folder: Instance, entry)
 	prompt(back, entry.prompt, entry.name, entry.action, 14)
 	lamp(model, polar(entry.angle, R + 3, 14), COOL, 20, 0.7, false)
 
-	-- Sign: dark plate above the lintel with the wayfinding mark, the room name and a subtitle
+	-- Sign: dark plate above the lintel. On the left the door number on a tile in the wing's
+	-- wayfinding colour; on the right the room name at one size for every sign (long names
+	-- wrap onto two lines rather than shrink), a short dash in the wing colour and a subtitle.
 	local plate = bx(model, "Sign", f, -15, 15, 26, 36, -1.8, -0.4, NAVY, M.SmoothPlastic, SMALL)
 	local gui = surface(plate, Enum.NormalId.Front, 24)
-	swatch(gui, { 0.03, 0.12, 0.016, 0.76 }, color)
-	swatch(gui, { 0.05, 0.9, 0.92, 0.012 }, color)
-	label(gui, entry.name, { 0.08, 0.1, 0.9, 0.5 }, TEXT, FONT_DISPLAY, 48)
-	label(gui, entry.subtitle, { 0.08, 0.58, 0.9, 0.28 }, MUTED, FONT_SANS, 30)
+	signFace(gui, entry, color)
 	bx(model, "SignFrame", f, -15.4, 15.4, 25.7, 26, -1.9, -0.3, STEEL, M.Metal, GHOST)
 	bx(model, "SignFrame", f, -15.4, 15.4, 36, 36.3, -1.9, -0.3, STEEL, M.Metal, GHOST)
 

@@ -843,6 +843,38 @@ local TIERS = {
 	{ 5.4, 9.0, "marble" }, -- the figure's own slab, cut from the same block as the figure
 }
 
+-- The inscription is laid out like a museum plaque on a 415 x 130 px canvas (8.3 x 2.6 studs at 50
+-- pixels a stud): the codename in small spaced capitals between two fine rules in the power's
+-- colour, an optional small first word ("THE", "ANIMAL"), then the name, engraved (a dark copy
+-- two pixels down and right), and a rivet in each corner. Every line is centred as one block.
+local PLATE_PX = Vector2.new(415, 130)
+-- First words set small above the name, so long names keep a readable size
+local KICKERS = { THE = true, ANIMAL = true }
+-- RobotoMono's advance is 0.6 of its size; used to place the rules beside the codename
+local MONO_ADVANCE = 0.6
+
+local function splitTitle(title: string): (string?, string)
+	local upper = string.upper(title)
+	local first, rest = string.match(upper, "^(%S+)%s+(.+)$")
+	if first and KICKERS[first] then
+		return first, rest
+	end
+	return nil, upper
+end
+
+-- "THE EIGHTH" -> "T H E   E I G H T H" (letters spaced, words further apart)
+local function spaced(text: string): string
+	local words = {}
+	for word in string.gmatch(text, "%S+") do
+		local letters = {}
+		for _, code in utf8.codes(word) do
+			table.insert(letters, utf8.char(code))
+		end
+		table.insert(words, table.concat(letters, " "))
+	end
+	return table.concat(words, "   ")
+end
+
 local function plate(c, base: CFrame, s: number, design)
 	local y = 4.3 * s
 	stone(c, "Block", "PlateBezel", V(8.8, 3.1, 0.16) * s, base * CFrame.new(0, y, -5.56 * s), "steel", { solid = true })
@@ -851,29 +883,89 @@ local function plate(c, base: CFrame, s: number, design)
 	gui.Name = "Inscription"
 	gui.Face = Enum.NormalId.Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 50
+	gui.PixelsPerStud = 50 / s
 	gui.LightInfluence = 0.6
 	gui.Parent = plateBlock
-	local function line(name: string, text: string, top: number, height: number, maxSize: number, color: Color3, font: string)
+	local W, H = PLATE_PX.X, PLATE_PX.Y
+	local function box(item: GuiObject, x: number, top: number, w: number, h: number)
+		item.Position = UDim2.fromScale(x / W, top / H)
+		item.Size = UDim2.fromScale(w / W, h / H)
+	end
+	local function text(name: string, value: string, font: string, color: Color3, size: number?, maxSize: number?, z: number): TextLabel
 		local label = Instance.new("TextLabel")
 		label.Name = name
 		label.BackgroundTransparency = 1
-		label.Position = UDim2.fromScale(0.05, top)
-		label.Size = UDim2.fromScale(0.9, height)
-		label.Text = text
+		label.Text = value
 		label.FontFace = Font.new(font)
 		label.TextColor3 = color
-		label.TextScaled = true
 		label.TextWrapped = false
 		label.TextXAlignment = Enum.TextXAlignment.Center
 		label.TextYAlignment = Enum.TextYAlignment.Center
-		local cap = Instance.new("UITextSizeConstraint")
-		cap.MaxTextSize = maxSize
-		cap.Parent = label
+		label.ZIndex = z
+		if size then
+			label.TextSize = size
+		else
+			label.TextScaled = true
+			local cap = Instance.new("UITextSizeConstraint")
+			cap.MaxTextSize = maxSize or 40
+			cap.Parent = label
+		end
 		label.Parent = gui
+		return label
 	end
-	line("Title", string.upper(design.title), 0.1, 0.46, 44, TEXT_COLOR, FONT_DISPLAY)
-	line("Codename", design.codename, 0.62, 0.26, 26, design.color, FONT_MONO)
+	local function rule(name: string, x: number, top: number, w: number)
+		local line = Instance.new("Frame")
+		line.Name = name
+		line.BorderSizePixel = 0
+		line.BackgroundColor3 = design.color
+		line.BackgroundTransparency = 0.15
+		box(line, x, top, w, 2)
+		line.Parent = gui
+	end
+
+	local kicker, name = splitTitle(design.title)
+	local codename = spaced(design.codename)
+	local CODE, KICK, NAME = 18, 16, 44
+	local total = CODE + (if kicker then 7 + KICK + 3 else 9) + NAME
+	local top = (H - total) / 2
+
+	-- Codename between two rules
+	local codeLabel = text("Codename", codename, FONT_MONO, design.color, 16, nil, 2)
+	box(codeLabel, 0, top, W, CODE)
+	local half = (utf8.len(codename) or #codename) * 16 * MONO_ADVANCE / 2
+	local ruleLength = 40
+	rule("RuleLeft", W / 2 - half - 12 - ruleLength, top + CODE / 2 - 1, ruleLength)
+	rule("RuleRight", W / 2 + half + 12, top + CODE / 2 - 1, ruleLength)
+	top += CODE
+
+	if kicker then
+		top += 7
+		local kick = text("Kicker", kicker, FONT_DISPLAY, SUBTEXT_COLOR, 14, nil, 2)
+		box(kick, 0, top, W, KICK)
+		top += KICK + 3
+	else
+		top += 9
+	end
+
+	-- The name, engraved: a dark copy behind, two pixels down and to the right
+	local shadow = text("TitleShadow", name, FONT_DISPLAY, Color3.fromRGB(6, 8, 12), nil, 40, 1)
+	shadow.TextTransparency = 0.3
+	box(shadow, 0.06 * W + 2, top + 2, 0.88 * W, NAME)
+	local title = text("Title", name, FONT_DISPLAY, TEXT_COLOR, nil, 40, 2)
+	box(title, 0.06 * W, top, 0.88 * W, NAME)
+
+	-- A rivet in each corner
+	for _, corner in { { 12, 12 }, { W - 20, 12 }, { 12, H - 20 }, { W - 20, H - 20 } } do
+		local rivet = Instance.new("Frame")
+		rivet.Name = "Rivet"
+		rivet.BorderSizePixel = 0
+		rivet.BackgroundColor3 = Color3.fromRGB(92, 98, 108)
+		box(rivet, corner[1], corner[2], 8, 8)
+		local round = Instance.new("UICorner")
+		round.CornerRadius = UDim.new(1, 0)
+		round.Parent = rivet
+		rivet.Parent = gui
+	end
 end
 
 local function pedestal(c, base: CFrame, s: number, design)

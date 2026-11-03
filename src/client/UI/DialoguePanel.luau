@@ -1,6 +1,7 @@
 -- Jeffery's dialogue: a character panel at the bottom of the screen. His portrait (a
 -- ViewportFrame holding a copy of his model) stands on the left, a large dialogue panel sits
--- on the right with a typewriter effect, a CONTINUE button, a Skip button and progress dots.
+-- on the right with a typewriter effect, a Continue button, a quiet Skip button and progress dots.
+-- panel.onVisibility(open) is called when a conversation starts and ends (the HUD fades with it).
 --
 -- Also here: the rig that animates a copy of Jeffery's model (idle hover bob, head turns,
 -- blinking, gestures while talking, facial expressions). The world copy and the portrait copy
@@ -24,8 +25,12 @@ local DialoguePanel = {}
 DialoguePanel.Config = {
 	-- Characters revealed per second
 	TypeSpeed = 48,
+	-- Largest size of the panel; it narrows to the screen width minus SideMargin on each side
+	-- (SideMargin keeps it clear of the dock on the left) and sits Bottom px above the screen edge
 	Size = Vector2.new(980, 196),
-	PortraitSize = Vector2.new(200, 236),
+	SideMargin = 132,
+	Bottom = 24,
+	PortraitSize = Vector2.new(188, 172),
 	TextSize = 20,
 }
 
@@ -189,67 +194,122 @@ export type Panel = {
 	state: () -> { [string]: any },
 	rig: Rig?,
 	portrait: ViewportFrame,
+	onVisibility: ((open: boolean) -> ())?,
 }
 
 -- Builds the (hidden) panel in `parent`. `modelProvider` gives a model to copy for the portrait.
 function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): Panel
 	local config = DialoguePanel.Config
+	-- One opaque card holds everything: a dark portrait plate on the left, the text column on
+	-- the right. The card has the only outer edge (a fine line plus a lighter lip along the top).
 	local frame = make("Frame", {
 		Name = "JefferyDialogue",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -150),
-		Size = UDim2.fromOffset(config.Size.X, config.Size.Y),
+		Position = UDim2.new(0.5, 0, 1, -config.Bottom),
+		Size = UDim2.new(1, -2 * config.SideMargin, 0, config.Size.Y),
 		BackgroundTransparency = 1,
 		Visible = false,
 		ZIndex = 20,
 		Parent = parent,
-	})
+	}, { make("UISizeConstraint", { MaxSize = Vector2.new(config.Size.X, config.Size.Y) }) })
 
-	-- Dialogue panel (right of the portrait)
-	local panelLeft = config.PortraitSize.X - 24
 	local card = make("Frame", {
 		Name = "Card",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.fromScale(1, 1),
-		Size = UDim2.new(0, config.Size.X - panelLeft, 1, 0),
+		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Colors.Panel,
 		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
+		Active = true,
 		ZIndex = 20,
 		Parent = frame,
-	}, { Components.corner(), Components.stroke(Colors.Stroke, 1, 0.55) })
-
-	local nameLabel = Components.text({
-		Name = "Speaker", Text = "JEFFERY", Style = "Label", Track = true, Color = Colors.Cyan,
-		Position = UDim2.fromOffset(150, 14), Size = UDim2.new(1, -300, 0, 22), ZIndex = 21, Parent = card,
+	}, { make("UICorner", { CornerRadius = UDim.new(0, 4) }), Components.stroke(Colors.Stroke, 1, 0.6) })
+	make("Frame", {
+		Name = "Lip", Position = UDim2.fromOffset(4, 1), Size = UDim2.new(1, -8, 0, 1),
+		BackgroundColor3 = Colors.PanelHover, BorderSizePixel = 0, ZIndex = 21, Parent = card,
 	})
+
+	-- Portrait plate: a dark panel, a soft floor disc, the model, and a name tab along the bottom
+	local plate = make("Frame", {
+		Name = "PortraitPlate", Position = UDim2.fromOffset(12, 12),
+		Size = UDim2.new(0, config.PortraitSize.X, 1, -24),
+		BackgroundColor3 = Colors.Ink, BorderSizePixel = 0, ZIndex = 21, Parent = card,
+	}, { make("UICorner", { CornerRadius = UDim.new(0, 4) }) })
+	local TAB_HEIGHT = 50
+	local floorDisc = make("Frame", {
+		Name = "Floor", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -TAB_HEIGHT - 8),
+		Size = UDim2.new(0.62, 0, 0, 16), BackgroundColor3 = Colors.PanelHover, BackgroundTransparency = 0.25,
+		BorderSizePixel = 0, ZIndex = 22, Parent = plate,
+	}, { make("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+	local portrait = make("ViewportFrame", {
+		Name = "Portrait", Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 1, -TAB_HEIGHT),
+		BackgroundTransparency = 1, BorderSizePixel = 0,
+		LightColor = Color3.fromRGB(190, 215, 235), Ambient = Color3.fromRGB(110, 124, 140), ZIndex = 23, Parent = plate,
+	})
+	local tab = make("Frame", {
+		Name = "NameTab", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, TAB_HEIGHT), BackgroundColor3 = Colors.PanelLight, BorderSizePixel = 0,
+		ZIndex = 24, Parent = plate,
+	}, { make("UICorner", { CornerRadius = UDim.new(0, 4) }) })
+	local nameLabel = Components.text({
+		Name = "Speaker", Text = "Jeffery", Style = "label", Weight = "Bold", TextSize = 18, Color = Colors.Cyan, AlignX = "Center",
+		Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 22), ZIndex = 25, Parent = tab,
+	})
+	local roleLabel = Components.text({
+		Name = "Role", Text = "Facility guide", Style = "caption", Color = Colors.TextMuted, AlignX = "Center",
+		Position = UDim2.fromOffset(0, 27), Size = UDim2.new(1, 0, 0, 18), ZIndex = 25, Parent = tab,
+	})
+
+	-- Text column
+	local textLeft = config.PortraitSize.X + 12 + 18
 	local line = Components.text({
 		Name = "Line", Text = "", TextSize = config.TextSize, Wrap = true, Color = Colors.Text,
-		Position = UDim2.fromOffset(150, 44), Size = UDim2.new(1, -174, 0, 80), AutomaticSize = Enum.AutomaticSize.None,
+		Position = UDim2.fromOffset(textLeft, 16), Size = UDim2.new(1, -textLeft - 22, 0, 104), AutomaticSize = Enum.AutomaticSize.None,
 		ZIndex = 21, Parent = card,
 	})
-	line.TextTruncate = Enum.TextTruncate.AtEnd
+	line.TextTruncate = Enum.TextTruncate.None
+	line.TextYAlignment = Enum.TextYAlignment.Top
 	local dots = make("Frame", {
-		Name = "Dots", Position = UDim2.new(0, 150, 1, -46), Size = UDim2.fromOffset(160, 20),
-		BackgroundTransparency = 1, ZIndex = 21, Parent = card,
-	}, { make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center }) })
+		Name = "Dots", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, textLeft, 1, -32),
+		Size = UDim2.fromOffset(160, 10), BackgroundTransparency = 1, ZIndex = 21, Parent = card,
+	}, { make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center }) })
 
 	local continueButton = Components.button("Continue", {
-		Name = "Continue", Variant = "Primary", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16, 1, -12),
-		Size = UDim2.fromOffset(150, 44), ZIndex = 22, Parent = card,
+		Name = "Continue", Variant = "Primary", KeepCase = true, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16, 1, -12),
+		Size = UDim2.fromOffset(136, 44), ZIndex = 22, Parent = card,
 	})
 	local skipButton = Components.button("Skip", {
-		Name = "Skip", Variant = "Ghost", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 6),
-		Size = UDim2.fromOffset(100, 44), ZIndex = 22, Parent = card,
+		Name = "Skip", Variant = "Ghost", KeepCase = true, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16 - 136 - 8, 1, -12),
+		Size = UDim2.fromOffset(148, 44), ZIndex = 22, Parent = card,
 	})
 
-	-- Portrait
-	local portrait = make("ViewportFrame", {
-		Name = "Portrait", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
-		Size = UDim2.fromOffset(config.PortraitSize.X, config.PortraitSize.Y),
-		BackgroundColor3 = Colors.Ink, BackgroundTransparency = 0.1, BorderSizePixel = 0,
-		LightColor = Color3.fromRGB(190, 215, 235), Ambient = Color3.fromRGB(110, 124, 140), ZIndex = 23, Parent = frame,
-	}, { Components.corner(), Components.stroke(Colors.Cyan, 1, 0.5) })
+	-- Phones and small windows: the portrait shrinks and the role line goes
+	local function relayout()
+		local camera = workspace.CurrentCamera
+		local view = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+		local small = view.X < 900 or view.Y < 500
+		local scale = parent:FindFirstChildOfClass("UIScale")
+		local designWidth = view.X / math.max(if scale then scale.Scale else 1, 0.01)
+		local portraitWidth = if small then 112 else config.PortraitSize.X
+		local margin = if small then config.SideMargin - 40 else config.SideMargin
+		frame.Size = UDim2.new(1, -2 * math.min(margin, math.max(8, (designWidth - 360) / 2)), 0, config.Size.Y)
+		plate.Size = UDim2.new(0, portraitWidth, 1, -24)
+		roleLabel.Visible = not small
+		tab.Size = UDim2.new(1, 0, 0, if small then 32 else TAB_HEIGHT)
+		portrait.Size = UDim2.new(1, 0, 1, if small then -32 else -TAB_HEIGHT)
+		floorDisc.Position = UDim2.new(0.5, 0, 1, (if small then -32 else -TAB_HEIGHT) - 8)
+		nameLabel.Position = UDim2.fromOffset(0, if small then 5 else 6)
+		local left = portraitWidth + 12 + (if small then 14 else 18)
+		line.Position = UDim2.fromOffset(left, 16)
+		line.Size = UDim2.new(1, -left - 22, 0, 104)
+		dots.Position = UDim2.new(0, left, 1, -32)
+	end
+	relayout()
+	do
+		local camera = workspace.CurrentCamera
+		if camera then
+			camera:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
+		end
+	end
 
 	local panel = { frame = frame, portrait = portrait } :: any
 	local lines: { string } = {}
@@ -293,7 +353,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		end
 		for i = 1, #lines do
 			make("Frame", {
-				Name = "Dot" .. i, Size = UDim2.fromOffset(10, 10), BorderSizePixel = 0,
+				Name = "Dot" .. i, Size = UDim2.fromOffset(7, 7), BorderSizePixel = 0,
 				BackgroundColor3 = if i <= index then Colors.Cyan else Colors.TextMuted,
 				BackgroundTransparency = if i <= index then 0 else 0.5, LayoutOrder = i, ZIndex = 22, Parent = dots,
 			}, { make("UICorner", { CornerRadius = UDim.new(1, 0) }) })
@@ -326,7 +386,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		if options.onTalking then
 			options.onTalking(false)
 		end
-		continueButton.Text = if index >= #lines then "GOT IT" else "CONTINUE"
+		continueButton.Text = if index >= #lines then "Got it" else "Continue"
 	end
 
 	local function showLine()
@@ -336,7 +396,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		token += 1
 		local mine = token
 		typing = true
-		continueButton.Text = "CONTINUE"
+		continueButton.Text = "Continue"
 		if panel.rig then
 			panel.rig.setTalking(true)
 			panel.rig.gesture()
@@ -379,6 +439,9 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 			options.onTalking(false)
 		end
 		frame.Visible = false
+		if panel.onVisibility then
+			panel.onVisibility(false)
+		end
 		if rigStep then
 			rigStep:Disconnect()
 			rigStep = nil
@@ -410,10 +473,11 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 				end)
 			end
 		end
-		if options.title then
-			nameLabel.Text = Theme.track(string.upper(options.title))
-		else
-			nameLabel.Text = Theme.track("JEFFERY")
+		skipButton.Text = if typeof(options.skipLabel) == "string" then options.skipLabel else "Skip"
+		nameLabel.Text = "Jeffery"
+		relayout()
+		if panel.onVisibility then
+			panel.onVisibility(true)
 		end
 		showLine()
 	end
@@ -428,7 +492,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 			finishTyping()
 		end
 	end
-	-- CONTINUE: finishes the line being typed, or moves to the next, or ends
+	-- Continue: finishes the line being typed, or moves to the next, or ends
 	function panel.press()
 		if not open then
 			return

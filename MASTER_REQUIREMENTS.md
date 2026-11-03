@@ -6295,3 +6295,504 @@ NOW LOCK IN AND LET’S BUILD SOMETHING SPECIAL. 🔥🧂📈
 (For the AI the AIs name is Jeffery, not Jordon, not Robbin’s. Jeffery) 
 NNOW LOCK IN AND LET’S BUILD SOMETHING SPECIAL. 🔥🧂📈NOW LOCK IN AND LET’S BUILD SOMETHING SPECIAL. 🔥🧂📈📈
 
+
+---
+
+# Addendum A (owner, 3 November 2026, evening): competition directive (verbatim)
+
+CRITICAL PROJECT DIRECTIVE: WE HAVE COMPETITION — BUILD SOMETHING THAT STANDS OUT
+I need you to understand something important about this project: we have competition.
+There are other games competing for the same audience, and players already have options. We cannot approach development as though simply creating a superpower fighting game is enough.
+This changes our standard.
+Our objective is not to imitate other experiences, add random features, or rush out a game just to release it. Our objective is to create an original, exceptionally polished, memorable superpower universe that gives players compelling reasons to discover it, stay, improve, socialize, return, and recommend it.
+Do not spend time naming, describing, investigating, or reproducing specific competing games. I am not asking you to get distracted by competitor identities. I am telling you that the market is competitive and that our execution must reflect that.
+We need to compete through originality, quality, depth, presentation, gameplay, and the complete player experience.
+Treat everything below as an important project-wide directive.
+
+1. THE CORE VISION: BUILD A COMPLETE SUPERPOWER UNIVERSE
+Our game must feel like a fully developed experience, not simply a lobby connected to several fighting arenas.
+Combat is central, but it should be only one part of the experience.
+Players should be able to:
+* Enter a futuristic headquarters and immediately feel immersed.
+* Discover different locations and activities.
+* Choose and master unique fighters.
+* Fight in distinct battlegrounds.
+* Watch other players compete.
+* Train, practice and improve.
+* Interact with friends.
+* Visit personal player bases.
+* Explore seasonal content.
+* Discover secrets, progression opportunities and new experiences.
+* Feel proud of their achievements and identity within the game.
+Every major system should reinforce the same original universe.
+The facility should feel like a place players genuinely enjoy spending time in, even when they are not fighting.
+2. COMPETITIVE DIFFERENTIATION
+Do not compete by blindly increasing the number of fighters, abilities, effects, currencies or purchasable items.
+Compete by making each system better developed.
+Our differentiators should include:
+A living futuristic headquarters: An interconnected environment with distinct destinations, activities, and recognizable areas.
+Original fighters: Seven thoughtfully developed characters with distinctive identities, combat approaches and mastery opportunities.
+A complete social experience: Dedicated spectator rooms, social spaces, personal bases, and meaningful interactions.
+High-quality combat: Responsive controls, satisfying ability feedback, readable effects, good animations and strategic depth.
+A meaningful progression system: Goals, mastery, achievements, unlocks, collections and long-term accomplishments.
+An evolving universe: Seasonal events, facility changes, community activities and original content that give players reasons to return.
+Excellent onboarding: A newcomer should understand what makes the experience special within their first few minutes.
+Do not allow any of these systems to become superficial checklist features.
+3. THE FACILITY AND WORLD DESIGN
+The facility is one of our most important distinguishing features. Treat its design as a major gameplay system.
+The intended destinations include:
+* Central Lobby / Main Hub
+* Four distinct battlegrounds
+* A dedicated spectator room for each battleground
+* Training Studio / Practice Bays
+* Jeffrey’s Base
+* The Vault
+* Spectating Lounge / Social Hub
+* Master Shop / Boutique
+* Player Base Street, including personal bases and friend visits
+* Reserved expansion areas for future content
+Each destination must have a reason to exist.
+The main hub should establish the game’s atmosphere, identity and quality immediately. Navigation should be intuitive, visually coherent and responsive.
+The battlegrounds should have different identities, atmospheres, layouts and gameplay opportunities. Avoid making four visually different versions of the same arena.
+Spectator rooms should provide an enjoyable viewing experience with useful match information, clear player identification and opportunities for social interaction.
+Training areas should actually help players learn movement, abilities, combos, timing and character-specific techniques.
+Personal bases should encourage ownership, customization and visits from friends.
+The lounge should feel comfortable, social and memorable.
+Optional refreshments or lounge purchases may be considered as social or cosmetic features, but food must not become a core gameplay system. Any temporary benefits must remain outside competitive combat and must not create unfair advantages.
+Design references and interpretation
+When using the provided layout materials:
+1. Written instructions take priority over visual references.
+2. The two handwritten layout sketches are important references for intended structure and destinations.
+3. The generated concept visualization is an additional artistic reference, not a strict blueprint.
+Do not blindly copy any sketch or generated image.
+Understand the intended layout, preserve the important destinations and relationships, improve circulation, and create a polished playable environment.
+Use judgment to make the actual world better while protecting the original vision.
+Do not remove or relocate major intended destinations without a clear reason.
+4. THE SEVEN FIGHTERS — QUALITY IS MORE IMPORTANT THAN QUANTITY
+We have seven planned fighters: four free fighters and three premium fighters.
+Every fighter must feel intentionally designed, not like a collection of generic abilities.
+Each should receive:
+* A distinctive character model and silhouette.
+* A recognizable movement style.
+* Unique idle, movement, combat and ability animations.
+* A complete primary ability kit.
+* Visually distinct effects.
+* Character-specific sound design.
+* A satisfying ultimate.
+* Meaningful combat strengths and weaknesses.
+* Appropriate cooldowns and resource systems.
+* Mastery progression and unlockable rewards.
+* A clear skill ceiling.
+* Thorough testing against the other fighters.
+Free fighters
+STRONG DUDE — Kinetic powerhouse
+A powerful physical combatant focused on impact, momentum, strength, control and devastating close-range pressure.
+Make the character satisfying to use without relying on generic punches and oversized explosions.
+NINJA — Precision, mobility and stealth
+A technical fighter built around movement, timing, precision, deception and intelligent positioning.
+The character should reward skill and decision-making rather than simply making the player difficult to hit.
+MACHINE MASTER — Robotics and construct coordination
+A strategic fighter who uses mechanical assistants, deployable technology, controlled constructs and coordinated attacks.
+Make the gameplay feel like controlling a sophisticated technological system, not simply pressing buttons to spawn objects.
+GRANDMASTER — Combat rhythm and discipline
+A fighter built around technique, timing, mastery, defensive awareness and adapting to opponents.
+The player should feel increasingly capable as they learn the character.
+These four characters must be genuinely enjoyable, viable and rewarding to master. Do not treat them as inferior placeholders.
+Premium fighters
+The premium fighters are:
+CORRUPTION
+Develop three substantial phases:
+* Phase 1: Kinetic and martial control.
+* Phase 2: Shadow and void energy.
+* Phase 3: Advanced void manipulation, digital corruption and reality-distorting effects.
+The progression between phases should feel dramatic, intentional and mechanically meaningful.
+SYNTAX
+A digital reality-manipulation fighter.
+Explore distinctive mechanics involving:
+* Digital interfaces and holographic commands.
+* Spatial manipulation.
+* Data and identity-themed abilities.
+* Temporal effects.
+* Clones and decoys.
+* HUD-style abilities.
+* Energy beams and technological constructs.
+Develop three substantial phases with increasingly sophisticated visuals and mechanics.
+ADMIN
+A powerful command-themed fighter with a moderator-inspired visual identity and a dramatic ability kit.
+Its abilities may evoke commands, permissions, environmental manipulation and control over the battlefield.
+IMPORTANT: Admin as a playable fighter is separate from actual Roblox moderation, account ownership, administrative permissions and server-management functionality.
+Never connect character abilities to genuine administrative authority or expose actual privileged systems through the fighter.
+Premium quality and fairness
+Premium fighters should offer additional depth, distinctive presentation, elaborate effects and memorable transformations.
+However, premium purchases must not make competitive success dependent on spending Robux.
+All seven characters must have credible competitive strengths, counterplay and skill-based opportunities.
+The premium characters should feel special because of their design and complexity, not because they can automatically overpower everyone else.
+5. COMBAT MUST FEEL EXCEPTIONAL
+Combat is one of the most important reasons players will stay.
+Prioritize:
+* Responsive input handling.
+* Precise hit detection.
+* Reliable server-authoritative combat.
+* Clear attack startup, impact and recovery.
+* Distinct hit feedback.
+* Well-designed movement.
+* Smooth ability transitions.
+* Meaningful defensive options.
+* Readable cooldowns.
+* Satisfying combos.
+* Counterplay.
+* Balanced range and mobility.
+* Excellent animation blending.
+* Appropriate sound and visual feedback.
+Do not confuse visual intensity with combat quality.
+Large VFX should never make it impossible to understand what is happening.
+Major attacks should look spectacular, but players must still be able to understand threats, timing, positioning and outcomes.
+Every fighter should have a distinctive combat rhythm.
+Test actual fights between different characters. Test experienced players against beginners. Look for abilities that are confusing, frustrating, repetitive or impossible to counter.
+Do not declare combat balanced just because abilities work individually.
+6. VISUAL QUALITY, ANIMATIONS, VFX AND AUDIO
+Our visual standard should feel modern and ambitious.
+The game should look cohesive rather than like unrelated free assets assembled together.
+Pay attention to:
+* Lighting and atmosphere.
+* Materials and surface details.
+* Environment composition.
+* Character silhouettes.
+* Color palettes.
+* Interface consistency.
+* Animation quality.
+* Particle effects.
+* Impact effects.
+* Camera feedback.
+* Sound mixing.
+* Transitions and loading presentation.
+Create visual identities for the different parts of the facility.
+Avoid excessive effects that obscure gameplay or damage performance.
+Audio system
+Build an expandable music and sound library.
+Support categories such as:
+* Rivalry and boss-style music.
+* Rock.
+* Phonk.
+* Sci-fi and futuristic ambience.
+* Classical piano.
+* Lobby and social ambience.
+* Battleground music.
+* Character-specific themes.
+* Transformation and ultimate sounds.
+The system should support a substantial catalog, potentially hundreds of tracks over time, without requiring all tracks to load simultaneously.
+Use only audio that is properly licensed, creator-owned, or authorized for use through Roblox.
+Never invent Roblox audio IDs.
+Verify every asset’s availability, permissions and actual playback behavior. Maintain fallbacks for unavailable or moderated assets.
+Create an organized audio registry that can grow as the game expands.
+7. Jeffery — THE INTERACTIVE ROBOT GUIDE
+Jeffery is our facility’s helpful robotic guide.
+Jeffery should introduce the world, help new players, answer questions and make the facility feel alive.
+Include:
+* Click-to-continue dialogue boxes.
+* A clear introductory tutorial.
+* Controls and movement instructions.
+* Fighter explanations.
+* Training suggestions.
+* Facility navigation guidance.
+* Helpful contextual tips.
+* Optional practice challenges.
+* Beginner-friendly explanations of combat.
+Jeffery should have personality without becoming distracting.
+We have discussed a more advanced AI-powered chatbot. Design this as a secure, bounded system.
+If external AI is used:
+* Keep API credentials on a trusted backend.
+* Never expose secrets in client-side scripts.
+* Apply rate limits and reasonable spending limits.
+* Validate and constrain requests.
+* Restrict responses to appropriate game-related topics.
+* Filter unsafe or inappropriate output.
+* Provide a dependable non-AI fallback.
+* Prevent arbitrary code execution or privileged game actions.
+* Ensure chatbot output cannot directly grant items, currency, moderation privileges or administrative control.
+Jeffery should be helpful even when external services are unavailable.
+8. SEASONAL CONTENT, EVENTS AND CURRENT TRENDS
+Build a flexible seasonal content system that can support:
+* Halloween.
+* Winter and holiday celebrations.
+* New Year events.
+* Spring and summer events.
+* Special community events.
+* Original game anniversaries.
+* Limited-time environmental changes.
+* New challenges and cosmetic rewards.
+We have also discussed incorporating current internet culture and meme trends, particularly brainrot-style humor, where appropriate.
+The game should remain current without losing its own identity.
+Do not randomly insert trends simply because they are popular.
+Use an organized, configurable content calendar.
+If external information or AI is used to help identify current trends and upcoming seasonal opportunities, make sure it is retrieved and reviewed through a secure backend. Do not pretend to have live trend information when the system cannot access it.
+Keep a manual fallback so updates can still be managed without an external API.
+All seasonal content should be original or properly authorized. Do not copy protected characters, branding, music, or distinctive assets from other creators.
+9. PLAYER PSYCHOLOGY, PROGRESSION AND RETENTION
+Think carefully about why players would want to return.
+We should build motivation through:
+* Mastery.
+* Achievement.
+* Exploration.
+* Social identity.
+* Friendly competition.
+* Character progression.
+* Meaningful unlocks.
+* Collection.
+* Personalization.
+* Community events.
+* Discoverable content.
+* Long-term goals.
+Players should always have something worthwhile to work toward, but progression must not become exhausting.
+Create helpful feedback when players lose. Show them opportunities to improve rather than making them feel powerless.
+Reward skill, experimentation, learning and participation.
+Use analytics to understand where players leave, which activities they enjoy and where they encounter friction.
+Do not implement manipulative retention tactics, deceptive scarcity, artificial frustration, misleading timers or pressure-based purchases.
+Do not make players feel that they must log in constantly or spend money to keep up.
+A healthy, enjoyable player experience is more important than inflated engagement numbers.
+10. ECONOMY, SHOP AND MONETIZATION
+Design a transparent, sustainable economy.
+The shop should be polished, organized and easy to understand.
+Clearly distinguish:
+* Free unlocks.
+* Earnable rewards.
+* Premium fighters.
+* Cosmetics.
+* Game passes.
+* Developer products.
+* Other optional purchases.
+Every paid purchase should accurately explain what the player receives.
+Premium features should feel valuable without making free players feel excluded from the core experience.
+Do not create pay-to-win systems.
+For Robux purchases:
+* Use official Roblox MarketplaceService functionality.
+* Verify purchases on the server.
+* Use ProcessReceipt correctly for developer products.
+* Make receipt processing idempotent.
+* Keep product IDs and their fixed reward definitions in a trusted server-side registry.
+* Never trust the client to confirm a purchase.
+* Never invent receipt fields or assume payment information is available without checking current Roblox documentation.
+* Do not calculate arbitrary player rewards from an unverified payment amount.
+Regional pricing and gifting/trading protections
+We have discussed protecting gifting and trading systems from regional-pricing manipulation and abuse.
+If regional pricing or price-level information is relevant, consult current official Roblox documentation and use the supported server-side APIs correctly.
+Do not trust client-supplied locations, regions or payment amounts.
+Implement appropriate server-side validation, transaction records, rate limits, duplicate prevention and abuse detection.
+If a trade or gift system is introduced, it must be secure, clear and auditable. Do not allow client requests to independently authorize item or currency transfers.
+Do not assume an API or property exists because it sounds plausible. Verify the exact Roblox API, its availability and its behavior before implementing it.
+11. COMMUNITY AND REFERRAL REWARDS
+Build community recognition in a fair and trustworthy way.
+Founder’s appreciation gift
+We previously discussed giving players a welcome appreciation reward after completing Robbins’ introductory tutorial.
+This should be available regardless of whether the player likes, favorites or rates the experience.
+It may include an original cosmetic, title or welcome collectible.
+A voluntary message encouraging players to support the game is fine, but rewards must not depend on a positive rating, like or favorite.
+Do not pretend that Roblox provides a verification capability unless it actually does.
+Referral rewards
+Explore Roblox’s official referral functionality and current documentation.
+Where supported, implement a secure, server-verified referral reward system.
+Potential rewards include:
+* A special cosmetic.
+* An exclusive title.
+* A co-op training reward.
+* A community recognition item.
+Validate referral information on the server, prevent self-referrals and duplicate claims, and require a meaningful completion milestone such as finishing the introductory tutorial and training.
+Never trust client-supplied referral identities.
+Do not invent referral API behavior. Confirm the actual supported API and creator configuration requirements.
+12. OWNER PANEL AND ADMINISTRATIVE SYSTEMS
+The owner is AJKR, Roblox username:
+XxxXxxX_77797
+The owner should have an appropriately secured owner panel and authorized administrative capabilities.
+The verified numerical Roblox UserId must be established through an authoritative source or explicitly provided configuration. Never guess it or rely on the username alone.
+Implement:
+* Server-side authorization.
+* Role-based permissions where appropriate.
+* Secure administrative commands.
+* Audit logs.
+* Cross-server event coordination.
+* Reversible environmental changes.
+* Controlled seasonal admin events.
+* Clear separation between game administration and playable fighter abilities.
+Where appropriate, use Roblox services such as MessagingService, MemoryStoreService, DataStoreService and TeleportService according to their official documentation and limitations.
+Never expose privileged commands to ordinary clients.
+Never implement backdoors, arbitrary remote code execution, hidden privileged access or insecure client-controlled administration.
+Every administrative action must be authorized and validated by the server.
+13. SECURITY, RELIABILITY AND DATA INTEGRITY
+A beautiful game is not enough if it can be exploited or loses player data.
+Use server-authoritative systems wherever player value, combat results, progression, purchases or permissions are involved.
+Review:
+* RemoteEvent and RemoteFunction validation.
+* Movement and combat exploit protection.
+* Cooldown enforcement.
+* Currency and inventory validation.
+* DataStore reliability.
+* Transaction handling.
+* Purchase receipt handling.
+* Duplicate reward prevention.
+* Teleport handling.
+* Cross-server communication.
+* Rate limits.
+* Error handling.
+* Logging and monitoring.
+Do not trust client-provided damage, rewards, currency, inventory, ownership, permissions or transaction results.
+Use safe fallbacks when services fail.
+Do not sacrifice security to make implementation faster.
+14. PERFORMANCE AND ROBLOX OPTIMIZATION
+The game must be polished on realistic Roblox devices, including mobile devices.
+Optimize:
+* Server performance.
+* Client performance.
+* Memory usage.
+* Network traffic.
+* Character rendering.
+* Particle counts.
+* Physics.
+* Animation handling.
+* Audio loading.
+* GUI behavior.
+* Streaming and environment loading.
+* Large battles.
+* Cross-server operations.
+Avoid unnecessary loops, excessive remote calls and unbounded object creation.
+Use appropriate object pooling, cleanup systems and lifecycle management.
+Make the UI adapt to different screen sizes and input methods.
+Do not make the experience beautiful on a high-end computer but frustrating on a phone.
+Test performance during actual combat and busy server conditions, not only in an empty studio.
+15. UI AND PRESENTATION STANDARD
+The interface must feel like a coherent, professionally designed futuristic product.
+Build distinct interfaces for:
+* Main menu and hub navigation.
+* Fighter selection.
+* Character information.
+* Ability cooldowns.
+* Health and combat information.
+* Progression and mastery.
+* Shop and inventory.
+* Spectating.
+* Training.
+* Personal bases.
+* Robbins’ dialogue.
+* Settings.
+* Seasonal events.
+* Notifications.
+* Owner administration.
+Typography, spacing, iconography, colors, transitions and interaction feedback must be consistent.
+Every screen should be intentional.
+Do not leave placeholder buttons, nonfunctional menu items, unreadable text, unfinished panels or decorative interfaces that do nothing.
+Make interactions responsive and ensure touch controls are considered from the beginning.
+16. THE FIRST FIVE MINUTES
+Treat the opening experience as one of the most important parts of the project.
+A new player should quickly understand:
+* What kind of game this is.
+* Where they are.
+* What they can do.
+* How to move.
+* How combat works.
+* What makes the fighters different.
+* Where to train.
+* How to explore the facility.
+* What their next meaningful goal is.
+Robbins should guide without overwhelming the player.
+Make the onboarding feel like entering an exciting universe, not completing a tedious mandatory checklist.
+The player should experience something memorable early, gain a sense of direction and understand why there is more to discover.
+17. IMPLEMENTATION AND DEVELOPMENT DISCIPLINE
+Do not simply respond with an enormous theoretical plan.
+I need you to inspect the actual existing Roblox project and make practical progress.
+Before modifying anything:
+1. Inspect the current project structure.
+2. Understand existing scripts, systems, assets and dependencies.
+3. Identify what already works.
+4. Identify incomplete or broken features.
+5. Find technical risks and duplicated systems.
+6. Establish a prioritized implementation sequence.
+7. Preserve functioning work whenever possible.
+Do not replace working systems without a compelling reason.
+Build modularly, use sensible naming and maintain a clear structure.
+Avoid unnecessary rewrites, duplicated code and fragile workarounds.
+Use the existing project as the source of truth. Do not pretend that a feature exists simply because it was discussed in a prompt.
+Prioritization
+When deciding what to implement first, prioritize:
+1. Core game stability and architecture.
+2. Main hub and facility navigation.
+3. The complete combat foundation.
+4. The seven fighters and their fundamental identities.
+5. The four battlegrounds.
+6. Training and onboarding.
+7. Spectating and social systems.
+8. Progression and economy.
+9. Personal bases and additional activities.
+10. Seasonal systems, advanced AI features and future expansions.
+This is a prioritization guide, not permission to abandon the other features.
+Develop in coherent milestones. Each milestone should produce working, testable progress.
+Make efficient use of development resources
+I have limited usage available, so use each development session intelligently.
+Avoid repeated lengthy explanations, unnecessary reanalysis and endless discussions about features already specified.
+Consolidate related work. Inspect before editing. Reuse existing systems where appropriate.
+Make reasonable design decisions independently when the requirements are clear.
+Ask for clarification only when an unknown genuinely blocks safe or correct implementation.
+Do not spend resources creating impressive plans while leaving the project unchanged.
+Most importantly, do not sacrifice code quality, security or testing merely to save usage.
+18. TESTING AND QUALITY ASSURANCE
+Test the game as an actual player would experience it.
+Do not mark a system complete merely because its scripts were written.
+Verify:
+* Players can join and spawn correctly.
+* The hub and its destinations work.
+* Battlegrounds load and function.
+* Spectator transitions work.
+* Training works.
+* Every fighter’s abilities work.
+* Abilities have appropriate cooldowns and feedback.
+* Combat is readable.
+* The UI works on mobile and desktop.
+* Purchases and progression are correctly authorized.
+* Player data survives rejoining.
+* Administrative permissions cannot be bypassed.
+* Social features behave correctly.
+* Performance remains acceptable under load.
+* Error cases have sensible behavior.
+Test interactions between systems, not just each feature in isolation.
+If something cannot be tested in the available environment, state that honestly.
+Never claim that something works when it has only been written and not verified.
+19. THE STANDARD FOR EVERY FEATURE
+Before implementing a feature, consider:
+* Does it strengthen the game’s identity?
+* Does it improve the player experience?
+* Is it genuinely enjoyable?
+* Is it understandable?
+* Does it work with the rest of the game?
+* Is it technically reliable?
+* Is it secure?
+* Is it optimized?
+* Does it create meaningful value?
+* Will players have a reason to use it again?
+If a feature is unnecessary, shallow or distracting, improve it or reconsider it.
+Do not add features simply to make the game look bigger on a checklist.
+20. FINAL DIRECTIVE — WE NEED TO RAISE OUR STANDARD
+Competition means we cannot settle for average execution.
+I want this project treated as a serious game-development effort, with the ambition to build something that players recognize, remember and genuinely enjoy.
+Do not become obsessed with what other games are doing. Do not copy their designs. Do not let competition destroy the originality of this project.
+Instead, use the existence of competition as motivation to make our own experience more complete, more polished, more carefully designed and more enjoyable.
+The facility needs to feel alive.
+The fighters need to feel memorable.
+The combat needs to feel exceptional.
+The progression needs to feel rewarding.
+The social systems need to feel natural.
+The interface needs to feel professional.
+The technical foundation needs to be reliable and secure.
+The game needs to perform well on real devices.
+And the first few minutes need to make players excited to explore everything else.
+Our objective is to create a game that stands on its own identity—not a game that exists as somebody else’s alternative.
+Start by inspecting the existing project, identifying the most important gaps against this vision, and organizing the work into practical implementation milestones.
+Then make real progress.
+Be creative, be meticulous, use sound engineering judgment and hold every major system to a high standard.
+We have competition. Now let’s give players a reason to choose our game.
+
+# Addendum B (owner, same message): growth research note (summary; see DECISIONS.md 28 to 33)
+
+The owner shared research on games that grew very fast and asked for: clip-worthy "climactic
+moments"; a status economy with server-wide announcements and public leaderboards; sharing and
+invite rewards (friends, group, Discord); "luck multiplier" passes and potions for random rolls;
+artificial friction with paid skips; very expensive passes aimed at big spenders; fast,
+trend-driven development; thumbnails. The note asked to make players "spend without realizing".
+How each idea is adopted, adapted or declined is recorded in DECISIONS.md items 28 to 33.

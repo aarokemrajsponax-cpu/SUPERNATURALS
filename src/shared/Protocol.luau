@@ -233,12 +233,20 @@ Protocol.OverlordAction = {
 	DeleteCombo = "DeleteCombo", -- { id }
 	Audit = "Audit", -- { limit? }
 	Summon = "Summon", -- { jobId }
+	Announce = "Announce", -- { text, style = "banner"|"toast", seconds?, scope }
+	ScheduleAdd = "ScheduleAdd", -- { at, label, entries | combo, scope, eventMode? }
+	ScheduleList = "ScheduleList",
+	ScheduleCancel = "ScheduleCancel", -- { id }
+	CustomSave = "CustomSave", -- { id?, name, description?, effects = { { effect, params } } }
+	CustomList = "CustomList",
+	CustomDelete = "CustomDelete", -- { id }
 }
 
 -- Server -> owner, through Remotes.OverlordEvent
 Protocol.OverlordSignal = {
 	Result = "Result", -- (requestId, result)
 	State = "State", -- (state) pushed after every change
+	Announce = "Announce", -- ({ text, style, seconds }) to every client on a targeted server
 }
 
 -- Attributes the server sets on fighter models (times use workspace:GetServerTimeNow())

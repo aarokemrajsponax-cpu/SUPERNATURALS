@@ -186,14 +186,15 @@ t.check("chambers build on reserve, take the lowest free number and are torn dow
 	assert(#world.workspace.Arenas:GetChildren() == 0, "nothing left standing")
 end)
 
-t.check("the training hall keeps three dummy spots and things to throw", function()
+t.check("the Training Studio keeps a dummy in each of its five bays and things to throw", function()
 	local hall = world.workspace.TrainingGround
 	local spots = ArenaService:trainingDummySpots()
-	assert(#spots == 3, "three dummy spots")
+	assert(#spots == 5, "five dummy spots, one per practice bay: " .. #spots)
 	local center = MatchConfig.TrainingGround.Center
 	for _, spot in spots do
+		-- The studio is 56 x 56 studs inside
 		local offset = spot.Position - center
-		assert(math.abs(offset.X) < 17 and math.abs(offset.Z) < 22, "spots on the hall's floor")
+		assert(math.abs(offset.X) < 28 and math.abs(offset.Z) < 28, "spots on the studio floor")
 	end
 	local throwables, parts = 0, 0
 	for _, item in hall:GetDescendants() do

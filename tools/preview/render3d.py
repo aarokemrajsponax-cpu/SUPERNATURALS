@@ -11,6 +11,11 @@ composition, colour, lighting mood, clutter and scale.
 Usage:
   python3 tools/preview/render3d.py scene.json out/prefix [--size 1280x720]
       [--views overview,eye,top] [--cam name:x,y,z:tx,ty,tz[:fov]] ...
+SurfaceGui and BillboardGui text is laid out and drawn for real (frames, rounded corners,
+strokes, gradients, TextScaled with size limits, the stand-in fonts in tools/fonts) and
+placed on the face or at the billboard position with perspective, depth testing and
+LightInfluence. Not drawn there: images, list/grid layouts, automatic sizing.
+Importable: ViewportFrame previews in tools/uipreview reuse render_scene_image().
 Writes out/prefix_<view>.png for each view (auto views frame the scene;
 cameras exported with the scene, e.g. an arena's spawn view, are added).
 """
@@ -21,6 +26,9 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import guidraw  # noqa: E402  (SurfaceGui / BillboardGui drawing, uses tools/fonts)
 
 # Roblox's default terrain material colours (Terrain:SetMaterialColor overrides them)
 TERRAIN_COLORS = {
@@ -595,7 +603,150 @@ def aces(x):
     return np.clip((x * (a * x + b)) / (x * (c * x + d) + e), 0, 1)
 
 
-def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label):
+# SurfaceGui / BillboardGui ----------------------------------------------------------------
+
+# face -> (outward normal, canvas up direction) in part-local axes
+GUI_FACES = {
+    "Front": ((0, 0, -1), (0, 1, 0)), "Back": ((0, 0, 1), (0, 1, 0)),
+    "Right": ((1, 0, 0), (0, 1, 0)), "Left": ((-1, 0, 0), (0, 1, 0)),
+    "Top": ((0, 1, 0), (0, 0, 1)), "Bottom": ((0, -1, 0), (0, 0, -1)),
+}
+MAX_TEXTURE = 2048
+
+
+def _mips(rgba):
+    """Premultiplied float mip chain from a straight-alpha uint8 RGBA array."""
+    a = rgba.astype(np.float32) / 255.0
+    a[..., :3] *= a[..., 3:4]
+    chain = [a]
+    while min(chain[-1].shape[:2]) > 4:
+        c = chain[-1]
+        h, w = (c.shape[0] // 2) * 2, (c.shape[1] // 2) * 2
+        c = c[:h, :w]
+        chain.append((c[0::2, 0::2] + c[1::2, 0::2] + c[0::2, 1::2] + c[1::2, 1::2]) / 4)
+    return chain
+
+
+def _sample(tex, u, v):
+    """Bilinear sample of a premultiplied (h, w, 4) texture at normalised u, v."""
+    h, w = tex.shape[:2]
+    x = np.clip(u * w - 0.5, 0, w - 1.001)
+    y = np.clip(v * h - 0.5, 0, h - 1.001)
+    x0, y0 = x.astype(np.int32), y.astype(np.int32)
+    fx, fy = (x - x0)[..., None], (y - y0)[..., None]
+    top = tex[y0, x0] * (1 - fx) + tex[y0, x0 + 1] * fx
+    bot = tex[y0 + 1, x0] * (1 - fx) + tex[y0 + 1, x0 + 1] * fx
+    return top * (1 - fy) + bot * fy
+
+
+def _blend_linear(img, region, rgba_premult, mult):
+    """img (linear, H x W x 3) region = region over with premultiplied sRGB colour."""
+    y0, y1, x0, x1 = region
+    a = rgba_premult[..., 3:4]
+    straight = rgba_premult[..., :3] / np.maximum(a, 1e-4)
+    lin = srgb_to_linear(np.clip(straight, 0, 1)) * mult
+    img[y0:y1, x0:x1] = img[y0:y1, x0:x1] * (1 - a) + lin * a
+
+
+def composite_surface_gui(g, cam, img, zbuf, lightbuf, dirs, hit):
+    H, W = img.shape[:2]
+    pos, rot = cframe_matrix(g["cf"])
+    size = np.array(g["partSize"], np.float32)
+    n_l, up_l = (np.array(v, np.float32) for v in GUI_FACES.get(g.get("face") or "Front", GUI_FACES["Front"]))
+    right_l = np.cross(-n_l, up_l)
+    n, up, right = rot @ n_l, rot @ up_l, rot @ right_l
+    fw, fh = float(abs(right_l) @ size), float(abs(up_l) @ size)
+    center = pos + n * float(abs(n_l) @ size) / 2
+    if g.get("sizingMode") == "FixedSize":
+        cw, ch = g["canvasSize"]
+    else:
+        cw, ch = fw * g["pixelsPerStud"], fh * g["pixelsPerStud"]
+    cw, ch = max(1.0, cw), max(1.0, ch)
+    corners = np.array([center + sx * right * fw / 2 + sy * up * fh / 2 for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+    cc = to_camera(cam, corners)
+    if (cc[:, 2] < NEAR).any():
+        return
+    sxy = np.stack([W / 2 + cc[:, 0] / cc[:, 2] * cam["focal"], H / 2 - cc[:, 1] / cc[:, 2] * cam["focal"]], axis=1)
+    x0, x1 = max(int(math.floor(sxy[:, 0].min())), 0), min(int(math.ceil(sxy[:, 0].max())) + 1, W)
+    y0, y1 = max(int(math.floor(sxy[:, 1].min())), 0), min(int(math.ceil(sxy[:, 1].max())) + 1, H)
+    if x1 <= x0 or y1 <= y0:
+        return
+    k = min(2.0, MAX_TEXTURE / max(cw, ch))
+    tex = guidraw.draw_gui(g["children"], cw, ch, k)
+    chain = _mips(np.array(tex))
+    d = dirs[y0:y1, x0:x1]
+    denom = d @ n
+    ok = denom < -1e-6
+    t = np.where(ok, float((center - cam["pos"]) @ n) / np.where(ok, denom, -1.0), 1e9)
+    p = cam["pos"][None, None, :] + d * t[..., None] - center[None, None, :]
+    u = (p @ right) / fw + 0.5
+    v = 0.5 - (p @ up) / fh
+    inside = ok & (u >= 0) & (u < 1) & (v >= 0) & (v < 1)
+    if not g.get("alwaysOnTop"):
+        inside &= t <= zbuf[y0:y1, x0:x1] + 0.06 + 0.002 * t
+    if not inside.any():
+        return
+    # Mip level from how many texels fall in one screen pixel at the nearest point
+    texels_per_px = (float(t[inside].min()) / cam["focal"]) * (tex.size[0] / fw)
+    level = int(np.clip(math.floor(math.log2(max(texels_per_px, 1e-3)) + 0.25), 0, len(chain) - 1))
+    sample = _sample(chain[level], np.clip(u, 0, 1), np.clip(v, 0, 1))
+    sample = sample * inside[..., None]
+    li = float(g.get("lightInfluence") or 0)
+    lb = lightbuf[y0:y1, x0:x1]
+    known = hit[y0:y1, x0:x1]
+    if known.any():
+        fallback = np.median(lb[known], axis=0)
+    else:
+        fallback = np.array([0.5, 0.5, 0.5], np.float32)
+    lit = np.where(known[..., None], lb, fallback[None, None, :])
+    mult = ((1 - li) + li * np.clip(lit, 0, 1.6)) * float(g.get("brightness") or 1)
+    _blend_linear(img, (y0, y1, x0, x1), sample, mult)
+
+
+def composite_billboard(g, cam, img, zbuf, lightbuf, hit):
+    H, W = img.shape[:2]
+    p = np.array(g["position"], np.float32) + np.array(g.get("studsOffsetWorld") or [0, 0, 0], np.float32)
+    so = g.get("studsOffset") or [0, 0, 0]
+    p = p + cam["right"] * so[0] + cam["up"] * so[1] + cam["fwd"] * so[2]
+    cp = to_camera(cam, p[None, :])[0]
+    if cp[2] < NEAR:
+        return
+    px_per_stud = cam["focal"] / cp[2]
+    s = g["size"]
+    w, h = s[0] * px_per_stud + s[1], s[2] * px_per_stud + s[3]
+    if w < 2 or h < 2 or w > 3000 or h > 3000:
+        return
+    tex = guidraw.draw_gui(g["children"], w, h, 1.0)
+    sx = int(round(W / 2 + cp[0] / cp[2] * cam["focal"] - tex.size[0] / 2))
+    sy = int(round(H / 2 - cp[1] / cp[2] * cam["focal"] - tex.size[1] / 2))
+    x0, y0 = max(sx, 0), max(sy, 0)
+    x1, y1 = min(sx + tex.size[0], W), min(sy + tex.size[1], H)
+    if x1 <= x0 or y1 <= y0:
+        return
+    arr = np.array(tex).astype(np.float32) / 255.0
+    arr = arr[y0 - sy:y1 - sy, x0 - sx:x1 - sx]
+    arr[..., :3] *= arr[..., 3:4]
+    if not g.get("alwaysOnTop"):
+        dist = float(np.linalg.norm(p - cam["pos"]))
+        arr = arr * (zbuf[y0:y1, x0:x1] > dist - 0.5)[..., None]
+    li = float(g.get("lightInfluence") or 0)
+    mult = float(g.get("brightness") or 1)
+    if li > 0 and hit.any():
+        mult *= (1 - li) + li * float(np.clip(np.median(lightbuf[hit]), 0, 1.6))
+    _blend_linear(img, (y0, y1, x0, x1), arr, mult)
+
+
+def composite_guis(scene, cam, img, zbuf, lightbuf, dirs, hit):
+    guis = scene.get("guis") or []
+    for g in guis:
+        if g["class"] == "SurfaceGui":
+            composite_surface_gui(g, cam, img, zbuf, lightbuf, dirs, hit)
+    for g in guis:
+        if g["class"] == "BillboardGui":
+            composite_billboard(g, cam, img, zbuf, lightbuf, hit)
+
+
+def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label, rgba_out=False):
     W, H = cam["w"], cam["h"]
     lighting = scene.get("lighting") or {}
     atmos = scene.get("atmosphere")
@@ -648,7 +799,9 @@ def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label):
 
     brightness = float(lighting.get("brightness") or 2)
     sun_color = np.array([1.0, 0.94, 0.84], np.float32) * brightness * (0.15 if night else 1.0)
-    if lighting.get("colorShiftTop"):
+    if lighting.get("sunColor"):
+        sun_color = srgb_to_linear(np.array(lighting["sunColor"], np.float32)) * brightness
+    elif lighting.get("colorShiftTop"):
         sun_color = sun_color * (1 + np.array(lighting["colorShiftTop"]) * 0.5)
     ndl = np.clip(n @ sun, 0, 1)
     shadow = shadow_lookup(shadow_map, points, n) if shadow_map is not None else np.ones(len(points))
@@ -682,6 +835,8 @@ def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label):
         contrib = np.array(lt["color"], np.float32)[None, :] * (float(lt["brightness"]) * 1.4 * fall * ndl_p)[:, None]
         light[near] += srgb_to_linear(np.ones(3)) * contrib
 
+    lightbuf = np.zeros((H, W, 3), np.float32)
+    lightbuf[pix] = light
     color = albedo * light
     # Specular from the sun
     spec_amount = np.array([MATERIALS.get(m[2:] if m.startswith("T:") else m, (0, 1, 0.1, None))[2] for m in mats], np.float32)
@@ -716,6 +871,7 @@ def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label):
     img[pix] = color
     zbuf = np.full((H, W), 1e9, np.float32)
     zbuf[pix] = dist
+    composite_guis(scene, cam, img, zbuf, lightbuf, dirs, hit)
 
     # Transparent triangles, back to front, each shaded flat at its centre
     trans = ~opaque & (mesh.alpha > 0.02)
@@ -813,9 +969,12 @@ def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label):
     bl = scene.get("bloom")
     if bl:
         img = bloom(img, max(0.6, float(bl["threshold"]) * 0.9), float(bl["intensity"]) * 0.9, float(bl["size"]))
-    exposure = 2 ** float(lighting.get("exposure") or 0)
-    img = aces(img * exposure * 1.15)
-    img = linear_to_srgb(img)
+    if scene.get("viewportMode"):
+        img = linear_to_srgb(np.clip(img, 0, 1))
+    else:
+        exposure = 2 ** float(lighting.get("exposure") or 0)
+        img = aces(img * exposure * 1.15)
+        img = linear_to_srgb(img)
     for cc in scene.get("colorCorrection") or []:
         img = img + float(cc.get("brightness") or 0)
         img = (img - 0.5) * (1 + float(cc.get("contrast") or 0)) + 0.5
@@ -825,9 +984,12 @@ def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label):
             img = img * np.array(cc["tint"], np.float32)[None, None, :]
     img = np.clip(img, 0, 1)
     out = Image.fromarray((img * 255).astype(np.uint8))
+    if rgba_out:
+        out.putalpha(Image.fromarray((hit * 255).astype(np.uint8)))
+        return out
 
     # Sign text, small and pale, so labels can be checked
-    texts = scene.get("texts") or []
+    texts = [] if scene.get("guis") else (scene.get("texts") or [])
     if texts:
         draw = ImageDraw.Draw(out)
         try:
@@ -846,6 +1008,26 @@ def render_view(scene, mesh, cam, shadow_map, sun, night, out_path, label):
     draw = ImageDraw.Draw(out)
     draw.text((8, H - 18), label, fill=(255, 255, 255))
     out.save(out_path)
+
+
+def render_scene_image(scene, cam_cf, fov, width, height, sun_dir, ambient, light_color):
+    """Renders scene['parts'] (the dump3d part format) as a ViewportFrame would: the given
+    camera CFrame (12 numbers) and field of view, one directional light with colour, flat
+    ambient, no shadows, no sky or post effects. Returns an RGBA PIL image whose alpha is
+    where parts were drawn (opaque parts only; transparent ones are not drawn)."""
+    pos, rot = cframe_matrix(cam_cf)
+    cam = look_at(pos, pos + (-rot[:, 2]), fov, width, height)
+    sc = dict(scene)
+    sc["viewportMode"] = True
+    sc["lighting"] = {"ambient": ambient, "outdoorAmbient": ambient, "brightness": 1.0, "sunColor": light_color}
+    sc["lights"] = []
+    sc["particles"] = []
+    sc["beams"] = []
+    sc["guis"] = []
+    mesh = build_mesh(sc)
+    sun = np.array(sun_dir, np.float32)
+    sun = sun / max(float(np.linalg.norm(sun)), 1e-6)
+    return render_view(sc, mesh, cam, None, sun, False, None, "", rgba_out=True)
 
 
 def main():

@@ -34,9 +34,10 @@ local WIDTH = 460
 local ABILITY_SIZE = 64
 local ABILITY_SLOTS = 6
 local VITALS_HEIGHT = 80
-local CAP_CELL = 56
-local CAP_HEIGHT = 28
-local CELL_HEIGHT = 50
+local CAP_CELL = 50
+local CAP_HEIGHT = 24
+local CAP_WIDTH = 28
+local CELL_HEIGHT = 48
 -- On touch the HUD moves left a little to leave room for the button cluster
 local TOUCH_SHIFT = -48
 -- Health turns red below this fraction; stamina turns amber below this one
@@ -111,7 +112,8 @@ local function controller(name: string): any
 end
 
 function Hud.build(parent: Instance, bindings: { any }, device: () -> string, currentGuard: (Model) -> number)
-	local frame = make("Frame", {
+	-- A CanvasGroup so the whole HUD can fade as one (Jeffery's dialogue hides it, see setFaded)
+	local frame = make("CanvasGroup", {
 		Name = "Hud",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -Space.L),
@@ -170,7 +172,6 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		Size = UDim2.new(1, 0, 0, 12),
 		Parent = vitals,
 	}, Colors.Health)
-	Components.stroke(Colors.Stroke, 1, 0.75).Parent = healthBar
 	local _, _, _, setGuard = meter(vitals, "Guard", "GUARD", UDim2.fromOffset(0, 46), Colors.Guard)
 	local _, staminaCaption, staminaBar, setStamina = meter(vitals, "Stamina", "STAMINA", UDim2.new(0.5, Space.S / 2, 0, 46), Colors.Stamina)
 	local staminaStroke = Components.stroke(Colors.Danger, 1, 1)
@@ -224,11 +225,28 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, 0),
 			Size = UDim2.new(1, 0, 0, 18),
+			TextStrokeTransparency = 0.6,
+			TextStrokeColor3 = Colors.Ink,
 			Parent = cell,
 		})
-		-- Cooldown: a radial sweep over the cap, with the seconds left in place of the key
-		local sweep, setSweep = Components.sweep({ Name = "Cooldown", Radius = 3, Transparency = 0.25, ZIndex = 5, Parent = cap })
-		local _ = sweep
+		-- Cooldown: no numbers on the cap. A thin underline shrinks as the move recharges
+		-- and the cap dims until it is ready
+		local line = make("Frame", {
+			Name = "Cooldown",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, CAP_HEIGHT + 2),
+			Size = UDim2.fromOffset(0, 2),
+			BackgroundColor3 = Colors.Warning,
+			BorderSizePixel = 0,
+			Visible = false,
+			Parent = cell,
+		})
+		local capWidth = math.max(CAP_WIDTH, math.ceil(Components.textWidth(binding.keyText, 14, Theme.Faces.Bold)) + Space.S * 2)
+		local function setSweep(share: number)
+			line.Visible = share > 0.001
+			line.Size = UDim2.fromOffset(math.floor(capWidth * share), 2)
+			key.TextTransparency = if share > 0.001 then 0.55 else 0
+		end
 		chips[binding.name] = { frame = cell, cap = cap, key = key, sweep = setSweep, outline = outline, binding = binding }
 	end
 
@@ -330,10 +348,12 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		end },
 	}
 
+	local faded, fadedOut = false, false
+
 	local function update()
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		frame.Visible = humanoid ~= nil
+		frame.Visible = humanoid ~= nil and not fadedOut
 		local combat = controller("CombatController")
 		local camera = controller("CameraController")
 
@@ -420,9 +440,7 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 				share = 1
 			end
 			chip.sweep(share)
-			-- While a move recharges the cap shows the seconds left instead of the key
-			chip.key.Text = if remaining > 0.05 then string.format("%.1f", remaining) else keyText
-			chip.key.TextColor3 = if remaining > 0.05 then Colors.Warning else Colors.Text
+			chip.key.Text = keyText
 			local lit = (name == "SNBlock" and character:GetAttribute(Attribute.Blocking) == true)
 				or (name == "SNSprint" and character:GetAttribute(Attribute.Sprinting) == true)
 				or (name == "SNLock" and target ~= nil)
@@ -431,7 +449,26 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		end
 	end
 
-	return { frame = frame, update = update, abilityRow = abilityRow, chargeMeter = chargeFrame, reticle = reticle }
+	-- Fades the whole HUD out (true) or back in (false); used while Jeffery is talking
+	local function setFaded(hidden: boolean)
+		if hidden == faded then
+			return
+		end
+		faded = hidden
+		if not hidden then
+			fadedOut = false
+		end
+		local tween = TweenService:Create(frame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = if hidden then 1 else 0 })
+		tween.Completed:Connect(function()
+			if faded == hidden then
+				fadedOut = hidden
+				update()
+			end
+		end)
+		tween:Play()
+	end
+
+	return { frame = frame, update = update, setFaded = setFaded, abilityRow = abilityRow, chargeMeter = chargeFrame, reticle = reticle }
 end
 
 return Hud

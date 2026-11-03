@@ -380,7 +380,7 @@ check("interface: shell, play and settings windows, toasts, confirms, modes, scr
 	for _, id in { "FreeForAll", "Practice", "Training", "Duel" } do
 		press(findNamed(play, "Mode_" .. id))
 	end
-	assert(findText(play, "DUEL") and findText(play, "3:00") and findText(play, "Sudden death (1:00)"), "details show the Duel rules from the config")
+	assert(findText(play, "Duel") and findText(play, "3:00") and findText(play, "Sudden death (1:00)"), "details show the Duel rules from the config")
 	assert(findNamed(play, "MatchOptions"), "a slot is reserved for arena and CPU options")
 	press(findNamed(play, "Action"))
 	assert(#sentSince(start, "MatchRequest", "Queue") == 1 and sentSince(start, "MatchRequest", "Queue")[1].args[2] == "Duel", "Find a duel queues for Duel")
@@ -605,7 +605,7 @@ check("interface: shell, play and settings windows, toasts, confirms, modes, scr
 	fireMatch("State", active)
 	fireMatch("Knockout", { victim = "AVeryLongDisplayNameThatMustBeCut", credited = "Tester" })
 	fireMatch("Notice", { text = "SUDDEN DEATH! Next knockout wins." })
-	assert(findNamed(gui, "Notice").Visible, "in-match notices show in the middle")
+	assert(findNamed(gui, "Announcement").Visible, "in-match notices show in the middle")
 	Engine.step(game, 5, 0.05)
 	fireMatch("Results", {
 		reason = "TimeUp",

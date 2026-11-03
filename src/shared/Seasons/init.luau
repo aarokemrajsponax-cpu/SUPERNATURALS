@@ -57,15 +57,16 @@ Seasons.Themes = {
 		name = "Thanksgiving",
 		icon = "🦃",
 		greeting = "Happy Thanksgiving!",
-		subtitle = "Grab a seat at the harvest table",
+		subtitle = "Harvest Week: autumn exhibits are on show in the hall",
 		palette = { primary = rgb(205, 95, 30), secondary = rgb(130, 65, 30), accent = rgb(245, 195, 85) },
+		-- Warm, low autumn light through the dome: amber from above, a copper bounce below
 		lighting = {
 			ClockTime = 16.8,
-			Brightness = 2.5,
-			Ambient = rgb(95, 75, 55),
-			OutdoorAmbient = rgb(150, 120, 90),
-			ColorShift_Top = rgb(255, 190, 120),
-			ColorShift_Bottom = rgb(120, 70, 40),
+			Brightness = 2.4,
+			Ambient = rgb(110, 82, 58),
+			OutdoorAmbient = rgb(150, 112, 80),
+			ColorShift_Top = rgb(232, 162, 74),
+			ColorShift_Bottom = rgb(184, 115, 63),
 		},
 		atmosphere = {
 			Density = 0.3,
@@ -76,10 +77,9 @@ Seasons.Themes = {
 			Haze = 1.5,
 		},
 		colorCorrection = { TintColor = rgb(255, 240, 225), Saturation = 0.2, Contrast = 0.1, Brightness = 0 },
-		bloom = { Intensity = 0.6, Size = 24, Threshold = 1.6 },
-		sunRays = { Intensity = 0.15, Spread = 0.8 },
-		weather = { color = rgb(255, 215, 150), rate = 15, size = 0.15, speed = 0.6, rise = true, lightEmission = 0.6 },
-		sprites = { glyphs = { "🍂", "🍁", "🍁" }, count = 30, fall = 3, drift = 1.5, sway = 2, size = 1.6, spin = true },
+		bloom = { Intensity = 0.5, Size = 24, Threshold = 2 },
+		sunRays = { Intensity = 0.06, Spread = 0.6 },
+		weather = { color = rgb(232, 162, 74), rate = 10, size = 0.15, speed = 0.6, rise = true, lightEmission = 0.5 },
 	},
 
 	Christmas = {

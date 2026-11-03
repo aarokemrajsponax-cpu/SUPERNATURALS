@@ -879,6 +879,32 @@ local DateTime = {
 
 -- Building a game -------------------------------------------------------------------------
 
+-- A stand-in TextService filter: ts.fail = true makes FilterStringAsync error,
+-- ts.failBroadcast = true makes GetNonChatStringForBroadcastAsync error, and every word in
+-- ts.banned comes back as hashes. ts.calls records { text, userId }.
+function Engine.newTextService()
+	local ts = { fail = false, failBroadcast = false, banned = {} :: { string }, calls = {} :: { any } }
+	function ts.FilterStringAsync(_, text, userId)
+		table.insert(ts.calls, { text = text, userId = userId })
+		if ts.fail then
+			error("text filter unavailable (simulated)")
+		end
+		return {
+			GetNonChatStringForBroadcastAsync = function()
+				if ts.failBroadcast then
+					error("text filter broadcast failed (simulated)")
+				end
+				local out = text
+				for _, word in ts.banned do
+					out = string.gsub(out, word, string.rep("#", #word))
+				end
+				return out
+			end,
+		}
+	end
+	return ts
+end
+
 -- Cross-server services -------------------------------------------------------------------
 -- A fake cloud shared by several fake servers: MessagingService (best effort, with switches to
 -- drop messages), MemoryStoreService sorted maps with expiry, and TeleportService calls.
@@ -981,6 +1007,17 @@ function Engine.newCloud()
 			function api.RemoveAsync(_, key)
 				memoryCall()
 				map[key] = nil
+			end
+			-- transform(old) returns the new value, or nil to cancel (then UpdateAsync returns nil)
+			function api.UpdateAsync(_, key, transform, expiration)
+				memoryCall()
+				local item = live(key)
+				local value = transform(item and copyData(item.value))
+				if value == nil then
+					return nil
+				end
+				map[key] = { value = copyData(value), expires = cloud.time + (expiration or 3888000) }
+				return copyData(value)
 			end
 			function api.GetRangeAsync(_, _direction, count)
 				memoryCall()
