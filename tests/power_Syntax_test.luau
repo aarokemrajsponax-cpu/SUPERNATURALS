@@ -1226,8 +1226,9 @@ check("§38: a match ending with bolts, fields, cells, sentries and lanes out le
 	-- Bob's sentry is last: once it fires it stuns Alice, so she casts everything before it
 	request("AbilityRequest", bob, "ObjectOverride", aimPoint(b, b.root.Position + Vector3.new(4, 0, 6)))
 	local mark = game.mark()
-	task.wait(0.4)
+	task.wait(0.25)
 	assert(#services.ProjectileService:nearby(Vector3.zero, 1e7) > 0, "projectiles in flight")
+	task.wait(0.15)
 	assert(#constructs(a) + #constructs(b) >= 2, "constructs out: " .. #constructs(a) .. " and " .. #constructs(b))
 	assert(b.root:FindFirstChild("SNSyntaxDrift"), "a lane carrying Bob")
 	assert(services.StatusService:has(b, "Gravity") and services.StatusService:has(a, "Trapped"), "fields and a cell active")
