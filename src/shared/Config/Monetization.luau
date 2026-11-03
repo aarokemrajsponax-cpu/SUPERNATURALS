@@ -51,6 +51,26 @@ Monetization.Passes = {
 		name = "Extra Ability Slot",
 		benefit = "One more ability slot in every power's loadout, up to the limit of six on the ability bar. No extra damage or stats.",
 	},
+	-- Cosmetic bundles. Each lists every item it gives (ids in Config/Cosmetics); none of it
+	-- touches a stat, and nothing in a bundle is random. `recommended` is only the owner's
+	-- suggested Robux price for the Creator Hub: the shop shows Roblox's live price, never this.
+	VIP = {
+		id = 0,
+		robux = nil,
+		recommended = 299,
+		name = "VIP",
+		cosmetics = { "vip_plate", "vip_title" },
+		vipName = true,
+		benefit = "Cosmetic only: the VIP Gold nameplate, the VIP title and a gold name in the Spectating Lounge. Nothing changes in combat.",
+	},
+	FoundersCollection = {
+		id = 0,
+		robux = nil,
+		recommended = 799,
+		name = "Founders Collection",
+		cosmetics = { "founders_aura", "founders_ko", "founders_plate", "founders_title" },
+		benefit = "Four exclusive cosmetics, all listed: the Founders' Ring aura, the Founders' Flare knockout effect, the Founders' Brass nameplate and the Charter Patron title. Looks only.",
+	},
 }
 
 -- Order passes appear in the shop
@@ -92,6 +112,24 @@ Monetization.Products = {
 		gems = 7000,
 		name = "Treasury of Gems",
 		benefit = "Adds 7,000 Gems to your balance.",
+	},
+	-- Season pass (SeasonPassService, Config/SeasonPass). `recommended` is for the owner's
+	-- Creator Hub list only; the shop shows Roblox's live price.
+	SeasonPremium = {
+		id = 0,
+		robux = nil,
+		recommended = 499,
+		seasonPass = "premium",
+		name = "Season Premium",
+		benefit = "Unlocks this season's premium track: one cosmetic at every tier, 30 in all. No Money, Gems or power. Next season has its own track.",
+	},
+	SeasonTierSkip = {
+		id = 0,
+		robux = nil,
+		recommended = 49,
+		seasonPass = "skip",
+		name = "Season Tier Skip",
+		benefit = "Adds one tier of points to this season's pass, never past the last tier. Every tier can also be earned free by playing.",
 	},
 }
 

@@ -295,17 +295,40 @@ function PlayWindow.register(): Controller
 				Parent = left,
 			})
 			Components.list(list, Space.S)
+			local footer = make("Frame", {
+				Name = "Footer",
+				AnchorPoint = Vector2.new(0, 1),
+				Position = UDim2.fromScale(0, 1),
+				Size = UDim2.new(1, 0, 0, Theme.Size.Control),
+				BackgroundTransparency = 1,
+				Parent = left,
+			})
 			Components.button("Back to spawn", {
 				Name = "Spawn",
 				Variant = "Secondary",
-				AnchorPoint = Vector2.new(0, 1),
-				Position = UDim2.fromScale(0, 1),
-				Parent = left,
+				Size = UDim2.new(0.5, -Space.XS, 1, 0),
+				Parent = footer,
 			}, function()
 				if pressed() then
 					MatchRequest:FireServer(Action.Travel, "Lobby")
 					api.toast("Heading back to spawn.", "info")
 					api.close()
+				end
+			end)
+			Components.button("Invite friends", {
+				Name = "Invite",
+				Variant = "Secondary",
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.fromScale(1, 0),
+				Size = UDim2.new(0.5, -Space.XS, 1, 0),
+				Parent = footer,
+			}, function()
+				if pressed() then
+					local ok, invites = pcall(require, script.Parent.Parent.Controllers.InviteController)
+					local result = if ok then invites:invite() else "unavailable"
+					if result == "unavailable" then
+						api.toast("Invites are not available right now.", "info")
+					end
 				end
 			end)
 

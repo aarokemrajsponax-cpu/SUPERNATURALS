@@ -196,6 +196,9 @@ function ProgressionService:_claim(player: Player, challengeId: string)
 	end)
 	self.currency:add(player, challenge.reward, "challenge " .. challengeId)
 	toast(player, `Challenge complete: {challenge.text}! +{self.currency.describe(challenge.reward)}`, "reward")
+	if self.services.SeasonPassService then
+		self.services.SeasonPassService:onDailyChallenge(player)
+	end
 end
 
 -- Paying a finished match ---------------------------------------------------------
@@ -237,6 +240,48 @@ function ProgressionService:_payMatch(match, result)
 	end
 	for _, participant in match.participants do
 		tracked[participant.id] = nil
+	end
+end
+
+-- Hooks for other systems -------------------------------------------------------------------
+-- Reward modifiers: fn(player, match, entry) -> (multiplier?, label?). A multiplier above 1
+-- raises this match's Money and experience (only when the match pays at all); all modifiers
+-- together are capped at MAX_BONUS. CommunityService uses it for playing with friends.
+-- Result listeners: fn(player, result) after a match is paid and saved, where result is
+-- { mode, won, draw, knockouts, deaths, power, masteryBefore, masteryAfter, streak,
+-- fightSeconds, cpu, paid }. AchievementService and SeasonPassService listen.
+local MAX_BONUS = 1.5
+local rewardModifiers: { (Player, any, any) -> (number?, string?) } = {}
+local resultListeners: { (Player, { [string]: any }) -> () } = {}
+
+function ProgressionService:addRewardModifier(modifier: (Player, any, any) -> (number?, string?))
+	table.insert(rewardModifiers, modifier)
+end
+
+function ProgressionService:onMatchResult(listener: (Player, { [string]: any }) -> ())
+	table.insert(resultListeners, listener)
+end
+
+local function applyModifiers(player: Player, match, entry, reward)
+	if not reward.paid or #rewardModifiers == 0 then
+		return
+	end
+	local total, labels = 1, {}
+	for _, modifier in rewardModifiers do
+		local ok, multiplier, label = pcall(modifier, player, match, entry)
+		if ok and typeof(multiplier) == "number" and multiplier == multiplier and multiplier > 1 then
+			total += math.min(multiplier, MAX_BONUS) - 1
+			if typeof(label) == "string" and label ~= "" then
+				table.insert(labels, label)
+			end
+		end
+	end
+	total = math.min(total, MAX_BONUS)
+	if total > 1 then
+		local extraMoney = math.floor(reward.money * (total - 1) + 0.5)
+		reward.money += extraMoney
+		reward.xp = math.floor(reward.xp * total + 0.5)
+		table.insert(reward.lines, { label = if #labels > 0 then table.concat(labels, ", ") else "Bonus", money = extraMoney })
 	end
 end
 
@@ -284,6 +329,7 @@ function ProgressionService:_payPlayer(player: Player, match, entry, won: boolea
 		firstWinToday = (profile.daily.progress.wins or 0) == 0,
 		forfeitEarly = forfeitEarly and won,
 	})
+	applyModifiers(player, match, entry, reward)
 
 	-- The power they fought with (locked for the match) earns the mastery
 	local locked = self.services.PowerService:lockedSelection(player)
@@ -334,6 +380,29 @@ function ProgressionService:_payPlayer(player: Player, match, entry, won: boolea
 		end
 	end
 	self:_progress(player, "knockouts", entry.knockouts or 0)
+
+	local result = {
+		mode = match.modeName,
+		won = won,
+		draw = draw,
+		knockouts = entry.knockouts or 0,
+		deaths = entry.deaths or 0,
+		power = powerId,
+		masteryBefore = before,
+		masteryAfter = after,
+		streak = profile.stats.streak,
+		fightSeconds = fightSeconds,
+		cpu = match.cpu ~= nil,
+		paid = reward.paid == true,
+	}
+	for _, listener in resultListeners do
+		task.spawn(function()
+			local ok, err = pcall(listener, player, result)
+			if not ok then
+				warn("[Progression] a match result listener failed: " .. tostring(err))
+			end
+		end)
+	end
 
 	local def = Powers.get(powerId)
 	DataEvent:FireClient(player, Protocol.DataEvent.Reward, {

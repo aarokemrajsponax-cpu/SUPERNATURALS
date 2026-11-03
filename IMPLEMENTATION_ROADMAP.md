@@ -107,3 +107,28 @@ Images live in the session scratchpad (`$S/references/`), not the repo (DECISION
 | 14 | Manga clash frames: blue against purple auras, mid-air exchange | Clashes, aerial readability, auras | Clash moments, aerial combat | Batch 2 |
 | 15 | Luxury lounge: warm cove light, leather sofas, round marble table, big screen, glass ceiling | Materials, warm and cool light, comfort | Spectating Lounge (primary) and the realism standard (P.S. 5.0) | Batch 2 |
 | 16 | The owner's floor plan sketch and the generated blueprint | Destinations and relationships | Facility layout | Hub in progress; wings batch 2 |
+
+## Addendum A review (3 November 2026, evening): gaps and milestones
+
+| Area (directive section) | What exists and works (evidence) | Most important gap |
+|---|---|---|
+| Hub and navigation (3) | Octagonal hall, eight numbered doors, statues, Jeffery, Archive files (smoke 12/12, statues_test, lore_test) | Vault entrance from the hall, reserved expansion doors signed as such |
+| Battlegrounds (3) | Five arena designs (Proving Grounds, Corrupted Wastes, Digital Grid, Ruined Fortress, Soul Foundry), 20 chamber slots with spectator rooms (chambers_test) | Owner's count is four; per-design gameplay features to make each play differently |
+| Fighters (4) | Eight fighters with phases evolving in a match, aimed abilities (all power tests, targeting_test) | Directive lists seven (no Shapeshifter): owner to confirm; premium phase identities and ultimates (P.S. 3.0) |
+| Combat feel (5, 6) | Server-authoritative moveset, defense prompts, hit feedback | **No sound at all yet**: every audio id needs the owner's verification; cinematic KO camera |
+| Training and onboarding (7, 16) | Jeffery's tour, Training Studio with practice fights (tutorial_test, practice_test) | Fighter-specific drills; a memorable first-minute moment |
+| Social (3, 11) | Spectating Lounge, prediction board, Player Base Street and homes | Invites, referrals, friends bonus (in progress) |
+| Progression (9) | Mastery, daily challenges, Archive | Achievements, titles, boards, season pass (in progress) |
+| Economy (10) | One idempotent ProcessReceipt, regional price levels, live prices, Gems path | Cosmetic catalogue and season pass (in progress); every id is 0 until the owner creates it |
+| Owner tools (12) | Event engine across servers, announcements, scheduler, custom creator (overlord tests) | Control Center screens (in progress) |
+| Analytics (9) | None | Funnel, economy and progression events (in progress) |
+| Seasonal (8) | Calendar, Harvest Week dressing, 40 holiday owner events | Winter dressing before 1 December; meme calendar (section 25) |
+
+Milestones, in the directive's order of priority:
+- **G1 (now):** status and recognition, community and referrals, analytics, cosmetic season pass;
+  Control Center screens. Each with its own tests.
+- **G2:** sound: a registry with only owner-verified ids (or Roblox-owned library audio checked
+  through the asset API), per-fighter hit and ability sounds, music by area, fallbacks.
+- **G3:** premium fighter overhaul (P.S. 3.0) and a cinematic knockout camera for ultimates.
+- **G4:** battleground identities: one gameplay feature per design (hazards, cover, height).
+- **G5:** winter dressing, meme calendar, Jeffery's knowledge base, mobile performance pass.

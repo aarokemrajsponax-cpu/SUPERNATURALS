@@ -1,6 +1,7 @@
--- Owner-only client features: the owner panel (P to open), and flight
--- (G to toggle once enabled). The panel only appears if the server marked
--- this player as the owner, and the server re-checks every request anyway.
+-- Owner-only client features: the Control Center (P or the vault console opens it) and flight
+-- (G to toggle once enabled). The window is only registered if the server marked this player as
+-- the owner, and the server re-checks every request anyway. Every player also gets the
+-- announcement display here, because owner announcements reach everyone on a targeted server.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,8 +9,9 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
-local Components = require(script.Parent.Parent.UI.Components)
-local OwnerPanel = require(script.Parent.Parent.UI.OwnerPanel)
+local AnnounceDisplay = require(script.Parent.Parent.UI.OwnerCenter.AnnounceDisplay)
+local OwnerCenter = require(script.Parent.Parent.UI.OwnerCenter)
+local Shell = require(script.Parent.Parent.UI.Shell)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local AdminRequest = Remotes:WaitForChild("AdminRequest") :: RemoteEvent
@@ -117,31 +119,22 @@ local function syncFlight()
 	end
 end
 
--- Panel -----------------------------------------------------------------------------------
+-- Control Center ---------------------------------------------------------------------------
 
 local function build()
 	if built or player:GetAttribute(Attribute.IsOwner) ~= true then
 		return
 	end
 	built = true
-	local gui = Components.make("ScreenGui", {
-		Name = "SNOwner",
-		ResetOnSpawn = false,
-		DisplayOrder = 20,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-		Parent = player:WaitForChild("PlayerGui"),
-	})
-	local scale = Components.make("UIScale", { Parent = gui })
-	local function rescale()
-		local viewport = workspace.CurrentCamera.ViewportSize
-		-- Normal size on a desktop; on small screens as big as still fits the 800x520 panel
-		local wanted = math.max(math.min(viewport.X / 1280, viewport.Y / 720), 0.62)
-		local fits = math.min(viewport.X / 820, viewport.Y / 560)
-		scale.Scale = math.clamp(math.min(wanted, fits), 0.3, 1.2)
-	end
-	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
-	rescale()
-	OwnerPanel.build(gui, send)
+	-- The Shell is set up by the UI controller at about the same time; wait for it
+	task.spawn(function()
+		local waited = 0
+		while Shell.layer("windows") == nil and waited < 60 do
+			task.wait(0.25)
+			waited += 0.25
+		end
+		OwnerCenter.register({ sendAdmin = send })
+	end)
 end
 
 function OwnerController:Start()
@@ -150,10 +143,11 @@ function OwnerController:Start()
 	local baseEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BaseEvent") :: RemoteEvent
 	baseEvent.OnClientEvent:Connect(function(kind)
 		if kind == Protocol.BaseEvent.OpenConsole and built then
-			OwnerPanel.toggle()
+			OwnerCenter.toggle()
 		end
 	end)
 
+	AnnounceDisplay.start()
 	player:GetAttributeChangedSignal(Attribute.IsOwner):Connect(build)
 	build()
 
@@ -170,7 +164,7 @@ function OwnerController:Start()
 			return
 		end
 		if input.KeyCode == Enum.KeyCode.P then
-			OwnerPanel.toggle()
+			OwnerCenter.toggle()
 		elseif input.KeyCode == Enum.KeyCode.G then
 			send(Action.SelfToggle, "Fly", player:GetAttribute(Attribute.CanFly) ~= true)
 		end

@@ -169,7 +169,8 @@ api.check("the display wall shows real profile data", function()
 	local mastery = text("MasteryBoard")
 	assert(string.find(mastery, "The Ghost", 1, true) and string.find(mastery, "Lv 4", 1, true), mastery)
 	local collection = text("CollectionBoard")
-	assert(string.find(collection, "Cosmetics  1", 1, true) and string.find(collection, "Titles  1", 1, true), collection)
+	-- Titles: Recruit, plus Founding Recruit, which every new player gets before the end of 2026
+	assert(string.find(collection, "Cosmetics  1", 1, true) and string.find(collection, "Titles  2", 1, true), collection)
 	-- Win trophies in the vault light up for earned milestones (1, 10)
 	local vault = Base:baseOf(alice).built.vault
 	local lit = 0

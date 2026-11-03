@@ -85,6 +85,12 @@
         },
         "SettingsRequest": {
           "$className": "RemoteEvent"
+        },
+        "CosmeticRequest": {
+          "$className": "RemoteEvent"
+        },
+        "StatusEvent": {
+          "$className": "RemoteEvent"
         }
       }
     },

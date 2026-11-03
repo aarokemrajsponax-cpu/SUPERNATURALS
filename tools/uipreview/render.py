@@ -422,7 +422,8 @@ def draw_node_flat(img, node, clip, path, depth=0):
             ring.alpha_composite(overlay)
             overlay = ring
         if overflow_x and node.get("truncate") != "AtEnd" or overflow_y:
-            ImageDraw.Draw(overlay).rectangle(box, outline=(255, 0, 0, 255), width=2)
+            if not os.environ.get("NO_FLAGS"):
+                ImageDraw.Draw(overlay).rectangle(box, outline=(255, 0, 0, 255), width=2)
     if clip:
         mask = Image.new("L", img.size, 0)
         c = list(clip); c[2] = max(c[0], c[2]); c[3] = max(c[1], c[3]); ImageDraw.Draw(mask).rectangle(c, fill=255)

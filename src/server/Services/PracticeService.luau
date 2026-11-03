@@ -15,6 +15,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Powers = require(ReplicatedStorage.Shared.Powers)
+local Community = require(ReplicatedStorage.Shared.Config.Community)
 local Practice = require(ReplicatedStorage.Shared.Config.Practice)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Selection = require(ReplicatedStorage.Shared.Config.Selection)
@@ -254,6 +255,18 @@ function PracticeService:_finish(session: Session, outcome: string, silent: bool
 	end
 	if silent then
 		return
+	end
+	-- A finished round counts toward the referral milestone and the first-training funnel step
+	if stats.seconds >= Community.Referral.MinPracticeSeconds then
+		if self.services.CommunityService then
+			self.services.CommunityService:onPracticeRound(session.player, stats.seconds)
+		end
+		if self.services.AnalyticsLog then
+			self.services.AnalyticsLog:funnel(session.player, "first_training")
+		end
+	end
+	if self.services.SeasonPassService then
+		self.services.SeasonPassService:onTrainingRound(session.player, stats.seconds)
 	end
 	local feedback = Practice.feedback(stats, previousStats[session.player])
 	previousStats[session.player] = stats

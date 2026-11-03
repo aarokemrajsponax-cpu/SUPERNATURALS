@@ -21,6 +21,10 @@ local ORDER = {
 	"AdminEffectsController",
 	"OverlordFxController",
 	"OwnerController",
+	"CosmeticFxController",
+	"InviteController",
+	"NameplateController",
+	"MusicController",
 }
 
 local controllers = {}

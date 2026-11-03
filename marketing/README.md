@@ -15,6 +15,8 @@ Font License, free for commercial use in images).
 | `thumbnail_4_archive.jpg` | 1920 x 1080 | The Lounge and the Archive book (the story) |
 | `thumbnail_5_halloween_titled.jpg` | 1920 x 1080 | Launch week: Halloween in the hall, with the title |
 | `thumbnail_5_halloween.jpg` | 1920 x 1080 | The same without the title |
+| `thumbnail_6_harvest_titled.jpg` | 1920 x 1080 | November: Harvest Week in the real hall, with the title (rendered from the game's own map) |
+| `thumbnail_6_harvest.jpg` | 1920 x 1080 | The same without the title |
 | `clip_hall_5s.mp4` | 1280 x 720, 5 s | A slow push-in on the Lantern, for social posts and trailers |
 | `clip_halloween_3s.mp4` | 1280 x 720, 3 s | Two players walking the candle path, for launch-day posts |
 
@@ -32,4 +34,8 @@ run them.
   screenshots captured in Studio once the hall and statues are finished, and never promise
   something the game doesn't have.
 - Use the Halloween images and clip only if the Halloween decorations are live in the game.
-- About 0.9 of the account's 10 free Higgsfield credits are left.
+- About 0.9 of the account's 10 free Higgsfield credits are left (checked 3 November: 0.92), which
+  is not enough for new AI art. The Harvest Week thumbnail was rendered from the real map with the
+  project's preview renderer instead; its lighting is an approximation, so a Studio screenshot
+  of the same angle (between the Corruption and Machine Master plinths, looking at the dais) is
+  the best final version. Use it only while Harvest Week is live (November).

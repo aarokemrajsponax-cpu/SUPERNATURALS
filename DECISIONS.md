@@ -90,3 +90,30 @@ Newest first within each group. "Pending" means the owner has been asked to conf
     engraved, rivets in the corners.
 27. **No Robux amount in player-facing text** except where the live, regional price from
     Roblox is shown. Config keeps the intended Creator Hub prices for the owner's handoff.
+28. **Growth note: status and clip-worthy moments (adopted).** Server-wide announcements and
+    public boards celebrate earned things only: achievements, mastery milestones, win
+    streaks, ultimate knockouts. Never purchases or random rolls.
+29. **Growth note: sharing rewards (adopted within Roblox's rules).** Invite prompts, a bonus
+    for playing with friends, a group title (the owner supplies the group id) and Roblox's
+    own referral rewards through `ReferredByPlayerId`, paid once per new player after the
+    tour and one training session. Discord cannot be verified or rewarded in-game.
+30. **Growth note: luck passes, paid random rolls and "spend without realizing" (declined).**
+    They contradict the owner's competition directive (sections 4, 9 and 10), the master
+    prompt's rule of no paid random rewards, and Roblox's rules on paid random items and
+    misleading purchases, and most of the audience is young. Instead: honest, visible value.
+31. **Growth note: artificial friction with paid skips (declined) and pay-to-skip (adapted).**
+    Progress is never slowed to sell a skip. The one skip sold is for the cosmetic season
+    pass ("skip a tier"), whose tiers are also earned at a fair rate by playing.
+32. **Growth note: big-spender offers (adapted).** High-priced items are cosmetic collections
+    with every item listed (for example a Founder's Collection pass), never power or
+    leaderboard placement. Leaderboards rank play, not spending.
+33. **Fighters and battlegrounds counts.** The directive says seven fighters and four
+    battlegrounds; the game has eight fighters (the Animal Shapeshifter too) and five
+    battleground designs served by up to 20 chambers. Nothing is removed without the owner's
+    word: the question is in the final report. The extra ability slot pass stays because the
+    slot is also earned by mastery; the owner may make it casual-only.
+34. **Music uses only verified licensed tracks.** All 115 ids in P.S. 7.0 were checked through
+    Roblox's asset API (docs/specs/Audio_verified.md). The 52 from Roblox's music partners
+    (APMOfficial, Monstercat) are in Config/AudioLibrary and play by area (MusicController).
+    The 62 public uploads by other accounts stay out until the owner listens and decides
+    (music rights cannot be checked from the API); one private id is unusable.

@@ -109,6 +109,7 @@ Tutorial.Outro = {
 	lines = {
 		"Congratulations, recruit. You are now officially less likely to press random buttons and hope for the best.",
 		"Your welcome reward is on the way. I will keep an eye on you. For safety. Mostly yours.",
+		"If a friend would enjoy this place, the Invite friends button in the Play window sends them a note. I promise not to read it.",
 	},
 }
 

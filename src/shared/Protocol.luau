@@ -148,6 +148,18 @@ Protocol.ShopAction = {
 	Equip = "Equip", -- (slot, itemId?)
 	PromptProduct = "PromptProduct", -- (productKey) Robux developer product (e.g. a gem pack)
 	PromptPass = "PromptPass", -- (passKey) Robux game pass; the server checks the key, ownership and the id is set
+	ClaimTier = "ClaimTier", -- (claimKey) season pass reward: "f" or "p" (free or premium track) then the tier, e.g. "f3", "p12" (SeasonPassService)
+}
+
+-- Client -> server, through Remotes.CosmeticRequest: (action, slot, itemId) (CosmeticService)
+Protocol.CosmeticAction = {
+	Equip = "Equip", -- (slot, itemId) itemId "" takes the slot's item off
+}
+
+-- Server -> clients, through Remotes.StatusEvent (CosmeticService, AchievementService)
+Protocol.StatusEvent = {
+	Moment = "Moment", -- to everyone: { text } one short system line for the chat (display names only)
+	Earned = "Earned", -- to the earner: { headline, sub? } a short on-screen moment
 }
 
 -- Client -> server, through Remotes.BaseRequest
@@ -318,6 +330,15 @@ Protocol.Attribute = {
 	IsOwner = "SNIsOwner",
 	Crown = "SNCrown",
 	Aura = "SNAura",
+	-- On Player objects: the cosmetics a player wears (CosmeticService). Title is the text shown
+	-- under the name; the others are cosmetic ids. "" when nothing is worn. (CosmeticAura is
+	-- separate from the owner panel's Aura above.)
+	Title = "SNTitle",
+	Plate = "SNPlate",
+	CosmeticAura = "SNCosmeticAura",
+	Knockout = "SNKnockout",
+	-- On Player objects: owns the VIP pass (SeasonPass/PurchaseService); shows a gold name in the lounge
+	Vip = "SNVip",
 	CanFly = "SNCanFly",
 	Immune = "SNImmune",
 	Invisible = "SNInvisible",

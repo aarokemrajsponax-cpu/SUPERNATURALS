@@ -379,6 +379,64 @@ function Engine.character(name: string)
 end
 roblox.implementMethod("Player", "Kick", function() end)
 
+-- Growth stand-ins. Engine.joinData[userId] = { ReferredByPlayerId = n } is what GetJoinData
+-- returns; Engine.groups[groupId][userId] = true makes IsInGroup true; Engine.friends["a:b"] = true
+-- (smaller id first) makes two players friends. Engine.growthFailures.<name> = n errors the next n
+-- calls of GetJoinData / IsInGroup / IsFriendsWith / Analytics / Social.
+Engine.joinData = {}
+Engine.groups = {}
+Engine.friends = {}
+Engine.growthFailures = {}
+local function growthFail(name)
+	local left = Engine.growthFailures[name] or 0
+	if left > 0 then
+		Engine.growthFailures[name] = left - 1
+		error(name .. " failed (test)", 0)
+	end
+end
+Engine.growthFail = growthFail
+roblox.implementMethod("Player", "GetJoinData", function(player)
+	growthFail("GetJoinData")
+	return Engine.joinData[player.UserId] or {}
+end)
+roblox.implementMethod("Player", "IsInGroup", function(player, groupId)
+	growthFail("IsInGroup")
+	return (Engine.groups[groupId] or {})[player.UserId] == true
+end)
+roblox.implementMethod("Player", "IsFriendsWith", function(player, otherId)
+	growthFail("IsFriendsWith")
+	local a, b = math.min(player.UserId, otherId), math.max(player.UserId, otherId)
+	return Engine.friends[a .. ":" .. b] == true
+end)
+
+-- AnalyticsService: every call is recorded in Engine.analytics.calls as { name, args... }
+Engine.analytics = { calls = {} }
+local function fakeAnalyticsService()
+	local service = {}
+	for _, name in { "LogOnboardingFunnelStepEvent", "LogFunnelStepEvent", "LogProgressionEvent", "LogEconomyEvent", "LogCustomEvent" } do
+		service[name] = function(_, ...)
+			growthFail("Analytics")
+			table.insert(Engine.analytics.calls, { name = name, args = { ... } })
+		end
+	end
+	return service
+end
+
+-- SocialService: Engine.social.canInvite = false / .prompts lists every PromptGameInvite
+Engine.social = { canInvite = true, prompts = {} }
+local function fakeSocialService()
+	local service = {}
+	function service.CanSendGameInviteAsync()
+		growthFail("Social")
+		return Engine.social.canInvite
+	end
+	function service.PromptGameInvite(_, player, options)
+		growthFail("Social")
+		table.insert(Engine.social.prompts, { player = player, options = options })
+	end
+	return service
+end
+
 -- Round-trip time to the player's client, in seconds (tests may change it)
 Engine.networkPing = 0.05
 roblox.implementMethod("Player", "GetNetworkPing", function()
@@ -1108,6 +1166,8 @@ function Engine.load(placePath: string)
 		CollectionService = fakeCollectionService(),
 		DataStoreService = fakeDataStoreService(),
 		MarketplaceService = fakeMarketplaceService(),
+		AnalyticsService = fakeAnalyticsService(),
+		SocialService = fakeSocialService(),
 	}
 	Engine.services = fakeServices
 	-- `game` for game code: the real place, with the stand-in services swapped in

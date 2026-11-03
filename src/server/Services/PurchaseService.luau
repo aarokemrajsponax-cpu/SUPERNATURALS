@@ -55,6 +55,7 @@ local function retry(attempts: number, fn: () -> any): (boolean, any)
 end
 
 function PurchaseService:Init(services)
+	self.services = services
 	self.data = services.DataService
 	self.currency = services.CurrencyService
 	self.antiExploit = services.AntiExploitService
@@ -165,6 +166,30 @@ function PurchaseService:_checkPasses(player: Player)
 	for _, key in gained do
 		self:_firePassGranted(player, key)
 	end
+	-- Cosmetic bundles: every join makes sure the listed items are owned (granting is idempotent)
+	for key in Monetization.Passes do
+		if self:ownsPass(player, key) then
+			self:_grantPassCosmetics(player, key)
+		end
+	end
+end
+
+-- Gives the cosmetics a pass lists (Monetization.Passes[key].cosmetics) through CosmeticService,
+-- and marks a VIP player. Only called once ownership is verified with Roblox or the saved profile.
+function PurchaseService:_grantPassCosmetics(player: Player, passKey: string)
+	local pass = Monetization.Passes[passKey]
+	if not pass or player.Parent == nil then
+		return
+	end
+	if pass.vipName then
+		player:SetAttribute(Protocol.Attribute.Vip, true)
+	end
+	local cosmetics = self.services and self.services.CosmeticService
+	if cosmetics and pass.cosmetics then
+		for _, id in pass.cosmetics do
+			cosmetics:grant(player, id, "shop")
+		end
+	end
 end
 
 function PurchaseService:_firePassGranted(player: Player, passKey: string)
@@ -189,6 +214,7 @@ function PurchaseService:_recordPass(player: Player, passKey: string)
 		end)
 		self:_firePassGranted(player, passKey)
 	end
+	self:_grantPassCosmetics(player, passKey)
 	toast(player, `{Monetization.Passes[passKey].name} unlocked! Thank you for your support.`, "success")
 end
 
@@ -271,6 +297,9 @@ function PurchaseService:_grantReceipt(receipt: any, productKey: string): Enum.P
 	end
 
 	local product = Monetization.Products[productKey]
+	if product.seasonPass then
+		return self:_grantSeasonProduct(player, purchaseId, product)
+	end
 	local amounts = { money = product.money, gems = product.gems }
 	local before = {
 		money = self.currency:balance(player, "money"),
@@ -306,6 +335,41 @@ function PurchaseService:_grantReceipt(receipt: any, productKey: string): Enum.P
 		end
 	end)
 	warn(`[Purchase] receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- Season pass products (SeasonPremium, SeasonTierSkip). The receipt id and the pass change are
+-- written together and saved before Roblox hears "granted"; a failed save is rolled back, so a
+-- retry can never give a tier twice and a premium unlock is never lost.
+function PurchaseService:_grantSeasonProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local seasonPass = self.services and self.services.SeasonPassService
+	if not seasonPass then
+		return Decision.NotProcessedYet
+	end
+	local backup = Schema.copy(self.data:get(player).pass)
+	self.data:update(player, function(data)
+		seasonPass.applyPurchase(data, product.seasonPass, os.time())
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		if product.seasonPass == "premium" then
+			toast(player, "Season premium track unlocked for this season. Thank you!", "reward")
+		else
+			toast(player, "One tier of season pass points added. Thank you!", "reward")
+		end
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.pass = backup
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] season receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
 	return Decision.NotProcessedYet
 end
 
@@ -389,6 +453,22 @@ function PurchaseService:promptProduct(player: Player, productKey: string): bool
 	if not self.data:isPersistent(player) then
 		toast(player, "Purchases are paused while saving is off. Rejoin to buy.", "error")
 		return false
+	end
+	if product.seasonPass then
+		local seasonPass = self.services and self.services.SeasonPassService
+		if not seasonPass then
+			return false
+		end
+		local ok, reason
+		if product.seasonPass == "premium" then
+			ok, reason = seasonPass:canSellPremium(player)
+		else
+			ok, reason = seasonPass:canSellSkip(player)
+		end
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
 	end
 	if not self:_promptAllowed(player) then
 		return false

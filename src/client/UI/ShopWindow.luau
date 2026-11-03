@@ -9,7 +9,9 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Cosmetics = require(ReplicatedStorage.Shared.Config.Cosmetics)
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
+local SeasonPass = require(ReplicatedStorage.Shared.Config.SeasonPass)
 local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Theme)
@@ -39,7 +41,22 @@ ShopWindow.Categories = {
 	{ id = "Gems", label = "Gem packs", blurb = "Gems unlock powers and abilities. Every pack gives a fixed amount." },
 	{ id = "Upgrades", label = "Upgrades", blurb = "One-time upgrades that apply to all of your powers." },
 	{ id = "Cosmetics", label = "Cosmetics", blurb = "Looks only. Cosmetics never change damage, speed or any stat." },
+	{ id = "SeasonPass", label = "Season pass", blurb = "Every tier can be reached for free by playing. These only add looks or save time." },
 }
+
+local KIND_WORD = { title = "title", plate = "nameplate", aura = "aura", knockout = "knockout" }
+
+-- "Founders' Ring (aura), ..." for a list of cosmetic ids: exactly what a bundle gives
+local function listOf(ids: { string }): string
+	local parts = {}
+	for _, id in ids do
+		local item = Cosmetics.get(id)
+		if item then
+			table.insert(parts, `{item.name} ({KIND_WORD[item.kind] or item.kind})`)
+		end
+	end
+	return table.concat(parts, ", ")
+end
 
 -- Every item the shop lists. kind: "pass" (Robux game pass), "product" (Robux developer
 -- product) or "gemPower" (a premium power bought with Gems).
@@ -79,6 +96,34 @@ function ShopWindow.items(): { { [string]: any } }
 	local style = Monetization.Passes.CelestialDragonStyle
 	if style then
 		table.insert(list, { category = "Cosmetics", kind = "pass", key = "CelestialDragonStyle", name = style.name, contents = style.benefit, icon = "star", accent = Colors.Gold })
+	end
+	for _, key in { "VIP", "FoundersCollection" } do
+		local pass = Monetization.Passes[key]
+		if pass then
+			local contents
+			if key == "VIP" then
+				contents = `{listOf(pass.cosmetics)} and a gold name in the Spectating Lounge. Looks only.`
+			else
+				contents = `{listOf(pass.cosmetics)}. Sold nowhere else. Looks only.`
+			end
+			table.insert(list, { category = "Cosmetics", kind = "pass", key = key, name = pass.name, contents = contents, icon = "star", accent = Colors.Gold })
+		end
+	end
+	local season = SeasonPass.shown(os.time())
+	table.insert(list, {
+		category = "SeasonPass",
+		kind = "window",
+		key = "SeasonPassWindow",
+		name = `{season.name} pass`,
+		contents = `30 tiers of rewards, free to earn by playing until the season ends on {season.endText}. See the whole track and claim what you have earned.`,
+		icon = "star",
+		accent = Colors.Copper,
+	})
+	for _, key in { "SeasonPremium", "SeasonTierSkip" } do
+		local product = Monetization.Products[key]
+		if product then
+			table.insert(list, { category = "SeasonPass", kind = "product", key = key, name = product.name, contents = product.benefit, icon = "star", accent = Colors.Gold, seasonPass = product.seasonPass })
+		end
 	end
 	return list
 end
@@ -121,6 +166,15 @@ local function stateOf(item, redraw: () -> ())
 		end
 		return state
 	end
+	if item.kind == "window" then
+		state.priceText = "Free to earn"
+		state.label = "Open pass"
+		state.enabled = true
+		state.act = function()
+			Shell.open("SeasonPass")
+		end
+		return state
+	end
 	local config = if item.kind == "pass" then Monetization.Passes[item.key] else Monetization.Products[item.key]
 	local kind = if item.kind == "pass" then "GamePass" else "Product"
 	if item.kind == "pass" then
@@ -128,7 +182,21 @@ local function stateOf(item, redraw: () -> ())
 	end
 	local price = PriceFetcher.get(kind, config.id, redraw)
 	state.priceText = PriceFetcher.describe(price)
-	if state.owned then
+	-- Season products: premium is owned for this season once unlocked; a skip is pointless at the last tier
+	local pass = view().pass
+	local running = SeasonPass.current(os.time())
+	local sameSeason = running ~= nil and typeof(pass) == "table" and pass.season == running.id
+	local seasonBlock: string? = nil
+	if item.seasonPass == "premium" and sameSeason and pass.premium == true then
+		state.owned = true
+	elseif item.seasonPass and not running then
+		seasonBlock = "No season now"
+	elseif item.seasonPass == "skip" and typeof(pass) == "table" and sameSeason and (pass.points or 0) >= SeasonPass.maxPoints() then
+		seasonBlock = "Last tier reached"
+	end
+	if seasonBlock then
+		state.label = seasonBlock
+	elseif state.owned then
 		state.label = "Owned"
 	elseif price.status == "soon" then
 		state.label = "Available soon"
@@ -325,7 +393,7 @@ function ShopWindow.register()
 			end)
 			MarketplaceService.PromptProductPurchaseFinished:Connect(function(_, _, purchased)
 				if purchased then
-					Shell.toast("Thank you. Your Gems arrive as soon as Roblox confirms.", "success")
+					Shell.toast("Thank you. Your purchase arrives as soon as Roblox confirms.", "success")
 				else
 					Shell.toast("Purchase cancelled. Nothing was charged.", "info")
 				end

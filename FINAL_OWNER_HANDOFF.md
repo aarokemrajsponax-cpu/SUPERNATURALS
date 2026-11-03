@@ -6,6 +6,44 @@ Status labels used: COMPLETE AND TESTED. / IMPLEMENTED BUT NOT FULLY TESTED. / P
 
 Code map: receipts and passes `src/server/Services/PurchaseService.luau`; price levels `src/server/Services/PriceLevelService.luau`; transfer gate `src/server/Transfers/TransferPolicy.luau`; live prices `src/client/PriceFetcher.luau`; shop `src/client/UI/ShopWindow.luau`; catalogue and ids `src/shared/Config/Monetization.luau`. Tests: `tests/shop_test.luau`, `tests/pricing_test.luau`, `tests/smoke_shop.luau`, `tests/data_test.luau`.
 
+## 0. AJKR's to-do list, shortest path (updated 3 November 2026, evening)
+
+Everything else is done in code. Where a step says "paste the id", you can instead send Claude
+the ids in chat and Claude will paste them, test and push.
+
+**Before launch (about 45 minutes)**
+1. Studio, Game Settings, Security: turn on "Enable Studio Access to API Services", then publish.
+2. Creator Hub, Monetization, Developer Products: create these 7, turn **Managed Pricing** on for
+   each (regional prices), and paste each id into `src/shared/Config/Monetization.luau`:
+   Pouch of Gems (100 Gems, 49 R$), Chest of Gems (450 Gems, 199 R$), Vault of Gems (1,100 Gems,
+   449 R$), Hoard of Gems (2,600 Gems, 999 R$), Treasury of Gems (7,000 Gems, 2,499 R$),
+   Season Premium (499 R$), Season Tier Skip (49 R$). Prices are suggestions; descriptions are
+   the `benefit` text in Monetization.luau.
+3. Creator Hub, Monetization, Passes: create these 7 (Managed Pricing is already on for passes)
+   and paste each id: Corruption (6,666 R$), Syntax (9,999 R$), Admin Powers (12,000 R$),
+   Extra Ability Slot, Celestial Dragon Style, VIP (299 R$), Founders Collection (799 R$).
+4. Upload the icon and thumbnails from `marketing/` (README there says which goes where).
+5. Play once in a live server: finish Jeffery's tour, play a match, buy one product in Studio's
+   free test purchase, rejoin and check everything saved. Press P to open the Control Center.
+
+**After launch**
+6. When the game has been live one day: Creator Hub, the game, Engagement, Referral Rewards, Add
+   Reward Details (name it after the Recruiter title), Save, Publish.
+7. Optional: make a Roblox group and paste its id into `Community.GroupId`
+   (`src/shared/Config/Community.luau`); members get the Facility Member title.
+8. Optional: add Discord and other links on the experience page (they cannot be rewarded in-game).
+9. Optional: Engagement, Notifications: an invite message containing {experienceName}; paste its id
+   into `Community.InviteMessageId`.
+10. Optional: Private servers (Creator Hub, Access) at a small monthly price.
+11. Optional: listen to the 62 public music uploads in `docs/specs/Audio_verified.md` (tier B) and
+    say which to add; the 52 licensed tracks already play by area.
+
+**Decisions only you can make**
+- The new directive says seven fighters; the game has eight (the Animal Shapeshifter too). Keep it?
+- It says four battlegrounds; there are five designs. Keep five?
+- Extra Ability Slot pass: keep it in ranked Duels, or casual modes only (fairer)?
+- More AI key art needs Higgsfield credits (0.92 left, not enough for one image).
+
 ## 3.1 Developer Products inventory
 
 All ids are in `src/shared/Config/Monetization.luau` (`Products`). The reward is fixed by the product, never by Robux spent, so regional prices do not change what a player gets. Receipt handler for all five: the single `ProcessReceipt` in PurchaseService. Duplicate protection (same PurchaseId twice grants once) is tested in `shop_test` and `data_test`.
@@ -18,7 +56,18 @@ All ids are in `src/shared/Config/Monetization.luau` (`Products`). The reward is
 | GemsHuge "Hoard of Gems" | 0: OWNER ACTION REQUIRED — CREATE PRODUCT AND PROVIDE ID | 2,600 Gems | same | same | same | OWNER ACTION REQUIRED |
 | GemsMassive "Treasury of Gems" | 0: OWNER ACTION REQUIRED — CREATE PRODUCT AND PROVIDE ID | 7,000 Gems | same | same | same | OWNER ACTION REQUIRED |
 
-No other developer products exist in the code. VIP and Starter Pack are not built (no matching benefits exist in code).
+### Season pass products (new, cosmetic economy)
+
+Both are developer products handled by the same `ProcessReceipt`, idempotent by PurchaseId, granted only after the profile save succeeds (a failed save is rolled back and Roblox retries). Both keep id 0 in code, show "Available soon" and can never be prompted until you paste the id. The shop shows Roblox's live price; the "Recommended price" column is only a suggestion for you to type into Creator Hub (it is `recommended` in `Monetization.luau`, never shown to players).
+
+| Product | Product ID | Gives | Recommended price | Creator Hub name and description |
+|---|---|---|---|---|
+| SeasonPremium "Season Premium" | 0: OWNER ACTION REQUIRED, paste over `Products.SeasonPremium.id` | Unlocks the premium cosmetic track of the current season only (one cosmetic at each of 30 tiers). No Money, Gems or power. A new season needs a new purchase. | 499 R$ | Name "Season Premium". Description: the `benefit` text in `Monetization.luau`. |
+| SeasonTierSkip "Season Tier Skip" | 0: OWNER ACTION REQUIRED, paste over `Products.SeasonTierSkip.id` | Adds one tier (100 points) to the current season pass, never past tier 30. Can be bought repeatedly; every tier is also free to earn. | 49 R$ | Name "Season Tier Skip". Description: the `benefit` text in `Monetization.luau`. |
+
+Season pass details: season "harvest_2026" (Harvest Week) runs 1 November 2026 00:00 UTC to 30 November 2026 23:59:59 UTC (`Config/SeasonPass.luau`). To start another season add an entry to `SeasonPass.Seasons`; every player's pass then resets by itself, and cosmetics already claimed are kept. Nothing random is sold; tier skip is the only paid way to move up and tiers can always be earned for free. No countdown or "last chance" wording appears anywhere.
+
+No other developer products exist in the code. Starter Pack is not built (no matching benefits exist in code).
 
 ## 3.2 Game Pass inventory
 
@@ -29,6 +78,17 @@ No other developer products exist in the code. VIP and Starter Pack are not buil
 | AdminPower "Admin Powers" | 0: same | Unlocks Admin Powers (the fighter; never grants real admin rights) | same | same | OWNER ACTION REQUIRED |
 | ExtraAbilitySlot "Extra Ability Slot" (new this pass) | 0: same | One more ability slot in every loadout (cap 6); read by PowerService | same | same | OWNER ACTION REQUIRED |
 | CelestialDragonStyle | 0: same | Cosmetic only: The Grandmaster's Celestial Dragon Style | same | same | OWNER ACTION REQUIRED |
+
+### Cosmetic passes (new)
+
+Both give looks only (no stat, damage, speed or power change). Their cosmetics are granted through CosmeticService after `UserOwnsGamePassAsync` confirms ownership (on join and after the purchase window closes), once each, and are sold nowhere else. The shop card lists every item.
+
+| Game Pass | Pass ID | Gives (all listed on the shop card) | Recommended price | Creator Hub name |
+|---|---|---|---|---|
+| VIP | 0: OWNER ACTION REQUIRED, paste over `Passes.VIP.id` | VIP Gold nameplate, VIP title, and a gold name in the Spectating Lounge (the lounge name is drawn by `CosmeticFxController` from the `SNVip` player attribute). Nothing in combat. | 299 R$ | "VIP" |
+| FoundersCollection "Founders Collection" | 0: OWNER ACTION REQUIRED, paste over `Passes.FoundersCollection.id` | Founders' Ring (aura), Founders' Flare (knockout effect), Founders' Brass (nameplate), Charter Patron (title). Exclusive to this pass. | 799 R$ | "Founders Collection" |
+
+Description text for each: the `benefit` field in `Monetization.luau`. Managed Pricing: leave on (default for passes).
 
 Passes at id 0 show "Available soon" and can never be prompted (tested). Prices are set only on Roblox, never in code.
 
@@ -93,7 +153,7 @@ Unresolved: (1) the live behaviour of ProcessReceipt, regional prices and pass c
 ## 3.6 Final owner action checklist
 
 REQUIRED BEFORE PUBLICATION
-1. Create the 5 Developer Products and 5 Game Passes in 3.1 and 3.2; paste every id into `Monetization.luau`.
+1. Create the 7 Developer Products (5 Gem packs, SeasonPremium, SeasonTierSkip) and 7 Game Passes (3 powers, Extra Ability Slot, Celestial Dragon Style, VIP, Founders Collection) in 3.1 and 3.2; paste every id into `Monetization.luau`. Suggested prices for the new items are in the tables above.
 2. Check each pass has Managed Pricing on; enable Managed Pricing for each product only after Dynamic Price Check passes.
 3. Run both Dynamic Price Check modes (Price pinned and Location pinned) and fix anything that does not update.
 4. Make real test purchases of every item; verify rewards, rejoin persistence, a cancelled purchase and an already-owned pass.
@@ -105,7 +165,7 @@ RECOMMENDED
 3. Check the shop at phone size on a real device.
 
 OPTIONAL FUTURE WORK
-1. VIP pass and Starter Pack: only if you define real benefits first; none exist in code.
+1. Starter Pack: only if you define real benefits first; none exist in code.
 2. A trading or gifting system built on `TransferPolicy.run` (DECISIONS 21).
 3. Store CurrencySpent per receipt for revenue accounting.
 
@@ -119,6 +179,7 @@ OPTIONAL FUTURE WORK
 | TransferPolicy and lock | IMPLEMENTED BUT NOT FULLY TESTED. | pricing_test 9; no trading system uses it yet |
 | Dynamic prices in the shop | IMPLEMENTED BUT NOT FULLY TESTED. | smoke_shop 8 incl. live, unavailable and soon states; Dynamic Price Check not run |
 | Master Shop window | IMPLEMENTED BUT NOT FULLY TESTED. | smoke_shop at 1280x720 and 667x375; renders reviewed; not seen in Studio |
+| Season pass (30 tiers), SeasonPremium and SeasonTierSkip products, VIP and Founders Collection passes, Season pass window and shop category, cosmetic effects | IMPLEMENTED BUT NOT FULLY TESTED. | seasonpass_test 19, smoke_seasonpass 10, smoke_cosmeticfx 6 (stand-in engine); renders reviewed at 1280x720 and 667x375; no real purchase, not seen in Studio, particles not seen |
 | Dynamic Price Check, Price pinned | OWNER ACTION REQUIRED. | Not performed |
 | Dynamic Price Check, Location pinned | OWNER ACTION REQUIRED. | Not performed |
 | Product and pass ids, Managed Pricing for products | OWNER ACTION REQUIRED. | All ids are 0 |

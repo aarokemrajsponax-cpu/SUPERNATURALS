@@ -66,7 +66,22 @@ local function reasonText(reason: any): string
 end
 
 function CurrencyService:Init(services)
+	self.services = services
 	self.data = services.DataService
+end
+
+-- Tells AnalyticsLog (optional, never breaks a transaction)
+function CurrencyService:_analytics(player: Player, flow: string, amounts: { [string]: number }, reason: string)
+	local log = self.services and self.services.AnalyticsLog
+	if not log then
+		return
+	end
+	for _, kind in KINDS do
+		local amount = amounts[kind]
+		if amount and amount > 0 then
+			pcall(log.economy, log, player, flow, if kind == "gems" then "Gems" else "Money", amount, self:balance(player, kind), reason)
+		end
+	end
 end
 
 function CurrencyService:_toast(player: Player, option: (boolean | string)?, automatic: string, kind: string)
@@ -126,6 +141,7 @@ function CurrencyService:spend(player: Player, price: Amounts, reason: string, o
 		paid = true
 	end)
 	if paid then
+		self:_analytics(player, "Sink", amounts, reason)
 		local spent = describe(amounts)
 		if spent ~= "" then
 			self:_toast(player, opts and opts.toast, `Spent {spent}`, "info")
@@ -150,6 +166,7 @@ function CurrencyService:add(player: Player, amounts: Amounts, reason: string, o
 	if not added then
 		return false
 	end
+	self:_analytics(player, "Source", grant, reason)
 	for _, kind in KINDS do
 		if grant[kind] >= Config.BigGrant[kind] then
 			print(`[Currency] {player.Name} ({player.UserId}) received {formatNumber(grant[kind])} {kind}: {reasonText(reason)}`)

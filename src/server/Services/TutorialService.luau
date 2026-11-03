@@ -119,6 +119,9 @@ function TutorialService:_begin(player: Player, replay: boolean)
 		startPosition = fighter and fighter.root.Position or nil,
 		finished = false,
 	}
+	if not replay and self.services.AnalyticsLog then
+		self.services.AnalyticsLog:funnel(player, "tour_started")
+	end
 	self:_send(player, { event = "start" })
 end
 
@@ -153,6 +156,9 @@ function TutorialService:_event(player: Player?, kind: string)
 		end
 	end
 	run.index += 1
+	if not run.replay and self.services.AnalyticsLog then
+		self.services.AnalyticsLog:tourStep(player, step.id)
+	end
 	local fighter = self.characters:getByPlayer(player)
 	run.startPosition = fighter and fighter.root.Position or run.startPosition
 	if run.index > #Tutorial.Steps then
@@ -203,6 +209,15 @@ function TutorialService:_finish(player: Player, run: Run)
 				rewarded = true
 				self.services.CurrencyService:add(player, { money = reward.money }, "tutorial")
 			end
+		end
+	end
+	if not run.replay then
+		-- Tell the growth services (analytics funnel, referral milestone); both are optional
+		if self.services.AnalyticsLog then
+			self.services.AnalyticsLog:funnel(player, "tour_finished")
+		end
+		if self.services.CommunityService then
+			self.services.CommunityService:onTourFinished(player)
 		end
 	end
 	self:_send(player, { event = "complete", rewarded = rewarded, reward = Tutorial.Reward })

@@ -82,7 +82,7 @@ Schema.Config = {
 }
 
 -- Equipped cosmetics go in these slots
-Schema.CosmeticSlots = { "aura", "victory", "knockout", "title", "trail" }
+Schema.CosmeticSlots = { "aura", "victory", "knockout", "title", "trail", "plate" }
 
 -- Who may visit a player's base
 Schema.BaseAccess = { "Everyone", "Friends", "Nobody" }
@@ -332,6 +332,13 @@ local DEFAULT = {
 	base = { floor = "Oak", wall = "Plaster", lighting = "Warm", access = "Everyone", capacity = 1, items = {}, theme = Homes.DefaultTheme, show = {} },
 	daily = { day = 0, progress = {}, claimed = {}, loginStreak = 0 },
 	tutorial = { done = {}, welcomed = false },
+	-- Achievements: done ids and counters toward the next ones (AchievementService)
+	achievements = { done = {}, progress = {} },
+	-- Community: who invited this player (Roblox's ReferredByPlayerId, once), whether the referral
+	-- and group rewards were given, and how many recruits this player brought in (CommunityService)
+	community = { referredBy = 0, referralDone = false, groupRewarded = false, recruits = 0, firstJoin = 0 },
+	-- The cosmetic season pass: which season, points earned, premium track, claimed tiers (SeasonPassService)
+	pass = { season = "", points = 0, premium = false, claimed = {} },
 	lore = { found = {}, read = {}, last = "", page = 0 },
 	settings = defaultSettings(),
 	passes = {},
@@ -539,6 +546,31 @@ local function repair(source: { [any]: any }): Profile
 	profile.tutorial = extras(tutorial, DEFAULT.tutorial)
 	profile.tutorial.done = stringSet(tutorial.done)
 	profile.tutorial.welcomed = tutorial.welcomed == true
+
+	local achievements = asTable(source.achievements)
+	profile.achievements = { done = stringSet(achievements.done), progress = {} }
+	for key, value in asTable(achievements.progress) do
+		if typeof(key) == "string" and #key <= 64 and isFinite(value) then
+			profile.achievements.progress[key] = integer(value, 0, 1e9, 0)
+		end
+	end
+
+	local community = asTable(source.community)
+	profile.community = {
+		referredBy = integer(community.referredBy, 0, 1e15, 0),
+		referralDone = community.referralDone == true,
+		groupRewarded = community.groupRewarded == true,
+		recruits = integer(community.recruits, 0, 1e6, 0),
+		firstJoin = integer(community.firstJoin, 0, 1e11, 0),
+	}
+
+	local pass = asTable(source.pass)
+	profile.pass = {
+		season = if typeof(pass.season) == "string" and #pass.season <= 40 then pass.season else "",
+		points = integer(pass.points, 0, 1e9, 0),
+		premium = pass.premium == true,
+		claimed = stringSet(pass.claimed),
+	}
 
 	-- Lore: only ids the Archive has (a file must be found before it can be read)
 	local lore = asTable(source.lore)
