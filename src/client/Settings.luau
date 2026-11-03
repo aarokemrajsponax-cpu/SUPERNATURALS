@@ -23,6 +23,8 @@ Settings.values = {
 	uiScale = 1,
 	cameraSensitivity = 1,
 	damageNumbers = true,
+	-- Short tips and button prompts
+	hints = true,
 	-- Lock-on: "toggle" (press to lock, tap to switch, hold to let go) or
 	-- "hold" (locked while the button is held)
 	lockOnMode = "toggle",

@@ -42,6 +42,15 @@ Monetization.Passes = {
 		name = "Celestial Dragon Style",
 		benefit = "Cosmetic only: a celestial stance and victory pose, star-silver impacts, extra aura colours and a dragon-themed ultimate for The Grandmaster. No gameplay changes.",
 	},
+	-- All-powers upgrade: one more ability slot in every loadout (read by PowerService through
+	-- Config/Selection.ExtraSlot.PassKey). The owner creates the pass and pastes its id; until
+	-- then it shows "Available soon". Roblox sets the price, the shop reads it live.
+	ExtraAbilitySlot = {
+		id = 0,
+		robux = nil,
+		name = "Extra Ability Slot",
+		benefit = "One more ability slot in every power's loadout, up to the limit of six on the ability bar. No extra damage or stats.",
+	},
 }
 
 -- Order passes appear in the shop

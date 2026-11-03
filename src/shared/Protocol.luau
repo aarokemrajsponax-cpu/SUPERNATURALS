@@ -141,6 +141,7 @@ Protocol.ShopAction = {
 	Buy = "Buy", -- (itemId)
 	Equip = "Equip", -- (slot, itemId?)
 	PromptProduct = "PromptProduct", -- (productKey) Robux developer product (e.g. a gem pack)
+	PromptPass = "PromptPass", -- (passKey) Robux game pass; the server checks the key, ownership and the id is set
 }
 
 -- Client -> server, through Remotes.BaseRequest

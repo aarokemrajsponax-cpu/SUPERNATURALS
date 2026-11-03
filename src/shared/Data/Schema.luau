@@ -98,6 +98,7 @@ Schema.Settings = {
 	uiScale = { default = 1, min = 0.75, max = 1.25 },
 	cameraSensitivity = { default = 1, min = 0.2, max = 2 },
 	damageNumbers = { default = true },
+	hints = { default = true },
 }
 
 -- Saved data the client never sees

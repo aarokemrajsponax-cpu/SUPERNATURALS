@@ -57,6 +57,7 @@ end
 function PurchaseService:Init(services)
 	self.data = services.DataService
 	self.currency = services.CurrencyService
+	self.antiExploit = services.AntiExploitService
 	for key, pass in Monetization.Passes do
 		if validId(pass.id) then
 			if passById[pass.id] then
@@ -84,7 +85,17 @@ function PurchaseService:Start()
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
 		local key = passById[passId]
 		if key and wasPurchased == true then
-			self:_recordPass(player, key)
+			-- The event is only a hint; Roblox's ownership check is the proof
+			task.spawn(function()
+				local ok, owns = retry(Monetization.OwnershipCheckAttempts, function()
+					return MarketplaceService:UserOwnsGamePassAsync(player.UserId, passId)
+				end)
+				if ok and owns == true and player.Parent then
+					self:_recordPass(player, key)
+				elseif not ok then
+					warn(`[Purchase] couldn't confirm {player.Name}'s {key} purchase yet; the next join check will`)
+				end
+			end)
 		end
 	end)
 
@@ -99,31 +110,7 @@ function PurchaseService:Start()
 		lastPrompt[player.UserId] = nil
 	end)
 
-	task.spawn(self._checkPrices, self)
-end
-
--- Warns when a price on the Creator Dashboard differs from Monetization, so
--- the shop never shows a different price than Roblox charges
-function PurchaseService:_checkPrices()
-	local function check(key: string, id: number, robux: number, infoType: Enum.InfoType)
-		local ok, info = pcall(function()
-			return MarketplaceService:GetProductInfo(id, infoType)
-		end)
-		if ok and typeof(info) == "table" and typeof(info.PriceInRobux) == "number" and info.PriceInRobux ~= robux then
-			warn(`[Purchase] {key} costs {info.PriceInRobux} Robux on Roblox but Monetization says {robux}; make them match`)
-		end
-	end
-	for key, pass in Monetization.Passes do
-		-- Passes without a listed price (cosmetics priced in Studio) show Roblox's live price instead
-		if validId(pass.id) and typeof(pass.robux) == "number" then
-			check(key, pass.id, pass.robux, Enum.InfoType.GamePass)
-		end
-	end
-	for key, product in Monetization.Products do
-		if validId(product.id) then
-			check(key, product.id, product.robux, Enum.InfoType.Product)
-		end
-	end
+	self:_connectShopRequests()
 end
 
 -- Asks Roblox which passes the player owns, then brings the profile's saved
@@ -216,9 +203,32 @@ function PurchaseService:_promptAllowed(player: Player): boolean
 	return true
 end
 
+-- Whether a receipt has every field the grant depends on, and was paid in Robux
+function PurchaseService.validReceipt(receipt: any): boolean
+	if typeof(receipt) ~= "table" then
+		return false
+	end
+	if typeof(receipt.PurchaseId) ~= "string" or receipt.PurchaseId == "" or #receipt.PurchaseId > 128 then
+		return false
+	end
+	if not validId(receipt.PlayerId) or not validId(receipt.ProductId) then
+		return false
+	end
+	-- Roblox always sends these; the stand-in engine may omit CurrencyType
+	if receipt.CurrencyType ~= nil and receipt.CurrencyType ~= Enum.CurrencyType.Robux then
+		return false
+	end
+	if typeof(receipt.CurrencySpent) ~= "number" or receipt.CurrencySpent ~= receipt.CurrencySpent or receipt.CurrencySpent < 0 then
+		return false
+	end
+	return true
+end
+
+-- The one ProcessReceipt. The reward comes from the product id in Monetization, never from
+-- CurrencySpent, so regional (Managed Pricing) prices don't change what a purchase gives.
 function PurchaseService:_processReceipt(receipt: any): Enum.ProductPurchaseDecision
-	if typeof(receipt) ~= "table" or typeof(receipt.PurchaseId) ~= "string" or typeof(receipt.PlayerId) ~= "number" then
-		warn("[Purchase] ignored a malformed receipt")
+	if not PurchaseService.validReceipt(receipt) then
+		warn("[Purchase] refused a malformed receipt")
 		return Decision.NotProcessedYet
 	end
 	local productKey = productById[receipt.ProductId]
@@ -297,6 +307,29 @@ function PurchaseService:_grantReceipt(receipt: any, productKey: string): Enum.P
 	end)
 	warn(`[Purchase] receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
 	return Decision.NotProcessedYet
+end
+
+-- The shop's requests. The client only names an item; the server checks the key, that the id
+-- is set, ownership and the rate, then opens Roblox's own prompt.
+function PurchaseService:_connectShopRequests()
+	local request = Remotes:FindFirstChild("ShopRequest")
+	if not request then
+		return
+	end
+	local Action = Protocol.ShopAction
+	request.OnServerEvent:Connect(function(player, action, key)
+		if typeof(action) ~= "string" or typeof(key) ~= "string" or #key > 48 then
+			return
+		end
+		if self.antiExploit and not self.antiExploit:allow(player, "Shop") then
+			return
+		end
+		if action == Action.PromptPass then
+			self:promptPass(player, key)
+		elseif action == Action.PromptProduct then
+			self:promptProduct(player, key)
+		end
+	end)
 end
 
 -- Public API -----------------------------------------------------------------------------------

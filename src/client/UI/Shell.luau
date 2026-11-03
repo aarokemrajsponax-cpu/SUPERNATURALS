@@ -963,6 +963,11 @@ function Shell.registerWindow(id: string, spec: WindowSpec)
 		end
 		existing.frame:Destroy()
 	end
+	-- Re-registering an id replaces its dock item (otherwise the old one would stay as a duplicate)
+	if existing and existing.nav then
+		existing.nav.button:Destroy()
+		existing.nav = nil
+	end
 	registry[id] = {
 		id = id,
 		spec = spec,

@@ -647,58 +647,35 @@ check("powers window, ability bar and defense prompts", function()
 	assert(Shell.isOpen("Powers"), "the Powers window opens")
 	local window = findNamed(gui, "PowerList")
 	assert(window, "the power list exists")
-	-- Every power card, every degree, every equip button, then save and use
+	-- Every fighter card, every phase tab; nothing is sent that charges
 	local start = #Engine.sent
 	local cardsPressed = 0
 	for _, card in window:GetChildren() do
 		if card:IsA("TextButton") then
 			press(card)
 			cardsPressed += 1
-			-- Each degree tab (the panel rebuilds after every press, so look again each time)
-			for degree = 1, 3 do
-				local detail = findNamed(gui, "PowerDetail")
-				for _, button in detail:GetDescendants() do
-					if button:IsA("TextButton") and string.find(button.Text, `{degree}  ·`, 1, true) then
-						press(button)
-						break
-					end
+			local detail = findNamed(gui, "PowerDetail")
+			local said = false
+			for _, item in detail:GetDescendants() do
+				if item:IsA("TextLabel") and string.find(item.Text, "Matches start in Phase 1", 1, true) then
+					said = true
 				end
-				auditLayout(findNamed(gui, "PowerDetail"), "Powers detail")
 			end
-			auditLayout(findNamed(gui, "PowerActions"), "Powers actions")
+			assert(said, "the dossier says matches start in Phase 1")
+			for _, tab in findNamed(detail, "PhaseTabs"):GetDescendants() do
+				if tab:IsA("TextButton") and string.find(tab.Text, "Phase", 1, true) then
+					press(tab)
+					detail = findNamed(gui, "PowerDetail")
+					auditLayout(detail, "Fighter dossier")
+				end
+			end
+			auditLayout(findNamed(gui, "PowerActions"), "Fighter actions")
 		end
 	end
-	assert(cardsPressed >= 1, "power cards exist")
-	-- Back to Strong Dude: equip an owned extra ability, save, use
-	for _, card in window:GetChildren() do
-		if card:IsA("TextButton") and findText(card, "Strong Dude") then
-			press(card)
-		end
+	assert(cardsPressed == 8, `eight fighter cards ({cardsPressed})`)
+	for _, name in { "Unlock", "UnlockDegree", "UnlockPower", "UnlockAbility", "Confirm", "Select" } do
+		assert(#sentSince(start, "PowerRequest", name) == 0, "the showcase never buys or charges: " .. name)
 	end
-	local detail = findNamed(gui, "PowerDetail")
-	local removeButton = nil
-	for _, button in detail:GetDescendants() do
-		if button:IsA("TextButton") and button.Text == "REMOVE" then
-			removeButton = button
-			break
-		end
-	end
-	assert(removeButton, "equipped abilities can be removed")
-	press(removeButton)
-	detail = findNamed(gui, "PowerDetail")
-	local equip = nil
-	for _, button in detail:GetDescendants() do
-		if button:IsA("TextButton") and button.Text == "EQUIP" then
-			equip = button
-			break
-		end
-	end
-	assert(equip, "owned abilities can be equipped")
-	press(equip)
-	press(findText(gui, "SAVE LOADOUT"))
-	local saved = sentSince(start, "PowerRequest", "SetLoadout")
-	assert(#saved >= 1, "saving sends the loadout")
-	press(findText(gui, "USE THIS POWER") or findText(gui, "✓  IN USE"))
 	auditLayout(findNamed(gui, "PowerList"), "Power list")
 	Shell.close()
 

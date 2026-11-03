@@ -563,6 +563,11 @@ end
 Engine.marketplace = {
 	owned = {} :: { [number]: { [number]: boolean } },
 	ownershipFailures = 0,
+	infoFailures = 0,
+	priceLevels = {} :: { [number]: number | boolean },
+	priceLevelFailures = 0,
+	priceLevelOverride = nil :: any,
+	priceLevelCalls = {} :: { any },
 	prices = {} :: { [number]: number },
 	prompts = {},
 }
@@ -586,6 +591,32 @@ local function fakeMarketplaceService()
 	end
 	function service.PromptProductPurchase(_, player, productId)
 		table.insert(market.prompts, { kind = "Product", player = player, id = productId })
+	end
+	-- Engine.marketplace.priceLevels[userId] = level (default 1000); .priceLevelFailures = n errors the next n calls;
+	-- .priceLevelOverride = function(userIds) -> table replaces the whole answer (for malformed replies)
+	function service.GetUsersPriceLevelsAsync(_, userIds)
+		table.insert(market.priceLevelCalls, userIds)
+		if market.priceLevelFailures > 0 then
+			market.priceLevelFailures -= 1
+			error("HTTP 500 (injected price level failure)", 0)
+		end
+		if market.priceLevelOverride then
+			return market.priceLevelOverride(userIds)
+		end
+		local out = {}
+		for _, id in userIds do
+			if market.priceLevels[id] ~= false then
+				table.insert(out, { UserId = id, PriceLevel = market.priceLevels[id] or 1000 })
+			end
+		end
+		return out
+	end
+	function service.GetProductInfoAsync(_, id)
+		if market.infoFailures > 0 then
+			market.infoFailures -= 1
+			error("HTTP 500 (injected product info failure)", 0)
+		end
+		return { PriceInRobux = market.prices[id], Name = "Item " .. tostring(id), IsForSale = market.prices[id] ~= nil }
 	end
 	function service.GetProductInfo(_, id)
 		return { PriceInRobux = market.prices[id], Name = "Item " .. tostring(id), IsForSale = market.prices[id] ~= nil }

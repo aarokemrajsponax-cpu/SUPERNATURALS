@@ -51,6 +51,7 @@ function UIController:Start()
 	Shell.init(gui, { input = self.input })
 	local play = PlayWindow.register()
 	PowersWindow.register()
+	require(script.Parent.Parent.UI.ShopWindow).register()
 	SettingsWindow.register()
 	require(script.Parent.Parent.UI.ArchiveWindow).register()
 
@@ -96,6 +97,10 @@ function UIController:Start()
 		noticeToken += 1
 		local token = noticeToken
 		ribbonText.Text = text
+		-- On a short screen the scoreboard reaches far down, so the notice drops below it
+		local camera = workspace.CurrentCamera
+		local short = camera ~= nil and camera.ViewportSize.Y < 500
+		ribbon.Position = UDim2.fromScale(0.5, if short then 0.46 else 0.26)
 		ribbon.Visible = true
 		ribbonScale.Scale = 0.85
 		TweenService:Create(ribbonScale, Theme.Motion.Pop, { Scale = 1 }):Play()

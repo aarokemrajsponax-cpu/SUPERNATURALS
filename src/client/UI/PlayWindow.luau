@@ -12,6 +12,11 @@ local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
 local Shell = require(script.Parent.Shell)
+local Icons = require(script.Parent.Icons)
+local Powers = require(ReplicatedStorage.Shared.Powers)
+local Selection = require(ReplicatedStorage.Shared.Config.Selection)
+local Profile = require(script.Parent.Parent.Profile)
+local PowersWindow = require(script.Parent.PowersWindow)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local MatchRequest = Remotes:WaitForChild("MatchRequest") :: RemoteEvent
@@ -31,15 +36,15 @@ local PRESS_COOLDOWN = 0.6
 
 -- Per-choice look (the match rules themselves come from the config)
 local LOOK = {
-	Duel = { icon = "⚔️", accent = Colors.Cyan, tag = "1V1", action = "⚔  FIND A DUEL", subtitle = "Ranked by knockouts" },
-	FreeForAll = { icon = "👥", accent = Colors.Purple, tag = "3-4 FIGHTERS", action = "👥  FIND A MATCH", subtitle = "Everyone for themselves" },
-	Practice = { icon = "🤖", accent = Colors.Cyan, tag = "VS CPU", action = "🤖  START PRACTICE", subtitle = "Learn the controls" },
-	Training = { icon = "🎯", accent = Colors.Purple, tag = "FREE ROAM", action = "🎯  GO TO TRAINING", subtitle = "No timer, no score" },
+	Duel = { icon = "swords", accent = Colors.Cyan, tag = "1V1", action = "CONFIRM AND FIND A DUEL", subtitle = "Ranked by knockouts" },
+	FreeForAll = { icon = "users", accent = Colors.Purple, tag = "3-4 FIGHTERS", action = "CONFIRM AND FIND A MATCH", subtitle = "Everyone for themselves" },
+	Practice = { icon = "target", accent = Colors.Cyan, tag = "VS CPU", action = "CONFIRM AND START PRACTICE", subtitle = "Learn the controls" },
+	Training = { icon = "fight", accent = Colors.Success, tag = "FREE", action = "GO TO TRAINING (FREE)", subtitle = "No timer, no score, nothing charged" },
 }
 
 local TRAINING_INFO = {
 	DisplayName = "Training Ground",
-	Description = "Hit sparring dummies and try every move. Nothing is at stake and there's no timer.",
+	Description = "Free. Hit sparring dummies and try every fighter and phase. Nothing is at stake, saved or charged.",
 }
 
 local function formatTime(seconds: number): string
@@ -196,12 +201,19 @@ function PlayWindow.register(): Controller
 	Shell.registerWindow("Play", {
 		title = "Play",
 		label = "PLAY",
-		icon = "⚔️",
+		icon = "swords",
 		order = 1,
 		build = function(body: Frame, api)
 			local selected = MatchConfig.ModeOrder[1]
 			-- The arena the next queue asks for (Random until the player picks one)
 			local arenaChoice = RANDOM_ARENA
+			-- Step two: the fighter and the loadout for Phase 1 (confirmed with the queue; never charged)
+			local view0 = Profile.get()
+			local saved0 = view0 and view0.selected
+			local fighter = if typeof(saved0) == "table" and typeof(saved0.power) == "string" and Powers.get(saved0.power) then saved0.power else Powers.Default
+			local draft: { string } = PowersWindow.helpers.savedLoadout(fighter, 1)
+			local renderFighter: () -> () = function() end
+			local renderActionHook: () -> () = function() end
 
 			-- Left: the choices
 			local left = make("Frame", {
@@ -219,7 +231,7 @@ function PlayWindow.register(): Controller
 				Parent = left,
 			})
 			Components.list(list, Space.S)
-			Components.button("🏠  Back to spawn", {
+			Components.button("Back to spawn", {
 				Name = "Spawn",
 				Variant = "Secondary",
 				AnchorPoint = Vector2.new(0, 1),
@@ -290,10 +302,210 @@ function PlayWindow.register(): Controller
 			end
 			local note = Components.text({ Name = "Note", Style = "Caption", Color = Colors.TextMuted, Wrap = true, LayoutOrder = 4, Parent = info })
 
+			-- Step two: fighter and loadout. Confirming never charges; phase fees are shown for information.
+			local fighterBox = make("Frame", {
+				Name = "FighterStep",
+				LayoutOrder = 5,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				BackgroundTransparency = 1,
+				Parent = info,
+			})
+			Components.list(fighterBox, Space.S)
+			local trainingBox = make("Frame", {
+				Name = "TrainingFree",
+				LayoutOrder = 5,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				BackgroundColor3 = Colors.Success,
+				BackgroundTransparency = 0.9,
+				BorderSizePixel = 0,
+				Visible = false,
+				Parent = info,
+			}, { Components.corner(Theme.SmallCorner), Components.stroke(Colors.Success, 1, 0.6), Components.padding(Space.M) })
+			Components.list(trainingBox, Space.XS)
+			Components.text({ Text = "Training is free", Style = "strong", Color = Colors.Success, LayoutOrder = 1, Wrap = true, Parent = trainingBox })
+			Components.text({
+				Text = "It is separate from fighter selection. Inside the hall every fighter and every phase is open to try, evolving is free and instant, and your saved fighter and loadout are not changed.",
+				Style = "caption",
+				Color = Colors.TextDim,
+				LayoutOrder = 2,
+				Wrap = true,
+				Parent = trainingBox,
+			})
+
+			renderFighter = function()
+				for _, child in fighterBox:GetChildren() do
+					if not child:IsA("UIListLayout") then
+						child:Destroy()
+					end
+				end
+				local def = Powers.get(fighter)
+				if not def then
+					return
+				end
+				local helpers = PowersWindow.helpers
+				local ownsIt = helpers.owns(def)
+				Components.text({ Text = "YOUR FIGHTER", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 1, Wrap = true, Parent = fighterBox })
+				local grid = make("Frame", { Name = "FighterGrid", LayoutOrder = 2, Size = UDim2.fromScale(1, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = fighterBox })
+				Components.grid(grid, UDim2.new(0.5, -Space.S / 2, 0, 44), Space.S)
+				for order, powerId in Powers.Order do
+					local other = Powers.get(powerId)
+					if other then
+						local chosen = powerId == fighter
+						local button = make("TextButton", {
+							Name = "Fighter_" .. powerId,
+							LayoutOrder = order,
+							Size = UDim2.new(1, 0, 0, 44),
+							Text = "",
+							AutoButtonColor = false,
+							BackgroundColor3 = if chosen then Colors.Selected else Colors.PanelLight,
+							BackgroundTransparency = if chosen then 0.1 else 0.35,
+							BorderSizePixel = 0,
+							Parent = grid,
+						}, {
+							Components.corner(Theme.SmallCorner),
+							Components.stroke(if chosen then other.colors.primary else Colors.Stroke, 1, if chosen then 0.1 else 0.8),
+							Components.padding(0, Space.S, 0, Space.S),
+						})
+						local glyph = Icons.make(Icons.sigil(powerId), 22, other.colors.primary)
+						glyph.AnchorPoint = Vector2.new(0, 0.5)
+						glyph.Position = UDim2.fromScale(0, 0.5)
+						glyph.Parent = button
+						Components.text({
+							Text = other.name,
+							Style = "label",
+							Color = if chosen then Colors.Text else Colors.TextDim,
+							Position = UDim2.fromOffset(30, 0),
+							Size = UDim2.new(1, -30 - (if other.premium and not helpers.owns(other) then 22 else 0), 1, 0),
+							Parent = button,
+						})
+						if other.premium and not helpers.owns(other) then
+							local lock = Icons.make("lock", 16, Colors.Gold)
+							lock.AnchorPoint = Vector2.new(1, 0.5)
+							lock.Position = UDim2.fromScale(1, 0.5)
+							lock.Parent = button
+						end
+						button.Activated:Connect(function()
+							fighter = powerId
+							draft = helpers.savedLoadout(powerId, 1)
+							renderFighter()
+						end)
+					end
+				end
+				if def.premium and not ownsIt then
+					Components.text({
+						Text = `{def.name} is not owned yet. You can try it in CPU Practice and Training. Duel and Free-for-All need it.`,
+						Style = "caption",
+						Color = Colors.Warning,
+						LayoutOrder = 3,
+						Wrap = true,
+						Parent = fighterBox,
+					})
+				end
+
+				-- Loadout for Phase 1
+				local slots = def.degrees[1].slots or 3
+				Components.text({ Text = `LOADOUT, PHASE 1 ({#draft} OF {slots} SLOTS)`, Style = "overline", Color = Colors.TextMuted, LayoutOrder = 4, Wrap = true, Parent = fighterBox })
+				local abilityGrid = make("Frame", { Name = "LoadoutGrid", LayoutOrder = 5, Size = UDim2.fromScale(1, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = fighterBox })
+				Components.grid(abilityGrid, UDim2.new(0.5, -Space.S / 2, 0, 44), Space.S)
+				for order, abilityId in Powers.available(fighter, 1) do
+					local ability = Powers.abilityFor(fighter, abilityId, 1)
+					if ability then
+						local slot = table.find(draft, abilityId)
+						local button = make("TextButton", {
+							Name = "Ability_" .. abilityId,
+							LayoutOrder = order,
+							Size = UDim2.new(1, 0, 0, 44),
+							Text = "",
+							AutoButtonColor = false,
+							BackgroundColor3 = if slot then Colors.Selected else Colors.PanelLight,
+							BackgroundTransparency = if slot then 0.1 else 0.35,
+							BorderSizePixel = 0,
+							Parent = abilityGrid,
+						}, {
+							Components.corner(Theme.SmallCorner),
+							Components.stroke(if slot then Colors.Cyan else Colors.Stroke, 1, if slot then 0.2 else 0.8),
+							Components.padding(0, Space.S, 0, Space.S),
+						})
+						local glyph = Icons.make(Icons.forAbility(ability), 22, if slot then Colors.Cyan else Colors.TextDim)
+						glyph.AnchorPoint = Vector2.new(0, 0.5)
+						glyph.Position = UDim2.fromScale(0, 0.5)
+						glyph.Parent = button
+						Components.text({
+							Text = ability.name,
+							Style = "label",
+							Color = if slot then Colors.Text else Colors.TextDim,
+							Position = UDim2.fromOffset(30, 0),
+							Size = UDim2.new(1, -30 - (if slot then 24 else 0), 1, 0),
+							Parent = button,
+						})
+						if slot then
+							Components.keycap(tostring(slot), { Height = 22 }).Parent = button
+							local cap = button:FindFirstChild("Keycap")
+							if cap then
+								cap.AnchorPoint = Vector2.new(1, 0.5)
+								cap.Position = UDim2.fromScale(1, 0.5)
+							end
+						end
+						button.Activated:Connect(function()
+							local index = table.find(draft, abilityId)
+							if index then
+								if #draft > 1 then
+									table.remove(draft, index)
+								end
+							elseif #draft < slots then
+								table.insert(draft, abilityId)
+							end
+							renderFighter()
+						end)
+					end
+				end
+
+				-- Phase fees, for information only
+				Components.text({ Text = "PHASES AND FEES", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 6, Wrap = true, Parent = fighterBox })
+				local money = Profile.currency("money")
+				local count = Powers.degreeCount(fighter)
+				for phase = 1, count do
+					local fee = helpers.phaseFee(def, phase)
+					local open = helpers.degreeOpen(def, phase)
+					local status
+					if phase == 1 then
+						status = "Start of every match"
+					elseif not open then
+						status = "Locked"
+					elseif fee <= 0 then
+						status = "Free to evolve"
+					elseif money >= fee then
+						status = `{helpers.feeText(fee)}, you can afford it`
+					else
+						status = `{helpers.feeText(fee)}, {Components.formatNumber(fee - money)} short`
+					end
+					Components.text({
+						Name = "PhaseFee" .. phase,
+						Text = `Phase {phase}, {def.degrees[phase].name}: {status}`,
+						Style = "caption",
+						Color = if phase > 1 and not open then Colors.TextMuted else Colors.TextDim,
+						LayoutOrder = 6 + phase,
+						Wrap = true,
+						Parent = fighterBox,
+					})
+				end
+				Components.text({
+					Text = "Matches start in Phase 1. Evolve during the fight with T when the meter is full. A fee is paid then, never at confirm, and lasts for that match only.",
+					Style = "caption",
+					Color = Colors.TextMuted,
+					LayoutOrder = 20,
+					Wrap = true,
+					Parent = fighterBox,
+				})
+				renderActionHook()
+			end
+
 			-- Match options: the arena picker (hidden for the training ground)
 			local options = make("Frame", {
 				Name = "MatchOptions",
-				LayoutOrder = 5,
+				LayoutOrder = 6,
 				Size = UDim2.fromScale(1, 0),
 				AutomaticSize = Enum.AutomaticSize.Y,
 				BackgroundTransparency = 1,
@@ -388,6 +600,9 @@ function PlayWindow.register(): Controller
 				actionButton.Visible = not searching
 				cancelButton.Visible = searching
 				actionButton.Text = LOOK[selected].action
+				local def = Powers.get(fighter)
+				local blocked = selected ~= TRAINING and selected ~= "Practice" and def ~= nil and not PowersWindow.helpers.owns(def)
+				Components.setDisabled(actionButton, blocked, if blocked then `{def.name} must be owned for ranked modes. Try it in CPU Practice or Training.` else nil)
 			end
 
 			local function show(id: string)
@@ -411,29 +626,35 @@ function PlayWindow.register(): Controller
 					ruleTiles[index].label.Text = rule.label
 					ruleTiles[index].value.Text = rule.value
 				end
-				note.Text = "ⓘ  " .. startNote(id)
+				note.Text = startNote(id)
 				options.Visible = id ~= TRAINING
+				fighterBox.Visible = id ~= TRAINING
+				trainingBox.Visible = id == TRAINING
+				renderFighter()
 				renderAction()
 			end
 
+			Components.text({ Name = "HeaderRanked", Text = "COMPETITIVE", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 0, Size = UDim2.new(1, 0, 0, 18), Parent = list })
+			Components.text({ Name = "HeaderFree", Text = "FREE AND SEPARATE", Style = "overline", Color = Colors.Success, LayoutOrder = 90, Size = UDim2.new(1, 0, 0, 18), Parent = list })
 			for order, id in choices() do
-				local look = LOOK[id] or { icon = "•", accent = Colors.Cyan, tag = "" }
+				local look = LOOK[id] or { icon = "dot", accent = Colors.Cyan, tag = "", subtitle = "" }
 				local data = infoFor(id)
-				local _, card = Components.card({
-					Name = "Mode_" .. id,
-					LayoutOrder = order,
-					Size = UDim2.new(1, 0, 0, 80),
+				local frame, card = Components.storeCard({
+					Name = string.upper(data.DisplayName),
+					LayoutOrder = if id == TRAINING then 91 else order,
+					Size = UDim2.new(1, -4, 0, 84),
 					Icon = look.icon,
 					Accent = look.accent,
-					Title = string.upper(data.DisplayName),
-					Body = data.Description,
-					Badge = look.tag,
-					BadgeColor = if id == TRAINING then Colors.TextMuted else look.accent,
+					Subtitle = look.subtitle,
+					Chip = look.tag,
+					ChipColor = if id == TRAINING then Colors.Success else look.accent,
+					PriceText = if id == TRAINING then "Free" else nil,
 					Parent = list,
 					onClick = function()
 						show(id)
 					end,
 				})
+				frame.Name = "Mode_" .. id
 				cards[id] = card
 			end
 
@@ -456,24 +677,34 @@ function PlayWindow.register(): Controller
 					MatchRequest:FireServer(Action.Travel, "Training")
 					api.toast("Heading to the training ground.", "info")
 				else
-					MatchRequest:FireServer(Action.Queue, selected, { arena = arenaChoice })
+					MatchRequest:FireServer(Action.Queue, selected, {
+						arena = arenaChoice,
+						selection = { power = fighter, degree = 1, loadout = table.clone(draft) },
+					})
 				end
 				api.close()
 			end)
-			cancelButton = Components.button("✕  CANCEL SEARCH", actionProps("CancelSearch", "Danger"), function()
+			cancelButton = Components.button("CANCEL SEARCH", actionProps("CancelSearch", "Danger"), function()
 				if pressed() then
 					leaveQueue()
 				end
 			end)
 
 			onQueueChanged = renderAction
+			renderActionHook = renderAction
 			show(selected)
 
 			return {
 				onOpen = function(args)
 					-- Shell.open("Play", { mode = "Practice" }) jumps to a choice
+					if typeof(args) == "table" and typeof(args.fighter) == "string" and Powers.get(args.fighter) then
+						fighter = args.fighter
+						draft = PowersWindow.helpers.savedLoadout(fighter, 1)
+					end
 					if typeof(args) == "table" and typeof(args.mode) == "string" and LOOK[args.mode] then
 						show(args.mode)
+					else
+						show(selected)
 					end
 				end,
 				focus = function()

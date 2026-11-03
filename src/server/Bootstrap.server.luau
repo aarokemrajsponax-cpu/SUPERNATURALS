@@ -8,6 +8,7 @@ local ORDER = {
 	"DataService",
 	"CurrencyService",
 	"PurchaseService",
+	"PriceLevelService",
 	"WorldService",
 	"ArenaService",
 	"CharacterService",

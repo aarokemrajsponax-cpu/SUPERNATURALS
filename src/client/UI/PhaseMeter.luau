@@ -1,8 +1,8 @@
--- The Phase meter: a slim bar above the ability bar that fills as you fight, names the next
--- phase and its fee, says whether you can afford it, and tells you the key. Everything shown
--- comes from the character's attributes (the server writes them) and the profile's Money;
--- pressing the key sends Evolve and the server decides. Hidden when there is nothing to
--- evolve into. Styling is deliberately plain: the interface pass owns the final look.
+-- The Phase meter: a slim glass plate above the ability bar. It fills as you fight, names the
+-- next phase and its fee, and when the meter is full it says so with a key cap: "Meter full:
+-- press T to evolve (20 Money)". Everything shown comes from the character's attributes (the
+-- server writes them) and the profile's Money; pressing the key sends Evolve and the server
+-- decides. Hidden when there is nothing to evolve into.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -42,9 +42,9 @@ function PhaseMeter.describe(attributes: { [string]: any }, money: number): { vi
 	if not full then
 		detail = `Fight to fill the meter. Costs {cost}.`
 	elseif not affordable then
-		detail = `Need {cost}. You have {Components.formatNumber(money)}.`
+		detail = `Meter full. Need {cost}. You have {Components.formatNumber(money)}.`
 	else
-		detail = "Press T to evolve."
+		detail = if fee <= 0 then "Meter full: press T to evolve (free)" else `Meter full: press T to evolve ({cost})`
 	end
 	return { visible = true, share = share, full = full, title = `Next phase: {nextName}`, detail = detail, affordable = affordable }
 end
@@ -59,17 +59,20 @@ function PhaseMeter.mount(parent: Instance)
 		Visible = false,
 		Parent = parent,
 	})
+	local stroke = frame:FindFirstChildOfClass("UIStroke")
 	Components.padding(Space.S, Space.M, Space.S, Space.M).Parent = frame
 	Components.list(frame, Space.XS)
-	local title = Components.text({ Name = "Title", Text = "", Style = "label", Size = UDim2.new(1, 0, 0, 18), LayoutOrder = 1, Parent = frame })
+	local top = make("Frame", { Name = "Top", LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, Parent = frame })
+	local title = Components.text({ Name = "Title", Text = "", Style = "label", Size = UDim2.new(1, -44, 1, 0), Parent = top })
+	local percent = Components.text({ Name = "Percent", Text = "", Style = "number", TextSize = 14, AlignX = "Right", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(40, 22), Parent = top })
 	local track = make("Frame", {
 		Name = "Track",
 		LayoutOrder = 2,
-		Size = UDim2.new(1, 0, 0, 10),
+		Size = UDim2.new(1, 0, 0, 8),
 		BackgroundColor3 = Colors.Ink,
 		BorderSizePixel = 0,
 		Parent = frame,
-	}, { Components.corner(Theme.TinyCorner) })
+	}, { Components.corner(Theme.TinyCorner), Components.stroke(Colors.Stroke, 1, 0.6) })
 	local fill = make("Frame", {
 		Name = "Fill",
 		Size = UDim2.fromScale(0, 1),
@@ -77,7 +80,13 @@ function PhaseMeter.mount(parent: Instance)
 		BorderSizePixel = 0,
 		Parent = track,
 	}, { Components.corner(Theme.TinyCorner) })
-	local detail = Components.text({ Name = "Detail", Text = "", Style = "body", Size = UDim2.new(1, 0, 0, 18), LayoutOrder = 3, Parent = frame })
+	-- The ready cue: a T key cap beside the sentence, shown only when the meter is full
+	local cue = make("Frame", { Name = "Cue", LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, Parent = frame })
+	local cap = Components.keycap("T", { Height = 26 })
+	cap.AnchorPoint = Vector2.new(0, 0.5)
+	cap.Position = UDim2.fromScale(0, 0.5)
+	cap.Parent = cue
+	local detail = Components.text({ Name = "Detail", Text = "", Style = "caption", Wrap = false, Size = UDim2.new(1, 0, 1, 0), Parent = cue })
 
 	local lastKey = ""
 	local function refresh()
@@ -88,16 +97,27 @@ function PhaseMeter.mount(parent: Instance)
 			lastKey = ""
 			return
 		end
-		local key = `{info.title}|{info.detail}|{math.floor(info.share * 100)}`
+		local key = `{info.title}|{info.detail}|{math.floor(info.share * 100)}|{info.affordable}`
 		if key == lastKey then
 			return
 		end
 		lastKey = key
 		frame.Visible = true
 		title.Text = info.title
+		percent.Text = `{math.floor(info.share * 100)}%`
 		detail.Text = info.detail
+		local ready = info.full and info.affordable
+		cap.Visible = ready
+		detail.Position = UDim2.fromOffset(if ready then 38 else 0, 0)
+		detail.Size = UDim2.new(1, if ready then -38 else 0, 1, 0)
+		detail.TextColor3 = if ready then Colors.Text elseif info.full then Colors.Warning else Colors.TextDim
+		local color = if info.full then (if info.affordable then Colors.Accent else Colors.Warning) else Colors.Cyan
+		fill.BackgroundColor3 = color
 		fill.Size = UDim2.fromScale(info.share, 1)
-		fill.BackgroundColor3 = if info.full then (if info.affordable then Colors.Success else Colors.Warning) else Colors.Cyan
+		if stroke then
+			stroke.Color = if ready then Colors.Accent else Colors.Stroke
+			stroke.Transparency = if ready then 0.2 else 0.5
+		end
 	end
 	local connection = RunService.Heartbeat:Connect(refresh)
 	frame.Destroying:Connect(function()
