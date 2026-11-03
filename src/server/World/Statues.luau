@@ -126,7 +126,7 @@ local function stone(c, kind: string, name: string, size: Vector3, cframe: CFram
 	if spec[3] then
 		part.MaterialVariant = spec[3]
 	end
-	part.Color = if o and o.color then o.color else vary(spec[1], c.random, spec[4])
+	part.Color = if o and o.color then o.color elseif finish == "glow" and c.color then c.color else vary(spec[1], c.random, spec[4])
 	part.Reflectance = spec[5]
 	part.CastShadow = if o and o.shadow ~= nil then o.shadow else math.max(size.X, size.Y, size.Z) >= SMALL * c.h
 	local solid = o ~= nil and o.solid == true
@@ -500,10 +500,10 @@ function carve.StrongDude(c)
 	leg(c, 1, j.hip[1], V(1.18, 0.3, -0.2), V(1.55, 0.04, -0.84), { pole = V(0.6, 0, -1) })
 	-- left arm raised, fist beside the head
 	local lw = V(-1.6, 7.3, -0.15)
-	arm(c, -1, j.shoulder[-1], lw, V(-1, -0.3, 0.2), { scale = 1.1, forearmFinish = "bronze", hand = { dir = V(0, 1, 0), palm = V(1, 0, 0), curl = 1, scale = 1.25, finish = "bronze", fingers = 1 } })
+	local le = arm(c, -1, j.shoulder[-1], lw, V(-1, -0.3, 0.2), { scale = 1.1, forearmFinish = "bronze", hand = { dir = V(0, 1, 0), palm = V(1, 0, 0), curl = 1, scale = 1.25, finish = "bronze", fingers = 1 } })
 	-- right fist on the hip
 	local rw = V(0.78, 3.9, -0.32)
-	arm(c, 1, j.shoulder[1], rw, V(1, -0.1, 0.35), { scale = 1.1, forearmFinish = "bronze", hand = { dir = V(-0.7, -0.2, -0.3), palm = V(0, 1, 0), curl = 1, scale = 1.25, finish = "bronze", fingers = 1 } })
+	local re = arm(c, 1, j.shoulder[1], rw, V(1, -0.1, 0.35), { scale = 1.1, forearmFinish = "bronze", hand = { dir = V(-0.7, -0.2, -0.3), palm = V(0, 1, 0), curl = 1, scale = 1.25, finish = "bronze", fingers = 1 } })
 	place(c, "Block", "Belt", V(1.22, 0.16, 0.9), pelvis * CFrame.new(0, 0.72, 0.03), "bronze")
 	drape(c, "Kilt", {
 		center = V(0, 0, 0.04), rx = 0.62, rz = 0.46, top = 4.5, flare = 0.3, count = 12, from = -170, to = 170, zig = 14, depth = 0.16,
@@ -511,7 +511,325 @@ function carve.StrongDude(c)
 			return 3.0
 		end,
 	})
+	drape(c, "KiltUnder", { center = V(0, 0, 0.04), rx = 0.66, rz = 0.5, top = 4.3, flare = 0.4, count = 16, from = -170, to = 170, zig = 9, depth = 0.14, hem = 3.2, finish = "shade" })
+	ring(c, "BeltStuds", pelvis * V(0, 0.72, 0), UP, 0.62, 14, 0.12, 0.1, "bright", { shadow = false })
+	for _, side in SIDES do
+		for k = 1, 3 do
+			disc(c, "GauntletBand", (if side == 1 then re else le):Lerp(if side == 1 then rw else lw, 0.1 + k * 0.22), (if side == 1 then rw - re else lw - le), 0.58, 0.1, "bright", { shadow = false })
+		end
+		for k = 1, 4 do
+			blob(c, "Strap", V(side * (0.62 + k * 0.01), 0.35 + k * 0.5, -0.06), 0.14, "bronze", { shadow = false })
+		end
+	end
 	return { aim = V(0, 6.2, 0) }
+end
+
+-- The body every figure shares: trunk, neck, head and both legs, from authored joints.
+-- o.pelvis, o.chest, o.head are frames; o.legL and o.legR are { ankle, toe, options? };
+-- o.trunk and o.face are the options passed to trunk() and head().
+local function figure(c, o)
+	local j = trunk(c, o.pelvis, o.chest, o.trunk)
+	rod(c, "Neck", j.neck, o.head * V(0, -0.36, 0.06), 0.46, "marble")
+	head(c, o.head, o.face)
+	leg(c, -1, j.hip[-1], o.legL[1], o.legL[2], o.legL[3])
+	leg(c, 1, j.hip[1], o.legR[1], o.legR[2], o.legR[3])
+	return j
+end
+
+-- A hanging sleeve: a wide flap from the elbow down
+local function sleeve(c, side: number, elbow: Vector3, drop: number, wide: number, finish: string?)
+	for k = 0, 2 do
+		local x = side * (0.12 + k * 0.16)
+		seg(c, "Sleeve", elbow + V(x * 0.3, 0.1, 0.0), elbow + V(x * 0.9, -drop + k * 0.1, 0.0), wide * (0.7 - k * 0.1), 0.34, finish or "marble", { roll = 20 * (k - 1), ext = 0.04 })
+	end
+end
+
+-- VEIL, programme II (Ghost): a quiet, upright stance in a layered robe and hakama, both hands
+-- folded on the pommel of a katana whose point rests on the slab before him.
+function carve.Ghost(c)
+	local pelvis = CFrame.new(0, 3.98, 0.02) * turn(4, 0, 0)
+	local chest = CFrame.new(0, 5.82, 0.04) * turn(-4, 2, 0)
+	local hc = CFrame.new(0, 7.5, 0.0) * turn(6, -3, 0)
+	local j = figure(c, { pelvis = pelvis, chest = chest, head = hc, trunk = { bare = false, hips = false },
+		face = { hair = "crop" }, legL = { V(-0.5, 0.3, -0.05), V(-0.6, 0.04, -0.85) }, legR = { V(0.52, 0.3, 0.1), V(0.62, 0.04, -0.7), { pole = V(0.1, 0, -1) } } })
+	place(c, "Block", "RobeChest", V(1.4, 1.3, 0.86), chest * CFrame.new(0, 0.04, 0.03), "marble")
+	place(c, "Block", "RobeWaist", V(1.04, 1.0, 0.7), pelvis:Lerp(chest, 0.5) * CFrame.new(0, 0.02, 0.02), "marble")
+	for _, side in SIDES do
+		seg(c, "Lapel", chest * V(side * 0.22, 0.64, -0.38), pelvis * V(-side * 0.34, 0.3, -0.42), 0.26, 0.12, "marble", { roll = side * 10 })
+		seg(c, "LapelEdge", chest * V(side * 0.3, 0.6, -0.36), pelvis * V(-side * 0.26, 0.3, -0.4), 0.08, 0.15, "shade", { shadow = false })
+	end
+	rod(c, "Obi", pelvis * V(-0.7, 0.3, 0), pelvis * V(0.7, 0.3, 0), 0.56, "shade", { shadow = false })
+	place(c, "Block", "ObiKnot", V(0.3, 0.3, 0.14), pelvis * CFrame.new(0.2, 0.3, -0.4), "shade", { shadow = false })
+	drape(c, "Hakama", { center = V(0, 0, 0.04), rx = 0.62, rz = 0.5, top = 4.5, flare = 0.4, count = 22, from = -175, to = 175, zig = 10, depth = 0.14, hem = 0.12 })
+	drape(c, "Overrobe", { center = V(0, 0, 0.04), rx = 0.7, rz = 0.54, top = 4.3, flare = 0.5, count = 12, from = 40, to = 320, zig = 8, depth = 0.12, hem = 1.5, finish = "shade" })
+	-- topknot and scarf
+	blob(c, "Topknot", hc * V(0, 0.52, 0.12), 0.3, "marble", { shadow = false })
+	rod(c, "KnotTie", hc * V(-0.12, 0.38, 0.1), hc * V(0.12, 0.38, 0.1), 0.1, "shade", { shadow = false })
+	for k = 0, 3 do
+		seg(c, "Scarf", chest * V(0.1 + k * 0.05, 0.62 - k * 0.7, 0.4), chest * V(0.1 + k * 0.1, -0.05 - k * 0.7, 0.45), 0.34, 0.08, "shade", { shadow = false })
+	end
+	-- the katana
+	local grip = V(0.02, 4.95, -0.8)
+	local ghostR = arm(c, 1, j.shoulder[1], grip + V(0.04, 0, 0), V(1, -0.2, 0.3), { hand = { dir = V(0, -1, 0), palm = V(-1, 0, 0), curl = 1, fingers = 1, scale = 1.1 } })
+	local ghostL = arm(c, -1, j.shoulder[-1], grip + V(-0.02, -0.5, 0), V(-1, -0.2, 0.3), { hand = { dir = V(0, 1, 0), palm = V(1, 0, 0), curl = 1, fingers = 1, scale = 1.1 } })
+	rod(c, "Grip", V(0.02, 5.4, -0.8), V(0.02, 4.1, -0.8), 0.17, "graphite")
+	for k = 0, 5 do
+		rod(c, "GripWrap", V(0.02, 5.25 - k * 0.2, -0.8), V(0.02, 5.17 - k * 0.2, -0.8), 0.2, "iron", { shadow = false })
+	end
+	blob(c, "Pommel", V(0.02, 5.46, -0.8), 0.24, "gold", { shadow = false })
+	disc(c, "Tsuba", V(0.02, 4.0, -0.8), UP, 0.62, 0.06, "gold", { shadow = false })
+	seg(c, "Blade", V(0.02, 3.96, -0.8), V(0.02, 0.1, -0.8), 0.2, 0.05, "steel", { ext = 0.01 })
+	seg(c, "BladeRidge", V(0.02, 3.9, -0.8), V(0.02, 0.4, -0.8), 0.05, 0.08, "steel", { shadow = false, front = V(1, 0, 0) })
+	tri(c, "BladeTip", V(0.12, 0.4, -0.8), V(0.12, 0.05, -0.8), V(0.02, 0.05, -0.8), 0.05, "steel", { shadow = false })
+	sleeve(c, 1, ghostR, 1.3, 0.8)
+	sleeve(c, -1, ghostL, 1.3, 0.8)
+	return { aim = V(0, 5.6, 0) }
+end
+
+-- CHIMERA, programme III (Shapeshifter): mid-stride, a wolf pelt over the shoulders with the
+-- wolf's head resting on the right one, the left hand gathering the pelt at the chest.
+function carve.Shapeshifter(c)
+	local pelvis = CFrame.new(0, 3.95, 0.02) * turn(-10, 0, 3)
+	local chest = CFrame.new(0, 5.8, 0.02) * turn(10, 4, -3)
+	local hc = CFrame.new(-0.05, 7.5, -0.02) * turn(18, -6, 3)
+	local j = figure(c, { pelvis = pelvis, chest = chest, head = hc, trunk = { build = 1.0, hips = false },
+		face = { hair = "waves", beard = "short" }, legL = { V(-0.55, 0.3, 0.55), V(-0.62, 0.04, -0.2), { pole = V(0, 0, -1) } }, legR = { V(0.62, 0.3, -1.0), V(0.7, 0.04, -1.7), { pole = V(0.2, 0, -1) } } })
+	place(c, "Block", "Belt", V(1.2, 0.18, 0.84), pelvis * CFrame.new(0, 0.6, 0.02), "bronze")
+	disc(c, "BeltDisc", pelvis * V(0, 0.6, -0.44), FRONT, 0.3, 0.06, "bright", { shadow = false })
+	drape(c, "Kilt", { center = V(0, 0, 0.04), rx = 0.58, rz = 0.44, top = 4.5, flare = 0.3, count = 12, from = -170, to = 170, zig = 14, depth = 0.16, hem = function(_, t) return 2.9 + 0.2 * math.sin(t * 20) end })
+	-- the pelt: a cape of tufted fur across the back and shoulders, ragged at the hem
+	drape(c, "Pelt", { center = V(0, 0, 0.12), rx = 1.0, rz = 0.52, top = 6.85, flare = 0.3, count = 26, from = 38, to = 322, zig = 16, depth = 0.2, finish = "shade", hem = function(_, t) return 3.3 + 0.55 * math.abs(math.sin(t * 38)) end })
+	for _, side in SIDES do
+		blob(c, "PeltShoulder", j.shoulder[side] + V(side * 0.06, 0.22, 0.05), 0.82, "shade")
+		seg(c, "PeltEdge", chest * V(side * 0.3, 0.7, -0.4), chest * V(side * 0.58, -0.7, -0.38), 0.24, 0.16, "shade", { roll = side * 25 })
+	end
+	-- the wolf's head on the right shoulder
+	local sk = j.shoulder[1] + V(0.18, 0.55, -0.32)
+	blob(c, "WolfSkull", sk, 0.66, "shade")
+	seg(c, "WolfSnout", sk + V(0.0, -0.02, -0.2), sk + V(0.12, -0.3, -0.78), 0.28, 0.24, "shade", { roll = 0 })
+	blob(c, "WolfNose", sk + V(0.14, -0.33, -0.84), 0.16, "graphite", { shadow = false })
+	seg(c, "WolfJaw", sk + V(0.02, -0.2, -0.2), sk + V(0.14, -0.46, -0.66), 0.2, 0.14, "shade", { shadow = false })
+	for _, d in { -1, 1 } do
+		tri(c, "WolfEar", sk + V(d * 0.2, 0.22, 0.04), sk + V(d * 0.24, 0.6, 0.1), sk + V(d * 0.02, 0.26, 0.08), 0.07, "shade", { shadow = false })
+		blob(c, "WolfEye", sk + V(d * 0.15, 0.08, -0.28), 0.07, "graphite", { shadow = false })
+		for k = 0, 2 do
+			seg(c, "Ruff", sk + V(d * 0.3, -0.1 - k * 0.12, 0.0), sk + V(d * (0.4 + k * 0.05), -0.5 - k * 0.12, 0.1), 0.2, 0.12, "shade", { shadow = false, roll = d * 20 })
+		end
+	end
+	-- left hand gathers the pelt at the chest, right hand open and low
+	arm(c, -1, j.shoulder[-1], V(-0.3, 5.7, -0.78), V(-1, -0.3, 0.2), { hand = { dir = V(1, 0, 0), palm = V(0, 0, 1), curl = 0.9, fingers = 1 } })
+	arm(c, 1, j.shoulder[1], V(1.55, 4.3, -0.5), V(1, -0.2, 0.3), { hand = { dir = V(0.3, -1, -0.3), palm = V(-1, 0, 0), curl = 0.15 } })
+	for _, side in SIDES do
+		disc(c, "Bracer", (j.shoulder[side] + V(side * 0.4, -2.3, -0.1)), V(side, -1, 0), 0.5, 0.2, "bronze", { shadow = false })
+	end
+	ring(c, "Claws", j.neck + V(0, 0.02, -0.04), UP, 0.46, 9, 0.12, 0.1, "bright", { shadow = false })
+	return { aim = V(0, 6.2, 0) }
+end
+
+-- FURNACE, programme IV (Machine Master): the right arm is a machine of iron, pistons, gears and a
+-- glowing seam, raised and open; the left hand rests on a forge hammer. Goggles on the brow.
+function carve.MachineMaster(c)
+	local pelvis = CFrame.new(0, 3.98, 0.02) * turn(6, 0, 2)
+	local chest = CFrame.new(0, 5.82, 0.04) * turn(-8, 2, -3)
+	local hc = CFrame.new(0.0, 7.5, 0.0) * turn(-8, -4, 0)
+	local j = figure(c, { pelvis = pelvis, chest = chest, head = hc, trunk = { build = 1.12, hips = false },
+		face = { hair = "crop", stern = true }, legL = { V(-0.6, 0.3, 0.05), V(-0.72, 0.04, -0.8) }, legR = { V(0.7, 0.3, -0.35), V(0.84, 0.04, -1.05), { pole = V(0.2, 0, -1) } } })
+	-- apron and belt
+	place(c, "Block", "Bib", V(0.96, 1.25, 0.1), chest * CFrame.new(0, -0.18, -0.42), "shade")
+	place(c, "Block", "Belt", V(1.3, 0.2, 0.92), pelvis * CFrame.new(0, 0.58, 0.02), "iron")
+	for k = -2, 2 do
+		blob(c, "BeltRivet", pelvis * V(k * 0.22, 0.58, -0.47), 0.1, "bright", { shadow = false })
+	end
+	drape(c, "Apron", { center = V(0, 0, 0.04), rx = 0.62, rz = 0.46, top = 4.5, flare = 0.3, count = 26, from = -172, to = 172, zig = 12, depth = 0.16, hem = 2.7 })
+	place(c, "Block", "ApronFront", V(1.0, 1.5, 0.1), pelvis * CFrame.new(0, -0.7, -0.56), "shade")
+	-- goggles on the brow
+	for _, side in SIDES do
+		disc(c, "Goggle", hc * V(side * 0.15, 0.34, -0.26), FRONT, 0.3, 0.1, "bronze", { shadow = false })
+		disc(c, "Lens", hc * V(side * 0.15, 0.34, -0.31), FRONT, 0.2, 0.04, "glow", { shadow = false })
+	end
+	rod(c, "GoggleStrap", hc * V(-0.4, 0.34, 0.04), hc * V(0.4, 0.34, 0.04), 0.08, "iron", { shadow = false })
+	-- the machine arm
+	local sh = j.shoulder[1]
+	local wrist = V(1.55, 5.7, -1.7)
+	local elbow = solve(sh, wrist, UPPER_ARM, FOREARM, V(1, -0.6, 0.3))
+	blob(c, "Pauldron", sh + V(0.08, 0.14, 0), 1.0, "iron")
+	disc(c, "PauldronRim", sh + V(0.08, -0.14, 0), UP, 1.0, 0.1, "bright", { shadow = false })
+	rod(c, "ArmUpper", sh, elbow, 0.62, "iron")
+	rod(c, "ArmForearm", elbow, wrist, 0.58, "iron")
+	rod(c, "ArmPistonA", sh:Lerp(elbow, 0.1) + V(0.28, 0.2, 0), elbow + V(0.22, 0.2, 0), 0.16, "steel", { shadow = false })
+	rod(c, "ArmPistonB", elbow + V(0, 0.3, 0.24), wrist + V(0, 0.28, 0.2), 0.16, "steel", { shadow = false })
+	seg(c, "ArmSeam", elbow + V(0, 0.1, -0.24), wrist + V(0, 0.1, -0.2), 0.08, 0.06, "glow", { shadow = false })
+	blob(c, "ArmElbow", elbow, 0.7, "iron")
+	disc(c, "ElbowGear", elbow + V(0.34, 0, 0), V(1, 0, 0), 0.9, 0.1, "bright")
+	ring(c, "GearTeeth", elbow + V(0.4, 0, 0), V(1, 0, 0), 0.48, 10, 0.12, 0.1, "bright", { shadow = false })
+	disc(c, "ShoulderGear", sh + V(0.5, -0.12, 0), V(1, 0, 0), 0.7, 0.1, "bright", { shadow = false })
+	for k = 0, 2 do
+		disc(c, "ForearmBand", elbow:Lerp(wrist, 0.3 + k * 0.25), wrist - elbow, 0.72, 0.1, "bright", { shadow = false })
+	end
+	-- a three-fingered iron hand, open
+	local fw = (wrist - elbow).Unit
+	place(c, "Block", "Palm", V(0.5, 0.45, 0.3), along(wrist + fw * 0.2, fw, UP), "iron")
+	for k = -1, 1 do
+		local base0 = wrist + fw * 0.45 + V(k * 0.17, k * 0.0, 0)
+		rod(c, "Finger", base0, base0 + fw * 0.55 + V(k * 0.12, 0.15, 0), 0.14, "steel", { shadow = false })
+	end
+	-- left arm on the hammer
+	arm(c, -1, j.shoulder[-1], V(-1.0, 4.0, -0.6), V(-1, -0.2, 0.3), { hand = { dir = V(0.3, -1, 0), palm = V(1, 0, 0), curl = 1, fingers = 1 } })
+	rod(c, "HammerShaft", V(-1.0, 4.3, -0.6), V(-1.15, 0.1, -0.6), 0.18, "bronze")
+	place(c, "Block", "HammerHead", V(0.9, 0.55, 0.55), CFrame.new(-1.0, 4.4, -0.6) * turn(0, 0, -4), "iron")
+	place(c, "Block", "HammerFace", V(0.12, 0.7, 0.62), CFrame.new(-0.52, 4.4, -0.6), "steel", { shadow = false })
+	return { aim = V(0, 6.0, 0) }
+end
+
+-- ECLIPSE, programme V (Corruption): a hooded, tattered figure in a dark cracked mask with a
+-- seam of light along the fracture; the right hand lifts open and shards hang about it.
+function carve.Corruption(c)
+	local pelvis = CFrame.new(0, 3.98, 0.02) * turn(-6, 0, 0)
+	local chest = CFrame.new(0, 5.82, 0.04) * turn(6, -2, 0)
+	local hc = CFrame.new(0, 7.5, 0.02) * turn(10, 5, -4)
+	local j = figure(c, { pelvis = pelvis, chest = chest, head = hc, trunk = { bare = false, hips = false },
+		face = { hair = "hood" }, legL = { V(-0.5, 0.3, 0.0), V(-0.6, 0.04, -0.8) }, legR = { V(0.5, 0.3, 0.0), V(0.6, 0.04, -0.8) } })
+	place(c, "Block", "RobeChest", V(1.42, 1.3, 0.86), chest * CFrame.new(0, 0.04, 0.03), "marble")
+	drape(c, "Robe", { center = V(0, 0, 0.04), rx = 0.66, rz = 0.5, top = 4.5, flare = 0.55, count = 26, from = -178, to = 178, zig = 12, depth = 0.15, ragged = 0.28, hem = 0.1 })
+	drape(c, "Cloak", { center = V(0, 0, 0.12), rx = 1.05, rz = 0.6, top = 6.9, flare = 0.5, count = 18, from = 60, to = 300, zig = 14, depth = 0.18, ragged = 0.4, finish = "shade", hem = 0.4 })
+	-- the mask: dark, with a fracture of light and two eye slits
+	place(c, "Ball", "Mask", V(0.64, 0.84, 0.3), hc * CFrame.new(0, -0.06, -0.26), "graphite")
+	place(c, "Block", "MaskBrow", V(0.5, 0.08, 0.1), hc * CFrame.new(0, 0.1, -0.4), "graphite", { shadow = false })
+	for _, side in SIDES do
+		seg(c, "EyeSlit", hc * V(side * 0.14, 0.02, -0.4), hc * V(side * 0.2, 0.0, -0.4), 0.05, 0.03, "glow", { shadow = false, roll = side * 20 })
+		seg(c, "MaskCheek", hc * V(side * 0.22, -0.2, -0.32), hc * V(side * 0.12, -0.4, -0.34), 0.1, 0.06, "graphite", { shadow = false })
+	end
+	local crack = { V(0.06, 0.36, -0.34), V(0.02, 0.2, -0.4), V(0.1, 0.06, -0.41), V(0.04, -0.08, -0.42), V(-0.06, -0.2, -0.41), V(-0.02, -0.34, -0.37) }
+	for k = 1, #crack - 1 do
+		seg(c, "Crack", hc * crack[k], hc * crack[k + 1], 0.035, 0.03, "glow", { shadow = false })
+	end
+	seg(c, "CrackBranch", hc * crack[3], hc * V(0.26, -0.04, -0.34), 0.03, 0.03, "glow", { shadow = false })
+	seg(c, "CrackBranch", hc * crack[5], hc * V(-0.22, -0.3, -0.34), 0.03, 0.03, "glow", { shadow = false })
+	-- right hand open, shards hanging around it
+	local palm = V(1.5, 5.9, -1.35)
+	local corR = arm(c, 1, j.shoulder[1], palm, V(1, -0.4, 0.3), { hand = { dir = V(0, 1, -0.3), palm = V(0, 1, 0), curl = 0.1 } })
+	local corL = arm(c, -1, j.shoulder[-1], V(-0.85, 4.4, -0.5), V(-1, -0.2, 0.3), { hand = { dir = V(0.2, -1, -0.2), palm = V(1, 0, 0), curl = 0.3 } })
+	sleeve(c, 1, corR, 1.0, 0.8)
+	sleeve(c, -1, corL, 1.4, 0.8)
+	local shards = { V(1.1, 7.0, -1.5), V(1.9, 7.4, -1.2), V(1.6, 6.5, -1.9), V(2.2, 6.7, -1.0), V(1.2, 7.8, -1.1), V(2.0, 6.0, -1.7), V(0.7, 6.9, -1.9), V(2.4, 7.5, -1.5) }
+	for k, p in shards do
+		facet(c, "Shard", p, p + V(0.28, 0.1, 0.05), p + V(0.05, 0.42 + (k % 3) * 0.1, -0.1), 0.06, if k % 2 == 0 then "glow" else "graphite", { shadow = false })
+	end
+	return { aim = V(0, 6.4, 0) }
+end
+
+-- LATTICE, programme VI (Syntax): a figure in a long tunic with a floating wire-cube of steel
+-- in front of his raised hand, three axis handles through its centre, the left hand drawing one out.
+function carve.Syntax(c)
+	local pelvis = CFrame.new(0, 3.98, 0.02) * turn(-5, 0, 2)
+	local chest = CFrame.new(0, 5.82, 0.04) * turn(8, 2, -2)
+	local hc = CFrame.new(0, 7.5, 0.02) * turn(-10, -2, 0)
+	local j = figure(c, { pelvis = pelvis, chest = chest, head = hc, trunk = { bare = false, hips = false },
+		face = { hair = "waves" }, legL = { V(-0.5, 0.3, 0.1), V(-0.6, 0.04, -0.7) }, legR = { V(0.55, 0.3, -0.25), V(0.65, 0.04, -0.95), { pole = V(0, 0, -1) } } })
+	place(c, "Block", "TunicChest", V(1.4, 1.3, 0.86), chest * CFrame.new(0, 0.04, 0.03), "marble")
+	place(c, "Block", "Collar", V(0.62, 0.2, 0.5), chest * CFrame.new(0, 0.7, 0.04), "shade", { shadow = false })
+	rod(c, "Belt", pelvis * V(-0.66, 0.5, 0), pelvis * V(0.66, 0.5, 0), 0.4, "steel", { shadow = false })
+	drape(c, "Tunic", { center = V(0, 0, 0.04), rx = 0.6, rz = 0.46, top = 4.5, flare = 0.32, count = 28, from = -172, to = 172, zig = 12, depth = 0.15, hem = 1.9 })
+	-- the frame
+	local mid = V(0.55, 6.6, -2.2)
+	local h = 0.8
+	local pts = {}
+	for ix = -1, 1, 2 do
+		for iy = -1, 1, 2 do
+			for iz = -1, 1, 2 do
+				pts[#pts + 1] = mid + V(ix * h, iy * h, iz * h)
+				blob(c, "FrameCorner", mid + V(ix * h, iy * h, iz * h), 0.2, "gold", { shadow = false })
+			end
+		end
+	end
+	for a = 1, 8 do
+		for b = a + 1, 8 do
+			local d = pts[a] - pts[b]
+			local diff = (math.abs(d.X) > 0.1 and 1 or 0) + (math.abs(d.Y) > 0.1 and 1 or 0) + (math.abs(d.Z) > 0.1 and 1 or 0)
+			if diff == 1 then
+				rod(c, "FrameEdge", pts[a], pts[b], 0.09, "steel", { shadow = false, ext = 0 })
+			end
+		end
+	end
+	for _, axis in { V(1, 0, 0), V(0, 1, 0), V(0, 0, -1) } do
+		rod(c, "Handle", mid - axis * 0.2, mid + axis * 1.6, 0.07, "gold", { shadow = false })
+		blob(c, "HandleTip", mid + axis * 1.75, 0.22, "glow", { shadow = false })
+	end
+	blob(c, "FrameCore", mid, 0.26, "glow", { shadow = false })
+	-- hands: right bears the frame from below, left draws the sideways handle
+	local synR = arm(c, 1, j.shoulder[1], V(1.0, 5.55, -1.6), V(1, -0.5, 0.3), { hand = { dir = V(-0.2, 0.5, -1), palm = V(0, 1, 0), curl = 0.2 } })
+	local synL = arm(c, -1, j.shoulder[-1], V(-0.5, 6.35, -1.7), V(-1, -0.3, 0.2), { hand = { dir = V(1, 0.1, -0.5), palm = V(0, 1, 0), curl = 0.55 } })
+	sleeve(c, 1, synR, 0.8, 0.7)
+	sleeve(c, -1, synL, 0.8, 0.7)
+	return { aim = V(0, 6.4, -0.5) }
+end
+
+-- WARDEN, programme VII (Admin): a robed figure with a tall command staff in the right hand,
+-- the left palm raised, a diadem, a sash and mantle. The staff is topped by a ring and a stone.
+function carve.Admin(c)
+	local pelvis = CFrame.new(0, 3.98, 0.02) * turn(-4, 0, 0)
+	local chest = CFrame.new(0, 5.82, 0.04) * turn(6, 0, -2)
+	local hc = CFrame.new(0, 7.5, 0.0) * turn(-6, 3, 0)
+	local j = figure(c, { pelvis = pelvis, chest = chest, head = hc, trunk = { bare = false, hips = false },
+		face = { hair = "long", beard = "short", stern = true }, legL = { V(-0.5, 0.3, 0.0), V(-0.6, 0.04, -0.8) }, legR = { V(0.55, 0.3, -0.15), V(0.65, 0.04, -0.9) } })
+	place(c, "Block", "RobeChest", V(1.42, 1.3, 0.86), chest * CFrame.new(0, 0.04, 0.03), "marble")
+	drape(c, "Robe", { center = V(0, 0, 0.04), rx = 0.66, rz = 0.5, top = 4.5, flare = 0.5, count = 24, from = -178, to = 178, zig = 10, depth = 0.15, hem = 0.1 })
+	drape(c, "Mantle", { center = V(0, 0, 0.1), rx = 1.0, rz = 0.56, top = 6.8, flare = 0.3, count = 16, from = 70, to = 290, zig = 12, depth = 0.18, finish = "shade", hem = 3.3 })
+	seg(c, "Sash", chest * V(-0.6, 0.55, -0.4), pelvis * V(0.5, 0.1, -0.44), 0.3, 0.12, "shade", { roll = 8 })
+	for _, side in SIDES do
+		blob(c, "Epaulette", j.shoulder[side] + V(side * 0.1, 0.2, 0), 0.86, "gold", { shadow = false })
+	end
+	ring(c, "Diadem", hc * V(0, 0.3, 0.02), hc:VectorToWorldSpace(UP) , 0.4, 14, 0.1, 0.07, "gold", { shadow = false })
+	blob(c, "DiademStone", hc * V(0, 0.34, -0.42), 0.12, "glow", { shadow = false })
+	-- the staff
+	local sx, sz = 1.6, -0.7
+	rod(c, "Staff", V(sx, 0.05, sz), V(sx, 9.4, sz), 0.2, "bronze")
+	for _, y in { 2.0, 4.6, 8.6 } do
+		disc(c, "StaffBand", V(sx, y, sz), UP, 0.34, 0.1, "gold", { shadow = false })
+	end
+	disc(c, "StaffFoot", V(sx, 0.08, sz), UP, 0.4, 0.1, "gold", { shadow = false })
+	ring(c, "StaffRing", V(sx, 9.9, sz), FRONT, 0.55, 16, 0.12, 0.12, "gold")
+	blob(c, "StaffStone", V(sx, 9.9, sz), 0.36, "glow", { shadow = false })
+	for k = 0, 3 do
+		local a = k * math.pi / 2 + math.pi / 4
+		rod(c, "StaffProng", V(sx, 9.4, sz), V(sx + math.cos(a) * 0.4, 9.7, sz + math.sin(a) * 0.4), 0.08, "gold", { shadow = false })
+	end
+	local admR = arm(c, 1, j.shoulder[1], V(sx - 0.05, 5.0, sz), V(1, -0.3, 0.3), { hand = { dir = V(0, -1, 0), palm = V(-1, 0, 0), curl = 1, fingers = 1 } })
+	local admL = arm(c, -1, j.shoulder[-1], V(-1.2, 5.6, -1.2), V(-1, -0.3, 0.2), { hand = { dir = V(-0.2, 0.7, -1), palm = V(0, 0, 1), curl = 0.05 } })
+	sleeve(c, 1, admR, 1.1, 0.8)
+	sleeve(c, -1, admL, 1.1, 0.8)
+	return { aim = V(0, 6.6, 0) }
+end
+
+-- THE EIGHTH (Grandmaster): a wide horse stance in a martial robe with great sleeves and a
+-- knotted sash; the right fist is pressed into the open left palm at the chest, in salute.
+function carve.Grandmaster(c)
+	local pelvis = CFrame.new(0, 3.7, 0.02)
+	local chest = CFrame.new(0, 5.55, 0.04) * turn(0, 2, 0)
+	local hc = CFrame.new(0, 7.22, 0.0) * turn(0, -4, 0)
+	local j = figure(c, { pelvis = pelvis, chest = chest, head = hc, trunk = { bare = false, hips = false },
+		face = { hair = "bald", beard = "long" }, legL = { V(-1.35, 0.3, -0.1), V(-1.7, 0.04, -0.7), { pole = V(-1, 0, -0.4) } }, legR = { V(1.35, 0.3, -0.1), V(1.7, 0.04, -0.7), { pole = V(1, 0, -0.4) } } })
+	place(c, "Block", "RobeChest", V(1.44, 1.3, 0.88), chest * CFrame.new(0, 0.04, 0.03), "marble")
+	for _, side in SIDES do
+		seg(c, "Lapel", chest * V(side * 0.2, 0.66, -0.4), pelvis * V(-side * 0.3, 0.3, -0.44), 0.26, 0.12, "marble", { roll = side * 10 })
+	end
+	rod(c, "Sash", pelvis * V(-0.7, 0.34, 0), pelvis * V(0.7, 0.34, 0), 0.5, "shade", { shadow = false })
+	place(c, "Block", "SashKnot", V(0.34, 0.34, 0.16), pelvis * CFrame.new(0, 0.34, -0.42), "shade", { shadow = false })
+	for _, side in SIDES do
+		seg(c, "SashTail", pelvis * V(side * 0.1, 0.2, -0.46), pelvis * V(side * 0.3, -1.1, -0.44), 0.24, 0.06, "shade", { shadow = false, roll = side * 6 })
+	end
+	drape(c, "Skirt", { center = V(0, 0, 0.04), rx = 0.8, rz = 0.5, top = 4.2, flare = 0.5, count = 30, from = -172, to = 172, zig = 10, depth = 0.15, hem = 1.1 })
+	drape(c, "Train", { center = V(0, 0, 0.1), rx = 0.82, rz = 0.54, top = 6.6, flare = 0.4, count = 18, from = 90, to = 270, zig = 10, depth = 0.16, finish = "shade", hem = 1.0 })
+	for k = 0, 3 do
+		seg(c, "BeardFall", hc * V(0, -0.5 - k * 0.12, -0.26), hc * V(0, -0.9 - k * 0.2, -0.22 - k * 0.04), 0.32 - k * 0.05, 0.12, "marble", { shadow = false, roll = 45 })
+	end
+	-- salute: right fist into left palm
+	local rw, lw = V(0.35, 5.8, -1.0), V(-0.15, 5.85, -1.0)
+	local re = arm(c, 1, j.shoulder[1], rw, V(1, -0.5, 0.2), { hand = { dir = V(-1, 0, 0), palm = V(0, 0, 1), curl = 1, fingers = 1 } })
+	local le = arm(c, -1, j.shoulder[-1], lw, V(-1, -0.5, 0.2), { hand = { dir = V(1, 0.2, 0), palm = V(0, 0, 1), curl = 0.05 } })
+	sleeve(c, 1, re, 1.5, 1.1)
+	sleeve(c, -1, le, 1.5, 1.1)
+	return { aim = V(0, 6.0, 0) }
 end
 
 -- Pedestal, light and inscription --------------------------------------------------------------
@@ -774,7 +1092,7 @@ function Statues.build(powerId: string, base: CFrame, opts: { height: number?, s
 	model:SetAttribute("PowerId", tostring(powerId))
 	model:SetAttribute("Codename", design.codename)
 	local seed = (table.find(Statues.Order, powerId) or 9) * 7919 + 17
-	local c = { parent = model, random = Random.new(seed), count = 0, bad = 0, h = height / 8, origin = base }
+	local c = { color = design.color, parent = model, random = Random.new(seed), count = 0, bad = 0, h = height / 8, origin = base }
 	stretched = 0
 
 	local function guarded(stage: string, fn: () -> ()): boolean
@@ -839,6 +1157,17 @@ function Statues.build(powerId: string, base: CFrame, opts: { height: number?, s
 			model:SetAttribute("Fallback", true)
 		end
 		aim = result and result.aim or aim
+	end
+	-- last resort: a figure that is somehow still empty becomes a simple robed column, never nothing
+	if #figure:GetDescendants() == 0 then
+		pcall(function()
+			c.parent = figure
+			c.origin = ground
+			local h = c.h
+			stone(c, "Cylinder", "Robe", V(5.2 * h, 2.2 * h, 2.2 * h), ground * CFrame.new(0, 2.6 * h, 0) * CFrame.Angles(0, 0, math.rad(90)), "marble")
+			stone(c, "Ball", "Cranium", V(0.8 * h, 0.8 * h, 0.8 * h), ground * CFrame.new(0, 7.4 * h, 0), "marble")
+		end)
+		model:SetAttribute("Fallback", true)
 	end
 	local headPart = figure:FindFirstChild("Cranium", true)
 	if headPart and headPart:IsA("BasePart") then
