@@ -43,6 +43,8 @@ Protocol.CombatEvent = {
 	-- motion: Charge, Feint, Knockdown, GetUp, TechRoll, Breakfall, Taunt, TauntDone, Winded,
 	-- Recovered, PickUp, Drop, PerfectDodge, DodgeCancel, SprintStart, SprintEnd
 	-- (PerfectDodge also has attacker: Model; PickUp and Drop have prop: string)
+	-- A fighter evolved: play the transformation effect at them. Sent to everyone.
+	Transform = "Transform", -- { fighter: Model, power: string, from: number, to: number, duration: number }
 	Motion = "Motion", -- { fighter: Model, motion: string, direction: Vector3?, duration: number? }
 }
 
@@ -118,6 +120,7 @@ Protocol.PowerAction = {
 	Confirm = "Confirm", -- (powerId, degree, loadout?) the one confirm step: charges once when it switches to a different priced degree
 	Trial = "Trial", -- (powerId, degree, loadout?) Training (or the owner's showcase) only: any power and degree, free, never saved
 	EndTrial = "EndTrial", -- () back to the saved selection
+	Evolve = "Evolve", -- () transform into the next phase (degree) mid-fight: meter full, fee paid once, or free in Training. Reply: SelectionResult (action "Evolve")
 	SetShowcase = "SetShowcase", -- (on: boolean) owner only: combat powers work in the lobby while it is on
 }
 
@@ -236,6 +239,14 @@ Protocol.Attribute = {
 	StatusPrefix = "SNS_",
 	-- A power's visual stage (Corruption's overwrite, Machine Master's heat...), 0 to 1
 	Phase = "SNPhase",
+	-- Evolution (docs/specs/SelectionContract.md): the Phase meter 0..100, the current phase number
+	-- (= degree, 1 to 4), the Money fee and name of the next phase the player could evolve into
+	-- (nil when there is none or it is still locked), and the server time a transformation ends
+	PhaseMeter = "SNPhaseMeter",
+	PhaseNumber = "SNPhaseNo",
+	PhaseFee = "SNPhaseFee",
+	PhaseNext = "SNPhaseNext",
+	TransformUntil = "SNTransformUntil",
 	-- The Grandmaster's extra meters (0 to 100): Focus (Degree III+) and Perfect Form (Degree IV)
 	Focus = "SNFocus",
 	PerfectForm = "SNPerfect",
@@ -303,6 +314,10 @@ Protocol.SelectionCode = {
 	Queued = "QUEUED", -- leave the queue to change the selection
 	NotInTraining = "NOT_IN_TRAINING", -- Trial works in the training hall (or the owner's showcase) only
 	NotOwner = "NOT_OWNER", -- showcase mode is for the owner
+	NotFighting = "NOT_FIGHTING", -- Evolve works only in a running match or Training
+	MeterNotFull = "METER_NOT_FULL", -- Evolve needs the Phase meter full
+	MaxPhase = "MAX_PHASE", -- already in the highest phase
+	Transforming = "TRANSFORMING", -- a transformation is already under way
 	BadLoadout = "BAD_LOADOUT", -- the loadout is invalid or has too many abilities for the slots
 }
 
