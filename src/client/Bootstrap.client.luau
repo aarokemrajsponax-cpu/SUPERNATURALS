@@ -15,9 +15,11 @@ local ORDER = {
 	"UIController",
 	"SpectatorController",
 	"JefferyController",
+	"PracticeController",
 	"WorldFxController",
 	"PromptController",
 	"AdminEffectsController",
+	"OverlordFxController",
 	"OwnerController",
 }
 

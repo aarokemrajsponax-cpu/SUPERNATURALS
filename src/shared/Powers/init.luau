@@ -67,7 +67,11 @@ function Powers.isPremium(powerId: string): boolean
 	return def ~= nil and def.premium ~= nil
 end
 
-function Powers.masteryLevel(xp: number): number
+function Powers.masteryLevel(xp: number?): number
+	-- A power with no mastery record yet (common for premium powers) is level 1
+	if typeof(xp) ~= "number" then
+		xp = 0
+	end
 	local level = 1
 	for index, needed in Powers.Mastery.Thresholds do
 		if xp >= needed then
@@ -78,7 +82,7 @@ function Powers.masteryLevel(xp: number): number
 end
 
 -- XP still needed for the next level (nil at the top level)
-function Powers.nextLevelXp(xp: number): number?
+function Powers.nextLevelXp(xp: number?): number?
 	local level = Powers.masteryLevel(xp)
 	return Powers.Mastery.Thresholds[level + 1]
 end

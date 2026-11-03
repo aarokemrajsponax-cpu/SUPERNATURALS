@@ -46,6 +46,15 @@ function Overlord.explain(code: string): string
 		effect_failed = "An effect failed to start, so everything was rolled back.",
 		bad_params = "A setting was out of range.",
 		unknown_event = "No such running event.",
+		rate_limited = "Too many commands too quickly. Wait a moment.",
+		bad_scope = "That server selection is not valid.",
+		global_sync_failed = "The command could not be shared with other servers, so it is not reported as successful.",
+		payload_too_large = "That combination is too large to send to other servers.",
+		unknown_server = "That server is not registered right now.",
+		teleport_failed = "The teleport did not start.",
+		store_failed = "Saving failed. Try again.",
+		expired = "That command is out of date.",
+		bad_command = "The command was malformed.",
 	}
 	return text[head] or code
 end
@@ -199,7 +208,6 @@ function Overlord:activate(actor, entries, opts)
 	-- Tags and channels, between the new presets and against what already runs
 	local claimed = {}
 	local replace = {}
-	local freed = 0
 	for i, plan in plans do
 		for j = 1, i - 1 do
 			if tagsClash(plan.preset, plans[j].preset) or tagsClash(plans[j].preset, plan.preset) then
@@ -314,8 +322,10 @@ end
 function Overlord:_settle()
 	local gameplay = false
 	for _, event in self.active do
-		if event.preset.eventMode then
-			gameplay = true
+		for _, entry in event.stops do
+			if entry.group == "gameplay" then
+				gameplay = true
+			end
 		end
 	end
 	if not gameplay then

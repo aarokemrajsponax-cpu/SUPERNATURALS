@@ -1,6 +1,7 @@
 -- Switches the seasonal decoration set (the SeasonalDecor system listens to the override).
 -- Restores the previous override, so the calendar takes over again after the event.
-local Seasons = require(game:GetService("ReplicatedStorage").Shared.Seasons)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Seasons = require(ReplicatedStorage.Shared.Seasons)
 local ids = {}
 for id in Seasons.Themes do
 	table.insert(ids, id)

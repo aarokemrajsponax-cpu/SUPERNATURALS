@@ -1199,7 +1199,8 @@ check("§38: junk requests, cooldown spam and other degrees' abilities are refus
 	assert(rejection(mark, alice, "RuleRewrite") == "not equipped", "other degree")
 	assert(rejection(mark, alice, "Groundbreaker") == "unknown", "other power")
 	assert(rejection(mark, alice, "SystemOverride") == "charge", "no charge")
-	assert(castsSince(mark, a, "CodeBolt") == 1, "the junk aim was cleaned up and cast once")
+	-- Code Bolt is aimed, so a junk direction from a player is refused (and flagged), never cast
+	assert(castsSince(mark, a, "CodeBolt") == 0 and rejection(mark, alice, "CodeBolt") == "bad aim", "the junk aim was refused")
 	-- Spamming on cooldown never casts twice
 	task.wait(0.6)
 	ready(a)

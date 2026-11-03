@@ -47,7 +47,7 @@ local OverlordService = {}
 local MAX_COMBOS = 50
 
 local function wallClock(): number
-	return DateTime.now().UnixTimestampMillis / 1000
+	return os.time()
 end
 
 local function randomId(): string

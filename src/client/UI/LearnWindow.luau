@@ -121,7 +121,17 @@ local function build(body: Frame)
 			c:replayTutorial()
 		end
 	end)
-	local _ = { tabs, talk, replay }
+	local practice = Components.button("Practice with Jeffery", {
+		Name = "PracticeButton", Variant = "Secondary", KeepCase = true, AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -356, 0, 0), Size = UDim2.fromOffset(200, 44), Parent = top,
+	}, function()
+		local ok, module = pcall(require, script.Parent.Parent.Controllers.PracticeController)
+		if ok and module.instance then
+			Shell.close()
+			module.instance:openWindow()
+		end
+	end)
+	local _ = { tabs, talk, replay, practice }
 
 	local cards: { [string]: Frame } = {}
 	for order, section in LearnWindow.Sections do

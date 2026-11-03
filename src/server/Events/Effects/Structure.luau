@@ -143,7 +143,7 @@ return {
 	kinds = kinds,
 	params = {
 		kind = { type = "enum", values = kinds, default = "ring" },
-		count = { type = "number", min = 1, max = 24, default = 8, scales = true },
+		count = { type = "number", min = 1, max = 48, default = 8, scales = true },
 		scale = { type = "number", min = 0.4, max = 3, default = 1 },
 		height = { type = "number", min = 0, max = 80, default = 30 },
 		color = { type = "color", default = { 255, 200, 90 } },

@@ -86,7 +86,8 @@ function BaseService:viewOf(player: Player, profile: any): any
 		local def = Powers.get(id)
 		if def then
 			local saved = profile.powers[id]
-			local xp = if saved then saved.xp else 0
+			-- A power can have a record (bought, or a trial) before it has any experience
+			local xp = if saved and typeof(saved.xp) == "number" then saved.xp else 0
 			local level = Powers.masteryLevel(xp)
 			local nextXp = Powers.nextLevelXp(xp)
 			local progress = if nextXp then (xp - thresholds[level]) / (nextXp - thresholds[level]) else 1

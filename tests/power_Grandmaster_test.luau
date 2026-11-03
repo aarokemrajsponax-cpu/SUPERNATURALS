@@ -327,7 +327,7 @@ check("Dragon's Step: a real dash, untouchable, Chi and cooldown; a strike throu
 	local markPlain = game.mark()
 	use(alice, "DragonsStep", a, b)
 	task.wait(0.05)
-	assert(math.abs(a.power.resource - (50 - DEF.abilities.DragonsStep.cost)) < 1, "Chi spent: " .. tostring(a.power.resource))
+	assert(math.abs(a.power.resource - (50 - Powers.scaledCost("Grandmaster", DEF.abilities.DragonsStep.cost))) < 1, "Chi spent: " .. tostring(a.power.resource))
 	task.wait(0.35)
 	assert(#fxSince(markPlain, "StepRead") == 0, "no read without an attack")
 	task.wait(0.4)
@@ -379,7 +379,7 @@ check("Crane's Reversal (Degree II): a strike into the stance is redirected and 
 	heal(a)
 	heal(b)
 	local aliceHealth, bobHealth = a.humanoid.Health, b.humanoid.Health
-	local chi = a.power.resource - DEF.abilities.CranesReversal.cost
+	local chi = a.power.resource - Powers.scaledCost("Grandmaster", DEF.abilities.CranesReversal.cost)
 	local mark = game.mark()
 	use(alice, "CranesReversal", a, b)
 	task.wait(0.06)

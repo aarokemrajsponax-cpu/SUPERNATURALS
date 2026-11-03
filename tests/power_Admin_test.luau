@@ -670,7 +670,9 @@ check("Barrier: blocks shots, breaks, expires and keeps to its cap", function()
 	equip(B(), 1, {})
 	local def = ability("Barrier", 3)
 	local a, b = reset(30)
-	request("AbilityRequest", alice, "Barrier", aimAt(a, b))
+	-- The Barrier is placed where Alice clicks: here, between the two of them
+	local toward = (b.root.Position - a.root.Position).Unit
+	request("AbilityRequest", alice, "Barrier", { direction = toward, point = a.root.Position + toward * def.distance })
 	task.wait(def.startup + 0.4)
 	local wall = constructs(a, "Barrier")[1]
 	assert(wall and wall.health == def.health, "a wall at full health")

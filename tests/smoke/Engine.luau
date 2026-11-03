@@ -879,6 +879,135 @@ local DateTime = {
 
 -- Building a game -------------------------------------------------------------------------
 
+-- Cross-server services -------------------------------------------------------------------
+-- A fake cloud shared by several fake servers: MessagingService (best effort, with switches to
+-- drop messages), MemoryStoreService sorted maps with expiry, and TeleportService calls.
+--   local cloud = Engine.newCloud()
+--   local a = cloud:server("job-A")  -- { MessagingService, MemoryStoreService, TeleportService }
+--   cloud.dropFor["job-B"] = true     -- server B misses every message
+--   cloud.publishFailures = 2         -- the next 2 PublishAsync calls error
+--   cloud.memoryFailures = 1          -- the next MemoryStore call errors
+--   cloud.time = 100                  -- the clock MemoryStore expiry uses (seconds)
+local function copyData(value)
+	if type(value) ~= "table" then
+		return value
+	end
+	local out = {}
+	for k, v in value do
+		out[k] = copyData(v)
+	end
+	return out
+end
+local function dataSize(value): number
+	if type(value) == "string" then
+		return #value + 2
+	elseif type(value) == "table" then
+		local total = 2
+		for k, v in value do
+			total += dataSize(k) + dataSize(v) + 1
+		end
+		return total
+	end
+	return 8
+end
+
+function Engine.newCloud()
+	local cloud = {
+		time = 0,
+		subscribers = {} :: { [string]: { { job: string, callback: any, active: boolean } } },
+		dropFor = {} :: { [string]: boolean },
+		publishFailures = 0,
+		memoryFailures = 0,
+		maps = {} :: { [string]: { [string]: { value: any, expires: number } } },
+		published = {} :: { any },
+		teleports = {} :: { any },
+	}
+	local function memoryCall()
+		if cloud.memoryFailures > 0 then
+			cloud.memoryFailures -= 1
+			error("MemoryStore request failed (simulated)")
+		end
+	end
+	function cloud:server(job: string)
+		local messaging = {}
+		function messaging.SubscribeAsync(_, topic: string, callback)
+			local subscription = { job = job, callback = callback, active = true }
+			cloud.subscribers[topic] = cloud.subscribers[topic] or {}
+			table.insert(cloud.subscribers[topic], subscription)
+			return {
+				Disconnect = function()
+					subscription.active = false
+				end,
+			}
+		end
+		function messaging.PublishAsync(_, topic: string, data)
+			if cloud.publishFailures > 0 then
+				cloud.publishFailures -= 1
+				error("PublishAsync failed (simulated)")
+			end
+			if dataSize(data) > 1024 then
+				error("message is larger than 1 kB")
+			end
+			table.insert(cloud.published, { topic = topic, from = job, data = copyData(data) })
+			for _, subscription in cloud.subscribers[topic] or {} do
+				if subscription.active and not cloud.dropFor[subscription.job] then
+					subscription.callback({ Data = copyData(data), Sent = cloud.time })
+				end
+			end
+		end
+		local memory = {}
+		function memory.GetSortedMap(_, name: string)
+			cloud.maps[name] = cloud.maps[name] or {}
+			local map = cloud.maps[name]
+			local api = {}
+			local function live(key)
+				local item = map[key]
+				if item and item.expires <= cloud.time then
+					map[key] = nil
+					return nil
+				end
+				return item
+			end
+			function api.SetAsync(_, key, value, expiration)
+				memoryCall()
+				map[key] = { value = copyData(value), expires = cloud.time + (expiration or 3888000) }
+				return true
+			end
+			function api.GetAsync(_, key)
+				memoryCall()
+				local item = live(key)
+				return item and copyData(item.value)
+			end
+			function api.RemoveAsync(_, key)
+				memoryCall()
+				map[key] = nil
+			end
+			function api.GetRangeAsync(_, _direction, count)
+				memoryCall()
+				local keys = {}
+				for key in map do
+					if live(key) then
+						table.insert(keys, key)
+					end
+				end
+				table.sort(keys)
+				local out = {}
+				for index = 1, math.min(count or 200, #keys) do
+					table.insert(out, { key = keys[index], value = copyData(map[keys[index]].value) })
+				end
+				return out
+			end
+			return api
+		end
+		local teleport = {}
+		function teleport.TeleportToPlaceInstance(_, placeId, jobId, player)
+			table.insert(cloud.teleports, { placeId = placeId, jobId = jobId, player = player, from = job })
+		end
+		return { MessagingService = messaging, MemoryStoreService = memory, TeleportService = teleport }
+	end
+	return cloud
+end
+
 function Engine.load(placePath: string)
 	local game = roblox.deserializePlace(fs.readFile(placePath))
 	local workspace = game:GetService("Workspace")
@@ -931,7 +1060,13 @@ function Engine.load(placePath: string)
 	playerGui.Parent = localPlayer
 	table.insert(Engine.players, localPlayer)
 
+	-- Default cross-server services for the single server a normal test starts
+	Engine.cloud = Engine.newCloud()
+	local defaultCloud = Engine.cloud:server("job-local")
 	local fakeServices = {
+		MessagingService = defaultCloud.MessagingService,
+		MemoryStoreService = defaultCloud.MemoryStoreService,
+		TeleportService = defaultCloud.TeleportService,
 		Players = fakePlayers(localPlayer),
 		CollectionService = fakeCollectionService(),
 		DataStoreService = fakeDataStoreService(),
@@ -949,6 +1084,10 @@ function Engine.load(placePath: string)
 				return 0
 			elseif key == "CreatorType" then
 				return roblox.Enum.CreatorType.User
+			elseif key == "PrivateServerId" then
+				return ""
+			elseif key == "PlaceId" then
+				return 1
 			elseif key == "JobId" then
 				return Engine.jobId
 			end

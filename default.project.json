@@ -24,6 +24,9 @@
       "Shared": {
         "$path": "src/shared"
       },
+      "OverlordFx": {
+        "$className": "Folder"
+      },
       "Remotes": {
         "$className": "Folder",
         "CombatRequest": {

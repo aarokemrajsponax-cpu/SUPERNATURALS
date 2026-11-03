@@ -191,7 +191,10 @@ function CpuService:_recover(fighter, brain, target, time: number): boolean
 			if math.random() < difficulty.breakfallChance then
 				local at = state.airborneSince + config.Air.BreakfallAfter + math.random() * 0.3
 				task.delay(math.max(0, at - time), function()
-					combat:perform(fighter, Action.Dodge, { dir = away })
+					-- The unit may have been removed meanwhile (a practice round ended)
+					if brains[fighter.id] == brain and self.characters:isAlive(fighter) then
+						combat:perform(fighter, Action.Dodge, { dir = away })
+					end
 				end)
 			end
 		end

@@ -38,6 +38,7 @@ local WINDOW_NAMES = {
 	Homes = { "Homes" },
 	Powers = { "Powers" },
 	Archive = { "Archive" },
+	Practice = { "Practice" },
 }
 
 function WorldFxController:Start()
