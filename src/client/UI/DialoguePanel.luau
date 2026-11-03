@@ -197,7 +197,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 	local frame = make("Frame", {
 		Name = "JefferyDialogue",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -28),
+		Position = UDim2.new(0.5, 0, 1, -150),
 		Size = UDim2.fromOffset(config.Size.X, config.Size.Y),
 		BackgroundTransparency = 1,
 		Visible = false,
@@ -213,7 +213,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		Position = UDim2.fromScale(1, 1),
 		Size = UDim2.new(0, config.Size.X - panelLeft, 1, 0),
 		BackgroundColor3 = Colors.Panel,
-		BackgroundTransparency = 0.08,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		ZIndex = 20,
 		Parent = frame,

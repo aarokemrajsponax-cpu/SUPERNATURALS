@@ -81,11 +81,20 @@ check("the Nexus lobby builds: plaza, gates with prompts, statues, spawn", funct
 				assert(world.services.CollectionService:HasTag(holder, "SNLoreTerminal"), `file {loreId} is tagged`)
 				files[loreId] = true
 			else
-				prompts += 1
+				if not item:FindFirstAncestor("Jeffery") then
+					prompts += 1
+				end
 			end
 		end
 	end
 	assert(prompts == #Nexus.Gates, `one prompt per gate ({prompts})`)
+	-- Jeffery stands beside his door: a nameplate and his own prompt on T / D-pad right
+	local jeffery = folder:FindFirstChild("Jeffery", true)
+	assert(jeffery, "Jeffery stands in the hub")
+	assert(jeffery:FindFirstChild("Nameplate", true), "Jeffery has his nameplate")
+	local talk = jeffery:FindFirstChildWhichIsA("ProximityPrompt", true)
+	assert(talk and talk.KeyboardKeyCode == roblox.Enum.KeyCode.T and talk.GamepadKeyCode == roblox.Enum.KeyCode.DPadRight, "Jeffery's prompt uses T / D-pad right")
+	assert(talk:GetAttribute("Action") == "Window:Learn", "Jeffery opens How to Play")
 	for id in Archive.Files do
 		assert(files[id], `recovered file {id} is placed in the hub`)
 	end

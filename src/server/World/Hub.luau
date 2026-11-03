@@ -14,7 +14,7 @@
 -- Portals (Hub.Gates, mirrored as Nexus.Gates): each is a Model "Portal_<id>" holding the
 -- lit frame, the sign (room name, wayfinding mark, subtitle) and a PortalSurface with a
 -- ProximityPrompt whose attribute "Action" the client reads (WorldFxController):
---   Entrance         Travel:Lobby      Test Chambers    Window:Play
+--   Entrance         Travel:Lobby      Test Chambers    Travel:Concourse
 --   Training Studio  Travel:Training   Jeffery's Base   Window:Learn (falls back to Play)
 --   Spectating       Window:Watch      Master Shop      Window:Market
 --   Player Base St.  Window:Homes      Calibration      Window:Powers (+ CFrameValue "PreviewCamera")
@@ -111,7 +111,7 @@ local EXPANSION = rgb(224, 106, 106)
 
 Hub.Gates = {
 	gate("Entrance", "ENTRANCE", "Spawn and arrivals", 90, SOCIAL, "Travel:Lobby", "Return to spawn", { open = true }),
-	gate("Battle", "TEST CHAMBERS", "Find a fight", 0, COMBAT, "Window:Play", "Find a fight"),
+	gate("Battle", "TEST CHAMBERS", "Battleground concourse", 0, COMBAT, "Travel:Concourse", "Enter the concourse"),
 	gate("Training", "TRAINING STUDIO", "Practise on dummies", 180, TRAINING, "Travel:Training", "Go to training", { open = true }),
 	gate("Learn", "JEFFERY'S BASE", "How to play", -135, SOCIAL, "Window:Learn", "Learn to play"),
 	gate("Watch", "SPECTATING LOUNGE", "Watch live matches", 45, SOCIAL, "Window:Watch", "Watch a match"),

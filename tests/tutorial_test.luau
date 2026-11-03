@@ -159,7 +159,9 @@ check("training, attack, block, dodge, ability, evolve, showcase run on real eve
 	table.clear(fighter.power.cooldowns)
 	api.request("AbilityRequest", alice, "Groundbreaker", { direction = Vector3.new(1, 0, 0), point = dummy.root.Position })
 	waitStep(alice, "evolve")
-	task.wait(1.2)
+	for i = 1, 6 do
+		task.wait(0.3)
+	end
 	local trial = api.lastSent("DataEvent", "SelectionResult", alice)
 	assert(trial and trial.action == "Trial" and trial.ok, "a trial was started for the evolve step: " .. tostring(trial and trial.action) .. " " .. tostring(trial and trial.message) .. " training=" .. tostring(fighter.power.training))
 	api.request("PowerRequest", alice, "Evolve")
@@ -187,7 +189,7 @@ check("winning a duel finishes the path and pays the reward exactly once", funct
 	local swings = 0
 	while target.humanoid.Health > 0 and swings < 90 do
 		if api.fighter(bob) == target then
-			api.faceOff(alice, bob, 3)
+			api.faceOff(api.fighter(alice), api.fighter(bob), 3)
 		end
 		api.request("CombatRequest", alice, if swings % 5 == 4 then "Heavy" else "Light")
 		swings += 1

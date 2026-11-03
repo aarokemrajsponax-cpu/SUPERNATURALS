@@ -389,7 +389,7 @@ end
 function PowerService:combatContext(fighter)
 	local match = self.services.MatchService:getMatchOf(fighter)
 	if match then
-		return if MatchFlow.isFighting(match.flow) then VERDICTS.MatchOn else VERDICTS.MatchOff
+		return if match.flow ~= nil and MatchFlow.isFighting(match.flow) then VERDICTS.MatchOn else VERDICTS.MatchOff
 	end
 	if fighter.npc then
 		return VERDICTS.Npc
@@ -1545,6 +1545,7 @@ function PowerService:equip(fighter, powerId: string, degree: number, loadout: {
 		loadout = table.clone(loadout),
 		ultimate = Powers.ultimateOf(powerId, degree),
 		trial = opts ~= nil and opts.trial == true,
+		training = opts ~= nil and (opts :: any).training == true,
 		cooldowns = {},
 		resource = if resourceDef then resourceDef.start else 0,
 		resourceMax = if resourceDef then resourceDef.max else 0,
