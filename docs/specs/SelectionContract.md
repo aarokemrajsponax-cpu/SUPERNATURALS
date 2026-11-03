@@ -1,4 +1,4 @@
-# Selection contract: lobby, training, match, prices
+# Selection contract: lobby, training, match, phases (evolving)
 
 For the interface agent. Server code: `PowerService` (rules, prices, snapshot), guards in
 `CombatService:canAct` and `AbilityService`, queue hook in `MatchService`. Numbers live in
@@ -13,14 +13,21 @@ everything; a screen only asks and shows. Screens may `require` Selection for pr
   (`PowerService:combatContext`) answers for every entry point.
 - **Training is free.** `Trial` equips any power and degree (all abilities unlocked, no ownership,
   nothing charged). It never touches the saved selection. It ends on leaving the hall, queueing or a match.
-- **Match selection**: fighter, degree and loadout are picked when entering a match, in one confirm step.
-  The saved selection **stays equipped until the player switches** (`stays = true`).
-- **Price** (Money): charged once, on confirm, only when the power or degree differs from the saved
-  selection and the target has a price. Re-confirming the same selection, a new loadout, browsing, `State`
-  and `Quote` never charge. Not enough Money: refused, nothing taken, nothing changed. Degree 1 of a
-  standard fighter is free; premium fighters have their own prices. A premium power the player does not own
-  is a **trial only** (Practice and Training); Duel and Free-for-All refuse it (`NOT_OWNED`) and it costs nothing.
-- **Owner**: every power, degree, ability and slot, price 0, no ownership records written.
+- **Match selection**: fighter and loadout are picked when entering a match, in one confirm step, and it
+  **never charges**. The saved selection stays equipped until the player switches (`stays = true`).
+  A premium power the player does not own is a **trial only** (Practice and Training); Duel and
+  Free-for-All refuse it (`NOT_OWNED`).
+- **Phases** (DECISIONS 14): a power's degrees are its phases. **Every match starts in Phase 1**, whatever degree
+  was saved. A player who has unlocked a higher degree (existing mastery or `UnlockDegree` rules) can evolve
+  mid-fight once the Phase meter is full, paying that phase's fee in Money. The fee is charged once, only when the
+  transformation happens; a refused request takes nothing. The phase lasts for the match (a new life keeps it, with an
+  empty meter). At match end the fighter returns to the saved selection, not evolved. The meter fills from combat (hits
+  dealt and taken; numbers in `Selection.Phase`) and empties on evolving and on a new life.
+- **Training**: Evolve is free, instant (no meter), and resets when the hall is left. **Owner**: free, no unlock needed.
+  **CPUs** evolve for free when their meter fills, up to `Selection.Phase.CpuMaxPhase` (2, Hard 3).
+- **Transformation window**: `Selection.Phase.TransformTime` (0.8 s) of hyper-armour (3 hits) and no meter gain; one
+  transformation at a time.
+- **Owner**: every power, degree, ability and slot, fee 0, no ownership records written.
 - **Extra ability slot**: +1 loadout slot per power, earned at mastery level `Selection.ExtraSlot.MasteryLevel`
   or for every power by the game pass `Monetization.Passes.ExtraAbilitySlot` (may not exist yet; `pass` is
   nil then and nothing can be bought). Never more than `Selection.ExtraSlot.MaxTotal` slots (6: the ability bar's keys).
@@ -33,7 +40,8 @@ everything; a screen only asks and shows. Screens may `require` Selection for pr
 |---|---|---|
 | `State` | none | Replies `DataEvent.Selection`. Ask when a screen opens. |
 | `Quote` | powerId, degree, loadout? | Replies `DataEvent.SelectionQuote`. Read-only. |
-| `Confirm` | powerId, degree, loadout? | The confirm step. Replies `SelectionResult` then `Selection`. |
+| `Confirm` | powerId, degree, loadout? | The confirm step (fighter and loadout; never charges). Replies `SelectionResult` then `Selection`. |
+| `Evolve` | none (any argument is `BAD_REQUEST`) | Next phase, mid-fight. Replies `SelectionResult` with `action = "Evolve"`, `degree` (new), `from`, `charged`. |
 | `Select` | powerId, degree | Old name for `Confirm` without a loadout. Same prices. |
 | `SetLoadout` | powerId, degree, loadout | Saves a loadout (no price). Respects the slot count. Replies `SelectionResult`. |
 | `Trial` | powerId, degree, loadout? | Training or showcase only. Free, not saved. |
@@ -43,8 +51,8 @@ everything; a screen only asks and shows. Screens may `require` Selection for pr
 
 Entering a match: `MatchRequest` `Queue(modeName, { arena?, cpuPower?, cpuDifficulty?, selection? })`
 with `selection = { power, degree, loadout? }` is the same confirm step followed by the queue. Refused
-selection: nothing charged, not queued, a `SelectionResult` (`action = "Queue"`) and a `MatchEvent.Notice`.
-A failed solo start (all arenas busy) undoes the charge and the switch. No `selection`: the saved one is used.
+selection: not queued, a `SelectionResult` (`action = "Queue"`) and a `MatchEvent.Notice`.
+A failed solo start (all arenas busy) undoes the switch. The match itself still starts in Phase 1. No `selection`: the saved one is used.
 Changes are refused while queued (`QUEUED`) or in a match (`IN_MATCH`); leave the queue first.
 
 ## Events (server to client), `Remotes.DataEvent`
@@ -64,8 +72,9 @@ powers[powerId] = { id, name, premium, owned, level, extraSlot,
                   trialOnly, canAfford, baseSlots, slots, code } } }
 ```
 
-`price` is the selection price; `charge` is what Confirm would take **now** (0 when equipped already,
-free, owner or trial-only). Show `charge` before the confirm button and disable it when `canAfford` is false.
+`price` is the phase fee (Money to evolve into that degree); `fee` is the same for this player (0 for the owner);
+`feeAffordable` is whether their Money covers it. `charge` is what Confirm would take: always 0 now, and
+`canAfford` is always true. Show the fee next to each phase on the loadout screen.
 `code` is what Confirm would answer now. `unlocked` is the degree itself (mastery level or the existing
 `UnlockDegree` Money price), separate from the selection price. Re-ask `State` after any profile change.
 
@@ -80,21 +89,33 @@ Also: the combat remotes send `Rejected` with `reason = "lobby"`, plus a calm `M
 5 seconds. Fighter models carry attribute `SNCombatContext` (`Protocol.CombatContext`); skip predicted
 attack animations unless it is `Match`, `Training` or `Showcase`. Players carry `SNShowcase` while it is on.
 
+## Phase attributes and events
+
+Character attributes (`Protocol.Attribute`): `SNPhaseMeter` (0 to 100), `SNPhaseNo` (current phase = degree, 1 to 4),
+`SNPhaseFee` and `SNPhaseNext` (Money fee and name of the next phase this player has unlocked; absent when
+there is none, 0 when free), `SNTransformUntil` (server time the transformation window ends, absent otherwise).
+`SNPhase` is unchanged: it is a power's own visual stage (0 to 1), not this.
+`CombatEvent.Transform` to everyone: `{ fighter: Model, power, from, to, duration }`. The client plays a burst in the
+power's colour (`EffectsController:_onTransform`); per-fighter cinematics come later.
+Client input: key T, gamepad Start, touch button, all sending `PowerRequest "Evolve"`.
+
 ## Codes (`Protocol.SelectionCode`)
 
 `OK` accepted. `BAD_REQUEST` junk or forged arguments. `LOADING` profile not ready. `DEGREE_LOCKED` reach the
 mastery level or pay the unlock. `NOT_OWNED` Duel and Free-for-All need the premium power. `CANT_AFFORD` nothing
 taken. `IN_MATCH` locked until it ends. `QUEUED` leave the queue first. `NOT_IN_TRAINING` Trial outside the hall.
-`NOT_OWNER` showcase is owner only. `BAD_LOADOUT` invalid, duplicated, locked, or too many for the slots.
+`NOT_OWNER` showcase is owner only. Evolve adds `NOT_FIGHTING` (not in a running match or Training),
+`METER_NOT_FULL`, `MAX_PHASE`, `TRANSFORMING`; it also answers `DEGREE_LOCKED`, `NOT_OWNED`, `CANT_AFFORD`, `BAD_REQUEST`, `LOADING`. `BAD_LOADOUT` invalid, duplicated, locked, or too many for the slots.
 
-## Prices (Money, per switch)
+## Phase fees (Money, per evolution)
 
-Standard fighters: degree 1 free, 2: 100, 3: 250, 4 (Grandmaster): 500. Corruption 150 / 375 / 750,
-Syntax 200 / 500 / 1,000, Admin 250 / 625 / 1,250 (plus their one-time Robux unlock). Reasoning is in the
-comment above `Selection.Prices`.
+Standard fighters: phase 2: 20, phase 3: 30, phase 4 (Grandmaster): 38. Corruption 25 / 38, Syntax 30 / 45,
+Admin 35 / 50 (plus their one-time Robux unlock). A typical match pays about 75 Money, so a fee is a quarter to a half of
+one. Reasoning is in the comment above `Selection.Prices`. No Robux product grants Money (all are Gems).
 
 ## What the interface must still do
 
-Draw the confirm screen from `Selection` (cost shown before confirming, affordability, "stays equipped until
-you switch", trial-only note); send `Queue` with `selection`; use `Trial` inside the hall; read `SNCombatContext`;
-show the extra slot and its pass; add a seventh ability key only if `ExtraSlot.MaxTotal` is raised.
+Loadout screen: choose fighter and loadout, show each phase's fee, unlock state and affordability (`fee`, `feeAffordable`),
+say that matches start in Phase 1; send `Queue` with `selection`; use `Trial` inside the hall; read `SNCombatContext`;
+show the extra slot and its pass. In the fight: style `UI/PhaseMeter` (functional placeholder), a "meter full" cue,
+the per-fighter transformation cinematic, and `SelectionResult` with `action = "Evolve"` (the server already toasts refusals).

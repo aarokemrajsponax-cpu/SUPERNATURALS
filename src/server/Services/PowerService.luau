@@ -12,9 +12,8 @@
 --     lobby refuses it. CombatService:canAct, AbilityService and
 --     MatchService:isCombatAllowed all end here, so a client can't go around it.
 --   * Selection: one confirm step (Confirm, Select, or a Queue that carries a
---     selection) that charges the degree's price once, only when it switches to a
---     different priced degree. Prices are in Config/Selection. Browsing, quotes and
---     snapshots never charge.
+--     selection) that never charges. Phase fees (Config/Selection) are paid only when
+--     evolving mid-match (PowerService:evolve). Browsing, quotes and snapshots never charge.
 --   * Training trials: any power and degree for free, never saved, and gone when
 --     the player leaves the hall or queues.
 --   * The extra ability slot (mastery level, or the all-powers pass; free for the owner).
