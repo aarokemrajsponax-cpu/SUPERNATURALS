@@ -86,7 +86,7 @@ Tutorial.Steps = {
 	},
 	{
 		id = "evolve", event = "evolve", face = "proud", title = "Evolve",
-		lines = { "In training, phases are free. Evolve into your next phase and see what changes." },
+		lines = { "In training every phase is free to try. Evolve into the next one and see what changes." },
 		goal = "Evolve a phase",
 		keys = { "SNEvolve" },
 	},

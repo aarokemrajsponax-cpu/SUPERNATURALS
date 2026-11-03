@@ -107,6 +107,7 @@ local function plate(parent: Instance, name: string, size: Vector3, cframe: CFra
 	label.TextColor3 = Color3.fromRGB(232, 238, 244)
 	label.Font = Enum.Font.GothamBold
 	label.TextSize = textSize
+	label.TextScaled = true
 	label.Parent = gui
 	return slab
 end

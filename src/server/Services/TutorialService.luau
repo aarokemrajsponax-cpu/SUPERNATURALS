@@ -159,7 +159,21 @@ function TutorialService:_event(player: Player?, kind: string)
 		run.finished = true
 		self:_finish(player, run)
 	else
+		self:_prepare(player, Tutorial.Steps[run.index])
 		self:_send(player, { event = "step", completed = step.id })
+	end
+end
+
+-- Before a step that needs it: evolving in training needs a Trial, so start one on the
+-- player's own power (free and never saved, the usual Training rules)
+function TutorialService:_prepare(player: Player, step)
+	if step.id ~= "evolve" then
+		return
+	end
+	local fighter = self.characters:getByPlayer(player)
+	local runtime = fighter and fighter.power
+	if runtime and not runtime.training and Selection.inTrainingZone(fighter.root.Position) then
+		pcall(self.services.PowerService.trial, self.services.PowerService, player, runtime.id, 1)
 	end
 end
 

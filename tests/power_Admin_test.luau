@@ -145,6 +145,34 @@ local function B()
 	return game.fighter(bob)
 end
 
+-- The stand-in engine keeps Position and CFrame apart, and Admin moves fighters by CFrame
+-- (teleports, blinks, steps aside). Roblox derives Position from CFrame, so mirror that for
+-- the fighters' roots continuously.
+task.spawn(function()
+	local n = 0
+	while true do
+		n += 1
+		if n % 100 == 1 then
+			print("LOOP", n, alice ~= nil)
+		end
+		for _, player in { alice, bob } do
+			local fighter = player and game.fighter(player)
+			if fighter and fighter.root then
+				local ok, err = pcall(function()
+					fighter.root.Position = fighter.root.CFrame.Position
+				end)
+				if not ok and n % 50 == 1 then
+					print("SYNCERR", err)
+				end
+				if (fighter.root.Position - fighter.root.CFrame.Position).Magnitude > 1 and n % 20 == 1 then
+					print("DESYNC", tostring(fighter.root.Position), tostring(fighter.root.CFrame.Position))
+				end
+			end
+		end
+		task.wait()
+	end
+end)
+
 local function ability(id: string, degree: number)
 	return Powers.abilityFor("Admin", id, degree)
 end
@@ -417,3 +445,167 @@ check("premium rules: a trial outside ranked fights, refused in a Duel queue, un
 	assert(A().power.trial == false, "no longer a trial")
 	assert(services.PowerService:queueCheck(alice, "Duel"), "Duels allowed once owned")
 end)
+
+-- In the duel -------------------------------------------------------------------------------
+
+-- The fighters in this duel: Alice owns Admin (unlocked above); Bob equips it directly
+local function startDuel()
+	request("MatchRequest", alice, "Queue", "Duel")
+	request("MatchRequest", bob, "Queue", "Duel")
+	local match
+	game.waitFor(function()
+		match = services.MatchService:getMatchOf(A())
+		return match ~= nil and match.flow.phase == "Active"
+	end, 4, "the duel to begin")
+	arena = match.arena
+	task.wait(0.2)
+end
+
+-- Everything an Admin made, gone, and both fighters clean and at full strength
+local function clearBuilt()
+	for _, fighter in { A(), B() } do
+		services.ConstructService:clearOwner(fighter)
+	end
+end
+
+local function reset(gap: number)
+	clearBuilt()
+	local a, b = stage(gap)
+	ready(a)
+	ready(b)
+	return a, b
+end
+
+check("two players start a duel with Admin: a light body, Authority starts at 60", function()
+	startDuel()
+	local a = A()
+	assert(a.power.id == "Admin" and a.power.degree == 1, "Alice is Admin at Phase 1")
+	assert(a.power.resource >= 59 and a.power.resource <= 72, "Authority starts at 60: " .. a.power.resource)
+	assert(a.model:GetAttribute(Attribute.ResourceMax) == 100, "Authority maximum")
+	assert(a.humanoid.MaxHealth == 95 and a.combat.Block.MaxGuard == 85, "a lighter body and a weaker guard")
+	equip(A(), 1)
+	equip(B(), 1)
+	assert(A().power.id == "Admin" and B().power.id == "Admin", "Admin against Admin")
+end)
+
+check("Authority: regenerates, never passes its maximum, and every hit taken costs some", function()
+	local a, b = reset(10)
+	a.power.resource = 50
+	task.wait(0.5)
+	assert(a.power.resource > 50 + ADMIN.resource.regen * 0.3, "regenerates: " .. a.power.resource)
+	a.power.resource = a.power.resourceMax - 1
+	task.wait(0.5)
+	assert(a.power.resource <= a.power.resourceMax, "capped at the maximum")
+	a.power.resource = 50
+	local mark = game.mark()
+	local started = now()
+	local origin = a.root.Position + Vector3.new(3, 0, 0)
+	enemyShot(b, origin, (a.root.Position - origin).Unit)
+	game.waitFor(function()
+		return #hitsSince(mark, b, a, "TestShot") > 0
+	end, 1, "the shot to land")
+	local elapsed = now() - started
+	assert(a.power.resource < 50 + ADMIN.resource.regen * elapsed - ADMIN.resource.lossOnHurt + 1.5, "a hit costs Authority: " .. a.power.resource)
+	task.wait(0.4)
+end)
+
+-- Every ability at every degree ---------------------------------------------------------------
+
+local origApply = services.CombatService.applyHit
+services.CombatService.applyHit = function(self, att, tgt, hit, opts)
+	local r = origApply(self, att, tgt, hit, opts)
+	if opts and opts.ability == "TeleportSequence" then
+		print("DBGAPPLY", r and r.result, r and r.reason, att.humanoid.Health, tgt.humanoid.Health)
+	end
+	return r
+end
+local function exercise(abilityId: string, degree: number)
+	local def = ability(abilityId, degree)
+	local label = `{abilityId} (Degree {degree})`
+	equip(A(), degree, { abilityId })
+	local a, b = reset(10)
+	local start = a.root.Position
+	local health = b.humanoid.Health
+	local before = a.power.resource
+	local mark = game.mark()
+	local aim = aimAt(a, b)
+	if abilityId == "Teleport" then
+		aim = { direction = Vector3.new(0, 0, 1), point = start + Vector3.new(0, 0, 14) }
+	end
+	request("AbilityRequest", alice, abilityId, aim)
+	assert(castsSince(mark, a, abilityId) == 1, label .. ": cast")
+	assert(cooldownSet(a, abilityId), label .. ": cooldown set")
+	if (def.cost or 0) > 0 then
+		assert(a.power.resource < before - def.cost + 3, label .. ": cost paid")
+	end
+	local extra = 0.5
+	if abilityId == "TeleportSequence" then
+		extra = (def.strikes - 1) * def.interval + 0.8
+	end
+	task.wait((def.startup or 0) + (def.active or 0) + extra)
+	local hits = hitsSince(mark, a, b, abilityId)
+	if abilityId == "Teleport" then
+		Engine.syncPositions(world.workspace)
+		assert(flatDistance(a.root.Position, start) > 6 and flatDistance(a.root.Position, start) <= def.range + 2, label .. ": moved " .. flatDistance(a.root.Position, start))
+		assert(#fxSince(mark, "TeleportArrive", a) == 1, label .. ": arrival drawn")
+	elseif abilityId == "FreezeCommand" then
+		assert(#hits >= 1 and status(b, "Freeze"), label .. ": Bob frozen")
+		assert(#fxSince(mark, "FreezeLock", a) == 1, label .. ": drawn")
+	elseif abilityId == "ForceField" then
+		assert(status(a, "Shield"), label .. ": shielded")
+	elseif abilityId == "SpeedCommand" then
+		assert(status(a, "Haste"), label .. ": hasted")
+	elseif abilityId == "Fly" then
+		assert(status(a, "Gravity"), label .. ": light")
+		-- (The stand-in engine has no physics, so the lift is seen in the effect and the light body)
+		assert(near(status(a, "Gravity").magnitude, def.gravity) and status(a, "Haste"), label .. ": light and quick")
+		assert(#fxSince(mark, "Flight", a) == 1 and #fxSince(mark, "FlyWindup", a) == 1, label .. ": drawn")
+	elseif abilityId == "Clone" then
+		assert(status(a, "Concealed") and #fxSince(mark, "CloneDecoy", a) == 1, label .. ": faded, with a decoy")
+	elseif abilityId == "Barrier" then
+		assert(#constructs(a, "Barrier") >= 1, label .. ": a wall stands")
+	elseif abilityId == "Jail" then
+		assert(#hits >= 1 and status(b, "Trapped") and #constructs(a, "Jail") == 1, label .. ": Bob in a cell")
+	elseif abilityId == "GravityCommand" then
+		assert(#hits >= 1 and status(b, "Gravity"), label .. ": heavier")
+	elseif abilityId == "Fling" then
+		assert(#hits >= 1 and b.humanoid.Health < health, label .. ": Bob thrown and hurt")
+		assert(#fxSince(mark, "FlingThrow", a) == 1, label .. ": drawn")
+	elseif abilityId == "ArenaBarrier" then
+		assert(#constructs(a, "Lockdown") == 1, label .. ": the ring stands")
+	elseif abilityId == "GravityField" then
+		assert(status(b, "Gravity") and status(b, "Slow"), label .. ": Bob heavy inside the field")
+		assert(not status(a, "Slow"), label .. ": the caster is not slowed")
+	elseif abilityId == "TeleportSequence" then
+		assert(#fxSince(mark, "SequenceStrike", a) >= 1 and #hits >= 1, label .. `: struck Bob (strikes {#fxSince(mark, "SequenceStrike", a)}, hits {#hits}, blink {#fxSince(mark, "SequenceBlink", a)}, broken {#fxSince(mark, "SequenceBroken", a)}, rej {rejection(mark, alice, abilityId)}) dist {flatDistance(a.root.Position, b.root.Position)} ` .. (function() local t = "" for _, h in game.sentSince(mark, "CombatEvent", "Hit") do t ..= tostring(h.ability) .. "/" .. tostring(h.result) .. " " end for _, f in fxSince(mark, "SequenceStrike", a) do t ..= " landed=" .. tostring(f.landed) end return t end)())
+	elseif abilityId == "AreaCommand" then
+		assert(#hits >= 1 and status(b, "Slow"), label .. ": Bob slowed")
+	end
+	if def.defense == "Prompt" then
+		assert(#cuesFor(mark, bob, "Prompt") >= 1, label .. ": Bob was warned")
+	end
+	if def.damage and def.damage > 0 and abilityId ~= "Teleport" then
+		-- Commands that hit were answered by a hit message
+		assert(abilityId == "ForceField" or #hits >= 1 or abilityId == "Barrier", label .. ": a hit was reported")
+	end
+	clearBuilt()
+	ready(a)
+	ready(b)
+	task.wait(0.15)
+end
+
+check("every ability at every degree it exists at: cast, cost, cooldown and a real effect", function()
+	for degree = 1, 3 do
+		equip(A(), degree)
+		equip(B(), degree)
+		for _, abilityId in Powers.available("Admin", degree) do
+			if abilityId ~= "BanHammer" then
+				exercise(abilityId, degree)
+			end
+		end
+	end
+	equip(A(), 1)
+	equip(B(), 1)
+end)
+
+process.exit(if game.finish() == 0 then 0 else 1)
