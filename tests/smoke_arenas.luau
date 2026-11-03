@@ -27,13 +27,15 @@ local Tags = Engine.services.CollectionService
 local ArenaService
 local services = {}
 
-t.check("ArenaService starts: the training hall and the first arena", function()
+t.check("ArenaService starts: the training hall, the concourse and twenty empty slots", function()
 	ArenaService = world.require(world.find("ServerScriptService.Server.Services.ArenaService"))
 	services.ArenaService = ArenaService
 	ArenaService:Init(services)
 	ArenaService:Start()
 	assert(world.workspace:FindFirstChild("Arenas"), "an Arenas folder")
 	assert(world.workspace:FindFirstChild("TrainingGround"), "the training hall")
+	assert(world.workspace:FindFirstChild("Concourse"), "the concourse")
+	assert(#world.workspace.Arenas:GetChildren() == 0, "no chamber stands until a match reserves one")
 	assert(#MatchConfig.ArenaOrder == 5, "five arena themes")
 	for _, id in MatchConfig.ArenaOrder do
 		local entry = MatchConfig.Arenas[id]
@@ -82,7 +84,7 @@ local function checkContract(arena, id: string)
 			table.insert(interactions, kind)
 		end
 	end
-	assert(parts <= ARENA.PartBudget, `{parts} parts (budget {ARENA.PartBudget})`)
+	assert(parts <= ArenaService.Chambers.PartBudget, `{parts} parts (budget {ArenaService.Chambers.PartBudget})`)
 	assert(#unanchored == 0, "unanchored: " .. table.concat(unanchored, ", "))
 	assert(scripts == 0, "no scripts in the arena")
 
@@ -113,7 +115,7 @@ local function checkContract(arena, id: string)
 	assert(#interactions >= 2 and #interactions <= 4, `{#interactions} interaction points`)
 	local named = false
 	for _, text in signs do
-		named = named or string.upper(text) == string.upper(arena.name)
+		named = named or string.find(string.upper(text), string.upper(arena.name), 1, true) ~= nil
 	end
 	assert(named, "a sign with the arena's name")
 	return parts
@@ -160,27 +162,28 @@ for _, id in MatchConfig.ArenaOrder do
 	end)
 end
 
-t.check("slots are reused for the same theme and rebuilt for another", function()
+t.check("chambers build on reserve, take the lowest free number and are torn down on release", function()
 	local first = ArenaService:reserve("DigitalGrid")
+	assert(first and first.slot == 1 and first.id == "DigitalGrid", "slot 1 first")
 	local model = first.model
-	ArenaService:release(first)
-	local again = ArenaService:reserve("DigitalGrid")
-	assert(again == first and again.model == model, "the same theme reuses the standing arena")
-	ArenaService:release(again)
-	local other = ArenaService:reserve("SoulFoundry")
-	assert(other == first and other.id == "SoulFoundry" and other.model ~= model and model.Parent == nil, "another theme rebuilds the free slot")
+	assert(model.Parent == world.workspace.Arenas, "standing in the Arenas folder")
 	local second = ArenaService:reserve("SoulFoundry")
-	assert(second and second ~= other and second.slot == 2, "a busy slot is never rebuilt: a second slot opens")
-	assert((second.center - other.center).Magnitude == ARENA.Spacing, "slots keep their spacing")
+	assert(second and second ~= first and second.slot == 2 and second.id == "SoulFoundry", "slot 2 next")
+	assert((second.center - first.center).Magnitude == ArenaService.Chambers.Spacing, "chambers keep their spacing")
+	ArenaService:release(first)
+	assert(model.Parent == nil and first.model == nil, "a released chamber is gone")
+	local again = ArenaService:reserve("ProvingGrounds")
+	assert(again == first and again.id == "ProvingGrounds" and again.model ~= model, "the freed number is rebuilt with the new theme")
 	local random = ArenaService:reserve("Random")
 	assert(random and MatchConfig.Arenas[random.id], "Random picks a real theme")
 	local unknown = ArenaService:reserve("NoSuchArena")
 	assert(unknown == nil or MatchConfig.Arenas[unknown.id], "unknown ids fall back to a real theme")
-	for _, arena in { other, second, random, unknown } do
+	for _, arena in { again, second, random, unknown } do
 		if arena then
 			ArenaService:release(arena)
 		end
 	end
+	assert(#world.workspace.Arenas:GetChildren() == 0, "nothing left standing")
 end)
 
 t.check("the training hall keeps three dummy spots and things to throw", function()

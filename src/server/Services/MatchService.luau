@@ -248,6 +248,8 @@ function MatchService:_onRequest(player: Player, action: string, argument: any, 
 		end
 		if argument == "Lobby" then
 			self.characters:teleport(fighter, self.arenas:lobbySpawn())
+		elseif argument == "Concourse" then
+			self.characters:teleport(fighter, self.arenas:concourseSpawn())
 		elseif argument == "Training" then
 			self.characters:teleport(fighter, self.arenas:trainingSpawn())
 		end
@@ -305,6 +307,12 @@ end
 
 -- Watching ---------------------------------------------------------------------------
 
+-- Start watching a match from the server (the concourse Watch prompt); true if it worked
+function MatchService:spectate(player: Player, matchId: string): boolean
+	self:_onRequest(player, Protocol.MatchAction.Spectate, matchId, nil)
+	return player:GetAttribute(Protocol.Attribute.Spectating) == matchId
+end
+
 function MatchService:_stopSpectating(player: Player)
 	for _, match in matches do
 		if match.spectators[player] then
@@ -337,6 +345,7 @@ function MatchService:_watchable()
 			if humans > 0 then
 				table.insert(list, {
 					id = match.id,
+					slot = match.arena.slot,
 					mode = match.mode.DisplayName,
 					arena = match.arena.name,
 					phase = match.flow.phase,
