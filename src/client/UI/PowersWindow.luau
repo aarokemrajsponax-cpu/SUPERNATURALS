@@ -524,7 +524,7 @@ function PowersWindow.register()
 				if not ok then
 					-- No layout yet (a stand-in engine): estimate from the screen
 					local view = workspace.CurrentCamera.ViewportSize
-					size = Vector2.new(math.min(1120, view.X - 140), math.min(560, view.Y - 140))
+					size = Vector2.new(math.min(1120, view.X - 140), math.min(520, view.Y - 290))
 				end
 				local w, h = size.X, size.Y
 				if w <= 0 then

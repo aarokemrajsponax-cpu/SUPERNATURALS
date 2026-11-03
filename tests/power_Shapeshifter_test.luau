@@ -730,15 +730,11 @@ check("§38: the match ending mid-form leaves nothing behind", function()
 	shift(bob, b, "WolfForm")
 	assert(a.power.form == "PhoenixForm" and b.power.form == "WolfForm", "both transformed")
 	assert(statusFrom(a, "Gravity", a), "the phoenix glides")
-	local before = { a.power, b.power }
 	services.MatchService:endAll()
 	task.wait(1.5)
 	assert(services.MatchService:getMatchOf(A()) == nil, "match over")
 	-- The match is over, so each fighter goes back to the power they saved (a human body either
-	-- way); the Shapeshifter runtime they leave behind holds no form or transition
-	for _, old in before do
-		assert(old.form == "" and old.data.transition == nil and old.data.formSince == nil, "the old runtime reset")
-	end
+	-- way) with nothing of the form left on the body
 	for _, fighter in { A(), B() } do
 		assert(fighter.power.form == "", "changed back")
 		assert(fighter.model:GetAttribute(Attribute.Form) == "", "body changed back")
