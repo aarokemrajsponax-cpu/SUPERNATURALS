@@ -208,83 +208,114 @@ local function ring(c, name: string, center: Vector3, normal: Vector3, radius: n
 	end
 end
 
+-- A thin round disc whose rim shows as a band round whatever it passes through
+local function disc(c, name: string, center: Vector3, normal: Vector3, diameter: number, thick: number, finish: string, o: any?): BasePart
+	return place(c, "Cylinder", name, V(thick, diameter, diameter), along(center, normal) * CFrame.Angles(0, 0, rad(90)), finish, o)
+end
+
 -- Anatomy ----------------------------------------------------------------------------------
 
--- The trunk between two frames, the pelvis (at the hip joints) and the chest (the ribcage
--- centre), tilted against each other for contrapposto. Returns the joints the limbs hang from.
+-- The bare heroic trunk between two frames, the pelvis (at the hip joints) and the chest (the
+-- ribcage centre, about nipple height), tilted against each other for contrapposto. The lats
+-- slope in to the waist so the front reads as a V, and the planes the light rakes across
+-- (pectorals, abdomen, obliques) are separate stones. o.cover = "left" or "right" leaves that
+-- breast to drapery, o.bare = false skips the front planes (armour or cloth covers them),
+-- o.hips = false skips the pelvis (a skirt covers it). Returns the joints the limbs hang from.
 local function trunk(c, pelvis: CFrame, chest: CFrame, o: any?)
 	o = o or NONE
 	local f = o.finish or "marble"
 	local b = o.build or 1
-	local bare = o.bare ~= false
-	place(c, "Block", "Ribcage", V(1.46 * b, 1.22, 0.9 * b), chest * CFrame.new(0, 0.08, 0.02), f)
-	place(c, "Block", "ShoulderGirdle", V(1.84 * b, 0.36, 0.7 * b), chest * CFrame.new(0, 0.54, 0.08), f)
-	if bare then
-		for _, side in SIDES do
-			place(c, "Wedge", "Pectoral", V(0.64 * b, 0.5, 0.2), chest * CFrame.new(side * 0.35 * b, 0.22, -0.43 * b - 0.1) * CFrame.Angles(0, rad(-side * 14), 0), f)
-		end
-	end
-	local waist = pelvis:Lerp(chest, 0.47)
-	place(c, "Block", "Waist", V(1.14 * b, 1.04, 0.8 * b), waist, f)
-	if bare then
-		place(c, "Block", "Abdominals", V(0.5 * b, 0.86, 0.1), waist * CFrame.new(0, -0.02, -0.4 * b - 0.04), f)
-		for _, side in SIDES do
-			-- the obliques swing out over the hip, the plane the light rakes across
-			place(c, "Block", "Oblique", V(0.3, 0.62, 0.62 * b), waist * CFrame.new(side * 0.52 * b, -0.22, -0.02) * CFrame.Angles(0, 0, rad(side * 14)), f)
-		end
-	end
-	place(c, "Block", "Pelvis", V(1.36 * b, 0.82, 0.86 * b), pelvis * CFrame.new(0, 0.14, 0.02), f)
-	if o.glutes ~= false then
-		for _, side in SIDES do
-			place(c, "Block", "Gluteus", V(0.6 * b, 0.64, 0.3), pelvis * CFrame.new(side * 0.3 * b, -0.04, 0.4 * b) * CFrame.Angles(rad(-12), 0, 0), f)
-		end
-	end
+	local waist = pelvis:Lerp(chest, 0.5)
+	place(c, "Block", "Ribcage", V(1.34 * b, 1.16, 0.84 * b), chest * CFrame.new(0, 0.06, 0.04), f)
+	place(c, "Block", "Clavicles", V(1.66 * b, 0.3, 0.64 * b), chest * CFrame.new(0, 0.56, 0.1), f)
+	place(c, "Block", "Waist", V(1.06 * b, 1.0, 0.74 * b), waist, f)
 	for _, side in SIDES do
-		tri(c, "Trapezius", chest * V(side * 0.18, 0.7, 0.12), chest * V(side * 0.18, 0.98, 0.12), chest * V(side * 0.84 * b, 0.7, 0.12), 0.48 * b, f)
+		-- the latissimus, from under the arm to the waist, so the flank slopes in
+		seg(c, "Flank", chest * V(side * 0.6 * b, 0.36, 0.08), waist * V(side * 0.46 * b, -0.12, 0.02), 0.32, 0.72 * b, f, { front = chest.LookVector })
+		tri(c, "Trapezius", chest * V(side * 0.16, 0.66, 0.16), chest * V(side * 0.16, 0.96, 0.16), chest * V(side * 0.8 * b, 0.66, 0.16), 0.44 * b, f)
+	end
+	if o.bare ~= false then
+		for _, side in SIDES do
+			if o.cover ~= (if side == 1 then "right" else "left") then
+				place(c, "Block", "Pectoral", V(0.62 * b, 0.44, 0.24), chest * CFrame.new(side * 0.31 * b, 0.2, -0.4 * b) * turn(-side * 12, 9, 0), f)
+			end
+			place(c, "Block", "Oblique", V(0.26, 0.6, 0.58 * b), waist * CFrame.new(side * 0.46 * b, -0.2, -0.04) * turn(0, 0, side * 10), f)
+		end
+		place(c, "Block", "Abdomen", V(0.52 * b, 0.92, 0.14), waist * CFrame.new(0, 0.04, -0.36 * b) * turn(0, 5, 0), f)
+	end
+	if o.hips ~= false then
+		place(c, "Block", "Pelvis", V(1.28 * b, 0.8, 0.82 * b), pelvis * CFrame.new(0, 0.14, 0.02), f)
 	end
 	return {
-		shoulder = { [1] = chest * V(0.9 * b, 0.5, 0.06), [-1] = chest * V(-0.9 * b, 0.5, 0.06) },
-		hip = { [1] = pelvis * V(0.45 * b, -0.06, 0), [-1] = pelvis * V(-0.45 * b, -0.06, 0) },
-		neck = chest * V(0, 0.72, 0.1),
+		shoulder = { [1] = chest * V(0.9 * b, 0.48, 0.06), [-1] = chest * V(-0.9 * b, 0.48, 0.06) },
+		hip = { [1] = pelvis * V(0.43 * b, -0.06, 0), [-1] = pelvis * V(-0.43 * b, -0.06, 0) },
+		neck = chest * V(0, 0.68, 0.12),
 	}
 end
 
--- The head: planes for brow, nose, cheekbones, lip and jaw; the eyes are the shadow under the brow
-local function head(c, cf: CFrame, neck: Vector3, o: any?)
+-- The head: a rounded skull and the planes of a classical face. The face is cut like stone:
+-- a front plane, temples turning back to the skull, the forehead and brow ridge over deep
+-- eye sockets, a straight nose, cheekbones, the mouth on its own rounded plane, the chin and
+-- the line of the jaw. The eyes are the shadow under the brow, with a lid to catch a little
+-- light. `cf` is the head's centre, its front -Z, one head from chin to crown. o.hair:
+-- "curls", "crop", "waves", "bald" or nil (under a hood or veil); o.beard: "short" or
+-- "long"; o.soft gives a younger, gentler face; o.lined an old one.
+local function head(c, cf: CFrame, o: any?)
 	o = o or NONE
 	local f = o.finish or "marble"
-	local face = o.faceFinish or f
-	if neck then
-		seg(c, "Neck", neck, cf * V(0, -0.32, 0.06), 0.42 * (o.neck or 1), 0.44 * (o.neck or 1), f, { ext = 0.05 })
+	local soft, lined, hair = o.soft, o.lined, o.hair
+	if hair then
+		local d = if hair == "bald" then 0.78 else 0.82
+		place(c, "Ball", if hair == "bald" then "Cranium" else "Hair", V(d, d, d), cf * CFrame.new(0, 0.1, 0.1), f)
+		place(c, "Block", "Occiput", V(0.56, 0.4, 0.28), cf * CFrame.new(0, -0.1, 0.3) * turn(0, -12, 0), f)
 	end
-	place(c, "Block", "Cranium", V(0.7, 0.66, 0.82), cf * CFrame.new(0, 0.14, 0.06), f)
-	place(c, "Block", "Face", V(0.56, 0.56, 0.4), cf * CFrame.new(0, -0.12, -0.2), face)
-	place(c, "Block", "Jaw", V(0.5, 0.24, 0.5), cf * CFrame.new(0, -0.36, -0.1), face)
-	place(c, "Block", "Brow", V(0.6, 0.1, 0.12), cf * CFrame.new(0, 0.04, -0.42), face)
-	place(c, "Wedge", "Nose", V(0.12, 0.27, 0.12), cf * CFrame.new(0, -0.13, -0.46), face)
+	-- the face is a prow: a narrow front plane, the cheeks turning back from it at 45 degrees
+	place(c, "Block", "Face", V(0.24, 0.46, 0.3), cf * CFrame.new(0, -0.15, -0.2), f)
+	place(c, "Block", "Cheeks", V(0.46, 0.48, 0.46), cf * CFrame.new(0, -0.14, -0.12) * turn(45, 0, 0), f)
+	place(c, "Block", "Forehead", V(0.42, 0.22, 0.26), cf * CFrame.new(0, 0.17, -0.21) * turn(0, 12, 0), f)
+	place(c, "Block", "Jawline", V(0.3, 0.16, 0.3), cf * CFrame.new(0, -0.4, -0.17) * turn(45, 0, 0), f)
 	for _, side in SIDES do
-		place(c, "Block", "Cheekbone", V(0.17, 0.12, 0.1), cf * CFrame.new(side * 0.19, -0.1, -0.41) * CFrame.Angles(0, rad(side * 28), 0), face)
-	end
-	place(c, "Block", "Lip", V(0.2, 0.05, 0.06), cf * CFrame.new(0, -0.31, -0.42), face)
-	place(c, "Block", "Chin", V(0.22, 0.14, 0.1), cf * CFrame.new(0, -0.42, -0.36), face)
-	if o.ears ~= false then
-		for _, side in SIDES do
-			place(c, "Block", "Ear", V(0.07, 0.21, 0.14), cf * CFrame.new(side * 0.37, -0.06, 0.05), f)
+		-- the brow ridge is a horizontal prism: lit above, shadowed below, over the eye
+		place(c, "Block", "Brow", V(0.25, if soft then 0.085 elseif lined then 0.13 else 0.11, 0.11), cf * CFrame.new(side * 0.115, 0.035, -0.355) * turn(-side * 16, 0, 0) * CFrame.Angles(rad(45), 0, 0), f, { shadow = true })
+		place(c, "Block", "Lid", V(0.1, 0.035, 0.04), cf * CFrame.new(side * 0.1, -0.03, -0.355) * turn(-side * 20, 0, 0), f, { shadow = false })
+		if o.ears ~= false and hair ~= "waves" then
+			place(c, "Block", "Ear", V(0.05, 0.18, 0.12), cf * CFrame.new(side * 0.36, -0.06, 0.1) * turn(-side * 10, 0, 0), f, { shadow = false })
 		end
 	end
-	if o.hair == "cap" or o.hair == "curls" then
-		place(c, "Block", "Hair", V(0.78, 0.34, 0.9), cf * CFrame.new(0, 0.37, 0.07), f)
-		place(c, "Block", "HairBack", V(0.76, 0.54, 0.24), cf * CFrame.new(0, 0.12, 0.4), f)
-		if o.hair == "curls" then
-			-- a row of short carved locks along the brow line
-			for i = -2, 2 do
-				place(c, "Block", "Lock", V(0.16, 0.13, 0.14), cf * CFrame.new(i * 0.135, 0.3, -0.36) * CFrame.Angles(rad(20), rad(i * 9), rad(45)), f, { shadow = false })
-			end
-		end
-	end
+	place(c, "Wedge", "Nose", V(0.1, 0.28, 0.12), cf * CFrame.new(0, -0.1, -0.41), f, { shadow = true })
+	place(c, "Block", "Nostrils", V(0.14, 0.05, 0.06), cf * CFrame.new(0, -0.22, -0.38), f, { shadow = false })
 	if o.beard then
-		place(c, "Block", "Beard", V(0.54, 0.3, 0.36), cf * CFrame.new(0, -0.42, -0.2), f)
-		tri(c, "BeardPoint", cf * V(0, -0.57, -0.38), cf * V(0, -0.57, -0.04), cf * V(0, -0.78, -0.3), 0.4, f)
+		place(c, "Block", "Moustache", V(0.3, 0.07, 0.1), cf * CFrame.new(0, -0.285, -0.4) * turn(0, -8, 0), f, { shadow = false })
+		place(c, "Block", "Beard", V(0.44, 0.3, 0.42), cf * CFrame.new(0, -0.42, -0.16), f)
+		if o.beard == "long" then
+			seg(c, "BeardFall", cf * V(0, -0.5, -0.28), cf * V(0, -1.05, -0.26), 0.36, 0.22, f, { roll = 45 })
+			tri(c, "BeardPoint", cf * V(0, -0.98, -0.22), cf * V(0, -0.62, -0.22), cf * V(0, -1.22, -0.3), 0.3, f)
+		end
+	else
+		place(c, "Block", "UpperLip", V(0.15, 0.04, 0.04), cf * CFrame.new(0, -0.29, -0.36), f, { shadow = false })
+		place(c, "Block", "LowerLip", V(0.12, 0.04, 0.04), cf * CFrame.new(0, -0.335, -0.355) * turn(0, 15, 0), f, { shadow = false })
+		local chin = if soft then 0.15 else 0.18
+		place(c, "Ball", "Chin", V(chin, chin, chin), cf * CFrame.new(0, -0.42, -0.29), f, { shadow = true })
+	end
+	if lined then
+		-- an old face: two lines across the brow, the folds from nose to mouth
+		for i, y in { 0.17, 0.23 } do
+			place(c, "Block", "BrowLine", V(0.32 - i * 0.04, 0.022, 0.03), cf * CFrame.new(0, y, -0.395 + (y - 0.16) * 0.17), f, { shadow = false })
+		end
+		for _, side in SIDES do
+			seg(c, "Fold", cf * V(side * 0.1, -0.2, -0.395), cf * V(side * 0.15, -0.36, -0.37), 0.03, 0.04, f, { ext = 0.01, shadow = false })
+		end
+	end
+	if hair == "curls" then
+		-- a row of carved curls along the hairline
+		for i = -2, 2 do
+			place(c, "Block", "Curl", V(0.12, 0.12, 0.12), cf * CFrame.new(i * 0.11, 0.3 - math.abs(i) * 0.025, -0.32 + math.abs(i) * 0.05) * CFrame.Angles(0, rad(-i * 14), rad(45)), f, { shadow = false })
+		end
+	elseif hair == "waves" then
+		for _, side in SIDES do
+			place(c, "Block", "Waves", V(0.2, 0.42, 0.52), cf * CFrame.new(side * 0.33, 0.02, 0.06) * turn(0, 0, side * 10), f)
+		end
+		place(c, "Ball", "Chignon", V(0.38, 0.38, 0.38), cf * CFrame.new(0, 0.02, 0.5), f)
 	end
 end
 
@@ -294,34 +325,53 @@ local function hand(c, side: number, wrist: Vector3, dir: Vector3, palm: Vector3
 	local f = o.finish or "marble"
 	local s = o.scale or 1
 	local frame = along(wrist, dir, palm)
-	place(c, "Block", "Palm", V(0.34, 0.42, 0.16) * s, frame * CFrame.new(0, 0.2 * s, 0), f)
+	place(c, "Block", "Palm", V(0.34, 0.42, 0.15) * s, frame * CFrame.new(0, 0.2 * s, 0), f)
 	local knuckles = frame * CFrame.new(0, 0.38 * s, -0.01 * s) * CFrame.Angles(rad(-curl * 95), 0, 0)
 	if o.fingers == 1 then
-		place(c, "Block", "Fingers", V(0.33, 0.36, 0.13) * s, knuckles * CFrame.new(0, 0.17 * s, 0), f)
+		place(c, "Block", "Fingers", V(0.33, 0.36, 0.12) * s, knuckles * CFrame.new(0, 0.17 * s, 0), f)
 	else
 		-- the outer pair curls a little further than the index pair
-		place(c, "Block", "Fingers", V(0.17, 0.38, 0.13) * s, knuckles * CFrame.new(-side * 0.085 * s, 0.18 * s, 0), f)
-		place(c, "Block", "Fingers", V(0.16, 0.33, 0.12) * s, knuckles * CFrame.Angles(rad(-curl * 12), 0, 0) * CFrame.new(side * 0.085 * s, 0.15 * s, 0), f)
+		place(c, "Block", "Fingers", V(0.17, 0.38, 0.12) * s, knuckles * CFrame.new(-side * 0.085 * s, 0.18 * s, 0), f)
+		place(c, "Block", "Fingers", V(0.16, 0.33, 0.11) * s, knuckles * CFrame.Angles(rad(-curl * 12), 0, 0) * CFrame.new(side * 0.085 * s, 0.15 * s, 0), f)
 	end
 	place(c, "Block", "Thumb", V(0.11, 0.3, 0.12) * s, frame * CFrame.new(-side * 0.16 * s, 0.1 * s, -0.05 * s) * CFrame.Angles(rad(-20 - curl * 40), 0, rad(side * 35)) * CFrame.new(0, 0.13 * s, 0), f)
 end
 
--- An arm from the shoulder joint: the elbow is solved toward `pole`, then the hand follows
+-- A limb segment from `a` to `b`, about `w` across and `d` deep. Limbs are faceted: a block
+-- turned 45 degrees about its own axis, so each shows a lit plane and a shaded one with a
+-- ridge between them, the way the Lantern's facets catch the light.
+local LIMB = "capsule"
+local function limb(c, name: string, a: Vector3, b: Vector3, w: number, d: number, finish: string, o: any?): BasePart
+	o = o or NONE
+	if LIMB == "capsule" then
+		local axis = b - a
+		local ext = o.ext or 0.04
+		local r = (w + d) / 2
+		return place(c, "Cylinder", name, V(axis.Magnitude + ext * 2, r, r), along((a + b) / 2, axis, o.front) * CFrame.Angles(0, 0, rad(90)), finish, o)
+	end
+	return seg(c, name, a, b, w * 0.72, d * 0.72, finish, { front = o.front, roll = 45, ext = o.ext, shadow = o.shadow, shift = o.shift })
+end
+
+-- An arm from the shoulder joint: the elbow is solved toward `pole`, then the hand follows.
+-- A rounded deltoid caps the shoulder so the silhouette turns the corner like muscle.
 local function arm(c, side: number, shoulder: Vector3, wrist: Vector3, pole: Vector3, o: any?): Vector3
 	o = o or NONE
 	local f = o.finish or "marble"
 	local s = o.scale or 1
 	local elbow = o.elbow or solve(shoulder, wrist, UPPER_ARM, FOREARM, pole)
 	if o.upper ~= false then
-		seg(c, "Deltoid", shoulder + (shoulder - elbow).Unit * 0.14, shoulder:Lerp(elbow, 0.42), 0.56 * s, 0.56 * s, f, { roll = 45 })
-		seg(c, "UpperArm", shoulder, elbow, 0.42 * s, 0.45 * s, f)
-		seg(c, "Biceps", shoulder:Lerp(elbow, 0.3), shoulder:Lerp(elbow, 0.86), 0.42 * s, 0.46 * s, f, { roll = 45 })
+		place(c, "Ball", "Deltoid", V(0.68, 0.68, 0.68) * s, CFrame.new(shoulder:Lerp(elbow, 0.1)), f)
+		limb(c, "UpperArm", shoulder, elbow, 0.5 * s, 0.52 * s, f)
+		limb(c, "Biceps", shoulder:Lerp(elbow, 0.22), shoulder:Lerp(elbow, 0.8), 0.6 * s, 0.6 * s, f)
+		if LIMB == "capsule" then
+			place(c, "Ball", "Elbow", V(0.44, 0.44, 0.44) * s, CFrame.new(elbow), f)
+		end
 	end
 	local fs = o.forearmScale or s
 	local ff = o.forearmFinish or f
 	if o.lower ~= false then
-		seg(c, "Forearm", elbow, wrist, 0.36 * fs, 0.3 * fs, ff)
-		seg(c, "ForearmMass", elbow:Lerp(wrist, -0.04), elbow:Lerp(wrist, 0.56), 0.44 * fs, 0.4 * fs, ff, { roll = 45 })
+		limb(c, "Forearm", elbow, wrist, 0.4 * fs, 0.36 * fs, ff)
+		limb(c, "ForearmMass", elbow:Lerp(wrist, -0.04), elbow:Lerp(wrist, 0.52), 0.52 * fs, 0.48 * fs, ff)
 	end
 	if o.hand ~= false then
 		local h = o.hand or NONE
@@ -338,14 +388,14 @@ local function leg(c, side: number, hip: Vector3, ankle: Vector3, toe: Vector3, 
 	local flat = V(toe.X - ankle.X, 0, toe.Z - ankle.Z).Unit
 	local knee = o.knee or solve(hip, ankle, THIGH, SHIN, o.pole or flat)
 	if o.thigh ~= false then
-		seg(c, "Thigh", hip, knee, 0.66 * s, 0.7 * s, f, { front = flat, ext = 0.14 })
-		seg(c, "Quadriceps", hip:Lerp(knee, 0.1), hip:Lerp(knee, 0.8), 0.6 * s, 0.6 * s, f, { front = flat, roll = 45, shift = V(side * 0.03, 0, -0.07) })
+		limb(c, "Thigh", hip, knee, 0.8 * s, 0.82 * s, f, { front = flat, ext = 0.12 })
+		limb(c, "Quadriceps", hip:Lerp(knee, 0.12), hip:Lerp(knee, 0.78), 0.9 * s, 0.86 * s, f, { front = flat, shift = V(side * 0.02, 0, -0.04) })
 		local kneeFront = ((knee - hip).Unit + (ankle - knee).Unit).Unit
-		place(c, "Block", "Kneecap", V(0.3, 0.3, 0.18) * s, along(knee, kneeFront, flat) * CFrame.new(0, 0, -0.2 * s), f)
+		place(c, "Block", "Kneecap", V(0.3, 0.32, 0.18) * s, along(knee, kneeFront, flat) * CFrame.new(0, 0, -0.24 * s), f)
 	end
 	if o.shin ~= false then
-		seg(c, "Shin", knee, ankle, 0.42 * s, 0.45 * s, f, { front = flat, ext = 0.1 })
-		seg(c, "Calf", knee:Lerp(ankle, 0.04), knee:Lerp(ankle, 0.58), 0.46 * s, 0.46 * s, f, { front = flat, roll = 45, shift = V(0, 0, 0.08) })
+		limb(c, "Shin", knee, ankle, 0.5 * s, 0.52 * s, f, { front = flat, ext = 0.08 })
+		limb(c, "Calf", knee:Lerp(ankle, 0.06), knee:Lerp(ankle, 0.56), 0.62 * s, 0.64 * s, f, { front = flat, shift = V(0, 0, 0.06) })
 	end
 	if o.foot ~= false then
 		local fs = o.footScale or 1
@@ -356,8 +406,8 @@ local function leg(c, side: number, hip: Vector3, ankle: Vector3, toe: Vector3, 
 		if lift.Y < 0 then
 			lift = -lift
 		end
-		seg(c, "Foot", heel + lift * 0.1, tip + lift * 0.1, 0.36 * fs, 0.2, o.footFinish or f, { front = lift, ext = 0.02 })
-		tri(c, "Instep", heel + lift * 0.18 + sole * 0.12, ankle, tip + lift * 0.16 - sole * 0.12, 0.32 * fs, o.footFinish or f)
+		seg(c, "Foot", heel + lift * 0.1, tip + lift * 0.1, 0.4 * fs, 0.2, o.footFinish or f, { front = lift, ext = 0.02 })
+		tri(c, "Instep", heel + lift * 0.18 + sole * 0.12, ankle, tip + lift * 0.16 - sole * 0.12, 0.36 * fs, o.footFinish or f)
 	end
 	return knee
 end
@@ -387,51 +437,60 @@ local function drape(c, name: string, o: any)
 	end
 end
 
+-- A point on a sphere: `dir` from its centre, pushed out by `out`
+local function onSphere(center: Vector3, radius: number, dir: Vector3, out: number?): Vector3
+	return center + dir.Unit * (radius + (out or 0))
+end
+
 -- The figures -----------------------------------------------------------------------------
 
 local carve = {}
 
--- ATLAS: braced in a lunge, the left knee driving forward, both arms pressing a fractured
--- stone sphere up over his bowed head; a short tunic knotted on the left shoulder
+-- ATLAS: braced in a lunge, the left knee driving forward and the right leg straight behind,
+-- both arms pressing a fractured stone globe up over his head. The globe is banded in bronze
+-- and its crack is mended in gold leaf; a short tunic is pinned on the left shoulder.
 function carve.StrongDude(c)
-	local pelvis = CFrame.new(0, 3.95, 0.1) * turn(-8, -3, 3)
-	local chest = CFrame.new(0, 5.78, 0.24) * turn(4, 9, -2)
-	local j = trunk(c, pelvis, chest, { build = 1.08 })
-	head(c, CFrame.new(0, 7.15, 0.14) * turn(0, -12, 0), j.neck, { hair = "curls", beard = true, neck = 1.15 })
-	leg(c, -1, j.hip[-1], V(-0.58, 0.36, -0.42), V(-0.7, 0.04, -1.25), { pole = V(-0.05, 0, -1) })
-	leg(c, 1, j.hip[1], V(0.6, 0.36, 1.02), V(1.0, 0.04, 0.34), { pole = V(0.1, 0, -1) })
-	local sphere = V(0, 8.94, 0.12)
+	local pelvis = CFrame.new(0, 3.72, 0.05) * turn(-6, 0, 2)
+	local chest = CFrame.new(0, 5.62, 0.12) * turn(3, 7, -2)
+	local j = trunk(c, pelvis, chest, { build = 1.1, cover = "left", hips = false })
+	local hc = CFrame.new(0, 7.02, 0.04) * turn(0, -6, 0)
+	seg(c, "Neck", j.neck, hc * V(0, -0.36, 0.08), 0.46, 0.48, "marble")
+	head(c, hc, { hair = "curls" })
+	leg(c, -1, j.hip[-1], V(-0.6, 0.32, -1.0), V(-0.74, 0.04, -1.82))
+	leg(c, 1, j.hip[1], V(0.64, 0.3, 1.5), V(0.98, 0.04, 0.74))
+	local globe, radius = V(0, 8.74, 0.06), 0.98
 	for _, side in SIDES do
-		local wrist = V(side * 0.98, 7.96, 0.12)
-		arm(c, side, j.shoulder[side], wrist, V(side, 0.15, 0.1), {
-			scale = 1.08,
-			hand = { dir = V(-side * 0.9, 0.38, 0), palm = V(-side * 0.25, 1, 0), curl = 0.25 },
+		local wrist = V(side * 0.84, 8.02, 0.1)
+		arm(c, side, j.shoulder[side], wrist, V(side, -0.25, 0.2), {
+			scale = 1.1,
+			hand = { dir = V(-side * 0.5, 0.85, 0), palm = (globe - wrist).Unit, curl = 0.15, scale = 1.1 },
 		})
 	end
-	-- the stone: dark, banded in bronze, split by a gold-leaf seam with a shard lifting away
-	place(c, "Ball", "Sphere", V(1.64, 1.64, 1.64), CFrame.new(sphere), "dark")
-	place(c, "Cylinder", "SphereBand", V(0.12, 1.7, 1.7), CFrame.new(sphere) * CFrame.Angles(0, rad(20), rad(72)), "bronze")
-	local seam = { V(-0.42, 0.62, -0.38), V(-0.12, 0.3, -0.72), V(0.18, 0.44, -0.66), V(0.46, 0.08, -0.62) }
-	for i = 1, #seam - 1 do
-		seg(c, "GoldSeam", sphere + seam[i] * 1.04, sphere + seam[i + 1] * 1.04, 0.07, 0.07, "gold", { ext = 0.03 })
+	-- the globe: ivory, two bronze bands, a crack mended in gold leaf and one shard lifting away
+	place(c, "Ball", "Globe", V(radius * 2, radius * 2, radius * 2), CFrame.new(globe), "shade")
+	disc(c, "GlobeBand", globe, V(0.28, 1, -0.12), radius * 2 + 0.08, 0.1, "bronze")
+	disc(c, "GlobeBand", globe, V(0.96, -0.2, 0.2), radius * 2 + 0.08, 0.1, "bronze")
+	local crack = { V(-0.7, 0.55, -0.45), V(-0.35, 0.3, -0.88), V(-0.05, 0.42, -0.9), V(0.22, 0.12, -0.97), V(0.62, 0.2, -0.76) }
+	for i = 1, #crack - 1 do
+		seg(c, "GoldSeam", onSphere(globe, radius, crack[i], 0.01), onSphere(globe, radius, crack[i + 1], 0.01), 0.06, 0.06, "gold", { ext = 0.03 })
 	end
-	facet(c, "Shard", sphere + V(0.2, 0.74, -0.42), sphere + V(0.62, 0.52, -0.38), sphere + V(0.42, 0.86, 0.08), 0.22, "dark")
-	-- the tunic: belted, short, its hem cut on the diagonal, knotted on the left shoulder
-	place(c, "Block", "Belt", V(1.3, 0.17, 0.98), pelvis * CFrame.new(0, 0.62, 0.02), "marble")
+	facet(c, "Shard", onSphere(globe, radius, V(-0.3, 0.75, -0.6), 0.2), onSphere(globe, radius, V(0.15, 0.62, -0.78), 0.26), onSphere(globe, radius, V(-0.1, 0.95, -0.3), 0.3), 0.18, "shade")
+	-- the exomis: belted, pleated to mid-thigh with the hem cut on the diagonal, pinned on the
+	-- left shoulder so it crosses the chest and leaves the right breast bare
+	place(c, "Block", "Belt", V(1.22, 0.16, 0.9), pelvis * CFrame.new(0, 0.72, 0.03), "marble")
 	drape(c, "Tunic", {
-		center = V(0, 0, 0.12), rx = 0.7, rz = 0.5, top = 4.6, flare = 0.26, count = 12, from = -168, to = 168, zig = 14, depth = 0.15,
+		center = V(0, 0, 0.08), rx = 0.64, rz = 0.47, top = 4.46, flare = 0.3, count = 12, from = -170, to = 170, zig = 14, depth = 0.16,
 		hem = function(angle)
-			return 3.05 + 0.32 * math.cos(angle - rad(150))
+			return 2.86 + 0.3 * math.cos(angle - rad(140))
 		end,
 	})
-	local knot = chest * V(-0.62, 0.62, -0.05)
-	seg(c, "TunicFront", knot, pelvis * V(0.55, 0.62, -0.46), 0.5, 0.12, "marble", { front = chest.LookVector })
-	seg(c, "TunicBack", knot + V(0, 0, 0.3), pelvis * V(0.55, 0.62, 0.48), 0.56, 0.12, "marble", { front = -chest.LookVector })
-	place(c, "Block", "TunicKnot", V(0.3, 0.24, 0.3), CFrame.new(knot) * CFrame.Angles(0.4, 0.5, 0.3), "marble")
-	for i = 1, 3 do
-		local y = 6.25 - i * 0.32
-		seg(c, "TunicFold", chest * V(-0.66, y - 5.78 + 0.08, -0.52), chest * V(-0.1 + i * 0.06, y - 5.78 - 0.3, -0.52), 0.1, 0.1, "marble", { roll = 45 })
+	local pin = chest * V(-0.62, 0.66, 0)
+	place(c, "Block", "TunicBreast", V(0.68, 0.62, 0.22), chest * CFrame.new(-0.31, 0.16, -0.4) * turn(12, 9, 0), "marble")
+	for i, w in { 0.52, 0.4, 0.3 } do
+		seg(c, "TunicFold", pin + V(0.04 * i, -0.04 * i, -0.24), pelvis * V(0.2 + i * 0.16, 0.76, -0.46), w, 0.13, "marble", { front = chest.LookVector, roll = (-1) ^ i * 12 })
 	end
+	seg(c, "TunicBack", pin + V(0, 0, 0.3), pelvis * V(0.5, 0.76, 0.46), 0.6, 0.13, "marble", { front = -chest.LookVector })
+	place(c, "Block", "TunicKnot", V(0.3, 0.26, 0.3), CFrame.new(pin + V(0, 0.08, 0)) * CFrame.Angles(0.4, 0.5, 0.3), "marble")
 	return { aim = V(0, 6.6, 0.1) }
 end
 

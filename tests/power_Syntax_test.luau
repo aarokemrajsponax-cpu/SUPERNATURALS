@@ -932,9 +932,11 @@ check("Execute Chain: lock, slow, then three bolts, in order; with no target it 
 	assert(#hitsSince(mark, a, b, "ExecuteChain") == def.bolts, "all three hit")
 	local steps = fxSince(mark, "ChainStep", a)
 	assert(#steps == 3 and steps[1].step == 1 and steps[3].step == 3, "each step shown")
-	-- Nobody to run it on
+	-- Nobody to run it on: Bob in the far corner, out of range (but inside the
+	-- arena: leaving it is a knockout)
 	ready(a)
-	place(b, b.root.Position + Vector3.new(0, 0, 70))
+	place(a, arena.center + Vector3.new(-44, 3, -44))
+	place(b, arena.center + Vector3.new(44, 3, 44))
 	mark = game.mark()
 	request("AbilityRequest", alice, "ExecuteChain", { direction = Vector3.new(1, 0, 0) })
 	task.wait(0.6)
