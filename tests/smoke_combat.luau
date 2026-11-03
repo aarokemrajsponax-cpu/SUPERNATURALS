@@ -701,7 +701,8 @@ t.check("touch: a tidy right-side cluster, 44 px or more, clear of the jump butt
 				table.insert(buttons, { name = button.Name, rect = rect })
 			end
 		end
-		assert(#buttons == 8, "eight touch buttons: " .. #buttons)
+		-- Eight combat buttons plus Evolve (phase transformation, added with the Phase meter)
+		assert(#buttons == 9, "nine touch buttons: " .. #buttons)
 		for i = 1, #buttons do
 			for j = i + 1, #buttons do
 				local a, b = buttons[i].rect, buttons[j].rect

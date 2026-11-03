@@ -222,7 +222,7 @@ function PlayWindow.register(): Controller
 				BackgroundTransparency = 1,
 				Parent = body,
 			})
-			Components.text({ Text = "CHOOSE HOW TO FIGHT", Style = "Micro", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 18), Parent = left })
+			Components.text({ Text = "STEP 1: CHOOSE A MODE", Style = "Micro", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 18), Parent = left })
 			local list = Components.scroll({
 				Name = "Cards",
 				Position = UDim2.fromOffset(0, 26),
@@ -346,7 +346,7 @@ function PlayWindow.register(): Controller
 				end
 				local helpers = PowersWindow.helpers
 				local ownsIt = helpers.owns(def)
-				Components.text({ Text = "YOUR FIGHTER", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 1, Wrap = true, Parent = fighterBox })
+				Components.text({ Text = "STEP 2: YOUR FIGHTER", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 1, Wrap = true, Parent = fighterBox })
 				local grid = make("Frame", { Name = "FighterGrid", LayoutOrder = 2, Size = UDim2.fromScale(1, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = fighterBox })
 				Components.grid(grid, UDim2.new(0.5, -Space.S / 2, 0, 44), Space.S)
 				for order, powerId in Powers.Order do

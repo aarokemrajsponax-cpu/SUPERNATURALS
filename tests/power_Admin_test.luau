@@ -365,7 +365,7 @@ check("every effect the server sends has a client drawing, and the other way rou
 	local server = fs.readFile("src/server/Powers/Admin.luau")
 	local client = world.require(world.find("StarterPlayer.StarterPlayerScripts.Client.Powers.Admin"))
 	local names = {}
-	for _, pattern in { 'ctx:fx%("(%w+)"', 'ctx:lastingFx%("(%w+)"', 'fx = "(%w+)"' } do
+	for _, pattern in { '[fF]x%("(%w+)"', 'command%(ctx, "(%w+)"', 'statusWithFx%(.-, "(%w+)", {', 'fx = "(%w+)"' } do
 		for name in string.gmatch(server, pattern) do
 			names[name] = true
 		end

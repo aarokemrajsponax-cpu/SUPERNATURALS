@@ -42,7 +42,7 @@ InputController.Bindings = {
 	{ name = "SNSprint", label = "Sprint", touchLabel = "Run", keys = { KeyCode.LeftShift }, pads = { KeyCode.ButtonL3 }, keyText = "Shift", padText = "L3", touch = { -46, -160, 46 } },
 	{ name = "SNLock", label = "Lock", keys = { KeyCode.Z, InputType.MouseButton3 }, pads = { KeyCode.ButtonR3 }, keyText = "Z", padText = "R3", touch = { 10, -160, 46 } },
 	-- Evolve into the next phase once the Phase meter is full (the server decides; Start is the only free pad button)
-	{ name = "SNEvolve", label = "Evolve", keys = { KeyCode.T }, pads = { KeyCode.ButtonStart }, keyText = "T", padText = "Start", touch = { -214, -86, 56 } },
+	{ name = "SNEvolve", label = "Evolve", keys = { KeyCode.T }, pads = { KeyCode.ButtonStart }, keyText = "T", padText = "Start", touch = { -222, -86, 56 } },
 	{ name = "SNTaunt", label = "Taunt", keys = { KeyCode.V }, pads = { KeyCode.ButtonSelect }, keyText = "V", padText = "View", hint = false },
 }
 -- Older code reads binding.inputs

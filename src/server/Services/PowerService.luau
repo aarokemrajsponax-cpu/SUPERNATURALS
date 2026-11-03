@@ -336,6 +336,7 @@ function PowerService:lock(player: Player)
 		if runtime.degree ~= 1 and fighter and self.characters:isAlive(fighter) then
 			self:equip(fighter, runtime.id, 1, self:_fitLoadout(fighter, runtime.id, 1, runtime.loadout), { trial = runtime.trial })
 			runtime = fighter.power
+			runtime.evolved = true -- match end puts the saved selection back
 		end
 		locked[player] = { power = runtime.id, degree = 1, loadout = table.clone(runtime.loadout), phase = runtime.degree }
 	end
@@ -347,8 +348,7 @@ function PowerService:unlock(player: Player)
 	local fighter = self.characters:getByPlayer(player)
 	local runtime = fighter and fighter.power
 	if fighter and runtime and self.characters:isAlive(fighter) then
-		local _, savedDegree = self:_resolveSelection(player, false)
-		if runtime.evolved or runtime.degree ~= savedDegree then
+		if runtime.evolved then
 			self:_equipForPlayer(fighter)
 		end
 	end

@@ -251,6 +251,7 @@ check("premium powers must be owned in ranked modes; a trial in Practice is fine
 	assert(reply and reply.ok and reply.charged == fee and money(alice) == 500 - fee, "trial evolves for the premium fee")
 	assert(me.power.degree == 2, "Corruption Phase 2")
 	services.PowerService:equip(me, "StrongDude", 1, Powers.defaultLoadout("StrongDude", 1), {})
+	me.power.evolved = true -- as lock() leaves a fighter who started the match below their saved degree
 end)
 
 check("a CPU evolves for free when its meter fills, up to its ceiling", function()

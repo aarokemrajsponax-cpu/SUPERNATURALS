@@ -662,11 +662,16 @@ check("powers window, ability bar and defense prompts", function()
 				end
 			end
 			assert(said, "the dossier says matches start in Phase 1")
-			for _, tab in findNamed(detail, "PhaseTabs"):GetDescendants() do
-				if tab:IsA("TextButton") and string.find(tab.Text, "Phase", 1, true) then
-					press(tab)
-					detail = findNamed(gui, "PowerDetail")
-					auditLayout(detail, "Fighter dossier")
+			for phase = 1, 3 do
+				local tabs = {}
+				for _, tab in findNamed(findNamed(gui, "PowerDetail"), "PhaseTabs"):GetDescendants() do
+					if tab:IsA("TextButton") and string.find(string.upper(string.gsub(tab.Text, utf8.char(0x200A), "")), "PHASE", 1, true) then
+						table.insert(tabs, tab)
+					end
+				end
+				if tabs[phase] then
+					press(tabs[phase])
+					auditLayout(findNamed(gui, "PowerDetail"), "Fighter dossier")
 				end
 			end
 			auditLayout(findNamed(gui, "PowerActions"), "Fighter actions")

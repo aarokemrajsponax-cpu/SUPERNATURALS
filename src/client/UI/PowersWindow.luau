@@ -6,7 +6,6 @@
 -- Nothing is bought or charged here. Picking a fighter for a match happens in Play;
 -- a premium pass opens Roblox's own purchase prompt. Prices come from Config.
 
-local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -21,6 +20,7 @@ local Components = require(script.Parent.Components)
 local Icons = require(script.Parent.Icons)
 local Shell = require(script.Parent.Shell)
 local Profile = require(script.Parent.Parent.Profile)
+local PriceFetcher = require(script.Parent.Parent.PriceFetcher)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local PowerRequest = Remotes:WaitForChild("PowerRequest") :: RemoteEvent
@@ -96,13 +96,17 @@ local function feeText(fee: number): string
 	return if fee <= 0 then "Free" else `{Components.formatNumber(fee)} Money`
 end
 
--- A pass's Robux price and whether it is on sale (an id of 0 means not yet)
-local function passInfo(def): (number?, boolean)
+-- The live price state of a premium fighter's pass, read from Roblox (never hard-coded).
+-- Returns the state and the text to show ("R$ ...", "Available soon", "Price unavailable").
+local onPriceChange: (() -> ())? = nil
+local function passPrice(def): (any, string)
 	local pass = def.premium and Monetization.Passes[def.premium.pass]
-	if not pass then
-		return nil, false
-	end
-	return pass.robux or def.premium.robux, typeof(pass.id) == "number" and pass.id > 0
+	local state = PriceFetcher.get("GamePass", pass and pass.id or 0, function()
+		if onPriceChange then
+			onPriceChange()
+		end
+	end)
+	return state, PriceFetcher.describe(state)
 end
 
 PowersWindow.helpers = {
@@ -113,6 +117,14 @@ PowersWindow.helpers = {
 	feeText = feeText,
 	isOwner = isOwnerAccount,
 }
+
+-- Descriptions in the power definitions may hold em dashes; the interface never shows them
+local function clean(text: string): string
+	local out = string.gsub(text, " \u{2014} ", ", ")
+	out = string.gsub(out, "\u{2014}", ", ")
+	return out
+end
+PowersWindow.clean = clean
 
 local function statsLine(ability, resourceName: string?): string
 	local parts = {}
@@ -466,26 +478,26 @@ function PowersWindow.register()
 			Components.list(actions, Space.S, { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center })
 
 			-- Centre: the stage, a caption under it, and the demo button
-			local stageHolder = make("Frame", { Name = "StageHolder", Size = UDim2.new(1, 0, 1, -(Theme.Size.Control + Space.M + 52)), BackgroundTransparency = 1, Parent = centre })
-			local preview = buildPreview(stageHolder)
+			local preview = buildPreview(centre)
 			local caption = Components.text({
 				Name = "Caption",
 				Style = "caption",
 				Color = Colors.TextDim,
 				Wrap = true,
-				AnchorPoint = Vector2.new(0, 1),
-				Position = UDim2.new(0, 0, 1, -(Theme.Size.Control + Space.M)),
-				Size = UDim2.new(1, 0, 0, 44),
-				Parent = centre,
+				Position = UDim2.fromOffset(Space.M, Space.M),
+				Size = UDim2.new(1, -Space.M * 2, 0, 0),
+				ZIndex = 5,
+				Parent = preview.frame,
 			})
 			local demoIndex = 0
 			local demoButton = Components.button("Show an ability", {
 				Name = "Demo",
 				Variant = "Secondary",
-				AnchorPoint = Vector2.new(0, 1),
-				Position = UDim2.fromScale(0, 1),
-				Size = UDim2.new(1, 0, 0, Theme.Size.Control),
-				Parent = centre,
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, -Space.M),
+				Size = UDim2.new(1, -Space.M * 2, 0, Theme.Size.Control),
+				ZIndex = 5,
+				Parent = preview.frame,
 			}, function()
 				local def = Powers.get(selectedPower)
 				local ids = Powers.available(selectedPower, selectedPhase)
@@ -580,7 +592,7 @@ function PowersWindow.register()
 					Components.text({ Text = numbers, Style = "number", TextSize = 14, Color = Colors.TextDim, LayoutOrder = 3, Wrap = true, Parent = row })
 				end
 				if typeof(ability.description) == "string" then
-					Components.text({ Text = ability.description, Style = "caption", Color = Colors.TextMuted, LayoutOrder = 4, Wrap = true, Parent = row })
+					Components.text({ Text = clean(ability.description), Style = "caption", Color = Colors.TextMuted, LayoutOrder = 4, Wrap = true, Parent = row })
 				end
 			end
 
@@ -612,7 +624,7 @@ function PowersWindow.register()
 				end
 				Components.text({ Text = def.name, Style = "title", Track = true, TextSize = 20, LayoutOrder = 2, Wrap = true, Parent = head })
 				Components.text({ Text = def.tagline, Style = "strong", Color = accent, LayoutOrder = 3, Wrap = true, Parent = head })
-				Components.text({ Text = def.description, Style = "body", Color = Colors.TextDim, LayoutOrder = 4, Wrap = true, Parent = head })
+				Components.text({ Text = clean(def.description), Style = "body", Color = Colors.TextDim, LayoutOrder = 4, Wrap = true, Parent = head })
 				Components.text({ Text = `Playstyle: {def.style}`, Style = "label", Color = Colors.Text, LayoutOrder = 5, Wrap = true, Parent = head })
 				difficultyRow(head, def.difficulty or 3, accent, 6)
 
@@ -646,10 +658,9 @@ function PowersWindow.register()
 					end
 					Components.text({ Text = `Phases: {table.concat(names, LINE)}`, Style = "caption", Color = Colors.TextDim, LayoutOrder = 3, Wrap = true, Parent = intro })
 					Components.text({ Text = if preview.hasAppearance() then "Its aura plays on the figure in the preview." else "Its look is shown on the figure in the preview.", Style = "caption", Color = Colors.TextDim, LayoutOrder = 4, Wrap = true, Parent = intro })
-					local robux, onSale = passInfo(def)
+					local _, priceLabel = passPrice(def)
 					local how = if ownsIt then "You own this fighter. It works in every mode."
-						else if robux then `Unlock with a one-time Robux pass: R$ {Components.formatNumber(robux)}.{if onSale then "" else " Available soon."} Free to try in Training and CPU Practice.`
-						else "Unlocked with a pass. Free to try in Training and CPU Practice."
+						else `Unlock with a one-time Robux pass: {priceLabel}. Free to try in Training and CPU Practice.`
 					Components.text({ Text = how, Style = "caption", Color = Colors.TextDim, LayoutOrder = 5, Wrap = true, Parent = intro })
 				end
 
@@ -682,7 +693,7 @@ function PowersWindow.register()
 				}, { Components.corner(Theme.SmallCorner), Components.stroke(Colors.Stroke, 1, 0.8), Components.padding(Space.M) })
 				Components.list(card, Space.XS)
 				Components.text({ Text = `Phase {selectedPhase}: {degreeDef.name}`, Style = "strong", LayoutOrder = 1, Wrap = true, Parent = card })
-				Components.text({ Text = degreeDef.description, Style = "caption", Color = Colors.TextDim, LayoutOrder = 2, Wrap = true, Parent = card })
+				Components.text({ Text = clean(degreeDef.description), Style = "caption", Color = Colors.TextDim, LayoutOrder = 2, Wrap = true, Parent = card })
 				local feeLine, feeColor
 				if selectedPhase == 1 then
 					feeLine, feeColor = "Evolve fee: none. Every match starts here.", Colors.Success
@@ -752,14 +763,15 @@ function PowersWindow.register()
 						child:Destroy()
 					end
 				end
-				local robux, onSale = passInfo(def)
 				if def.premium and not ownsIt then
-					local label = if onSale then `Unlock: R$ {Components.formatNumber(robux or 0)}` else "Available soon"
+					local state, priceLabel = passPrice(def)
+					local onSale = state.status == "ready"
+					local label = if onSale then `Unlock: {priceLabel}` else priceLabel
 					local buy = Components.button(label, { Name = "Unlock", Variant = "Primary", Size = UDim2.new(0.5, -Space.XS, 1, 0), Parent = actions }, function()
 						PowerRequest:FireServer(Action.PromptPass, def.id)
 					end)
 					if not onSale then
-						Components.setDisabled(buy, true, "This pass is not on sale yet")
+						Components.setDisabled(buy, true, "The price is not available right now")
 					end
 				end
 				Components.button("Choose in Play", { Name = "ChooseInPlay", Variant = if def.premium and not ownsIt then "Secondary" else "Primary", Size = if def.premium and not ownsIt then UDim2.new(0.5, -Space.XS, 1, 0) else UDim2.fromScale(1, 1), Parent = actions }, function()
@@ -787,9 +799,8 @@ function PowersWindow.register()
 							chip, chipColor = if ownsIt then "OWNED" else "PREMIUM", Colors.Gold
 						end
 						if def.premium and not ownsIt then
-							local robux = passInfo(def)
-							price = if robux then { robux = robux } else nil
-							priceText = if robux then nil else "Available soon"
+							local _, priceLabel = passPrice(def)
+							priceText = priceLabel
 						else
 							priceText = if def.premium then "Owned" else "Free"
 						end
@@ -824,7 +835,7 @@ function PowersWindow.register()
 								end
 							end,
 						})
-						frame.Name = "Fighter_" .. powerId
+						frame.Name = "Card_" .. powerId
 						frame.Parent = list
 						cards[powerId] = { frame = frame, card = card }
 					end
@@ -836,6 +847,12 @@ function PowersWindow.register()
 				preview.look(selectedPower, selectedPhase)
 				renderDossier()
 				layout()
+			end
+			onPriceChange = function()
+				if body.Parent then
+					renderCards()
+					renderDossier()
+				end
 			end
 			refreshAll()
 			body.Destroying:Connect(preview.stop)
