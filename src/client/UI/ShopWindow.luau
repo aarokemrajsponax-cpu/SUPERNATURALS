@@ -68,6 +68,15 @@ function ShopWindow.items(): { { [string]: any } }
 			table.insert(list, { category = "Powers", kind = "pass", key = key, name = pass.name, contents = pass.benefit, icon = "star", accent = Colors.Purple, premium = true, power = pass.power })
 		end
 	end
+	-- A 24 hour trial of each fighter, next to the fighter's unlock (fixed reward, nothing random)
+	for _, key in { "CorruptionPower", "SyntaxPower", "AdminPower" } do
+		local pass = Monetization.Passes[key]
+		local trialKey = pass and pass.power and Monetization.TrialProducts[pass.power]
+		local product = trialKey and Monetization.Products[trialKey]
+		if product then
+			table.insert(list, { category = "Powers", kind = "product", key = trialKey, name = product.name, contents = product.benefit, icon = "clock", accent = Colors.Purple, trialFor = pass.power, trialPass = key })
+		end
+	end
 	for _, key in { "CorruptionPower", "SyntaxPower", "AdminPower" } do
 		local pass = Monetization.Passes[key]
 		local def = pass and pass.power and Powers.get(pass.power)
@@ -187,7 +196,9 @@ local function stateOf(item, redraw: () -> ())
 	local running = SeasonPass.current(os.time())
 	local sameSeason = running ~= nil and typeof(pass) == "table" and pass.season == running.id
 	local seasonBlock: string? = nil
-	if item.seasonPass == "premium" and sameSeason and pass.premium == true then
+	if item.trialFor and ownsPower({ key = item.trialPass, power = item.trialFor }) then
+		seasonBlock = "Already owned"
+	elseif item.seasonPass == "premium" and sameSeason and pass.premium == true then
 		state.owned = true
 	elseif item.seasonPass and not running then
 		seasonBlock = "No season now"

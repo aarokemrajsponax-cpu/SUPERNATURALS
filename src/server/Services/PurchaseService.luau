@@ -300,6 +300,9 @@ function PurchaseService:_grantReceipt(receipt: any, productKey: string): Enum.P
 	if product.seasonPass then
 		return self:_grantSeasonProduct(player, purchaseId, product)
 	end
+	if product.trial then
+		return self:_grantTrialProduct(player, purchaseId, product)
+	end
 	local amounts = { money = product.money, gems = product.gems }
 	local before = {
 		money = self.currency:balance(player, "money"),
@@ -370,6 +373,39 @@ function PurchaseService:_grantSeasonProduct(player: Player, purchaseId: string,
 		end
 	end)
 	warn(`[Purchase] season receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- Fighter trial products (TrialCorruption, TrialSyntax, TrialAdmin). Same pattern as the season
+-- products: the receipt id and the trial time are written together and saved before Roblox hears
+-- "granted"; a failed save is rolled back so a retry can never give a trial twice.
+function PurchaseService:_grantTrialProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local powers = self.services and self.services.PowerService
+	if not powers then
+		return Decision.NotProcessedYet
+	end
+	local powerId = product.trial.power
+	local before = self.data:get(player).trials[powerId]
+	self.data:update(player, function(data)
+		powers.applyTrial(data, powerId, product.trial.hours, os.time())
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		toast(player, `{product.name}: 24 hours of full use in every mode. Thank you!`, "reward")
+		powers:onTrialChanged(player, powerId)
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.trials[powerId] = before
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] trial receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
 	return Decision.NotProcessedYet
 end
 
@@ -465,6 +501,17 @@ function PurchaseService:promptProduct(player: Player, productKey: string): bool
 		else
 			ok, reason = seasonPass:canSellSkip(player)
 		end
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
+	end
+	if product.trial then
+		local powers = self.services and self.services.PowerService
+		if not powers then
+			return false
+		end
+		local ok, reason = powers:canSellTrial(player, product.trial.power, product.trial.hours)
 		if not ok then
 			toast(player, reason or "That is not available right now.", "info")
 			return false

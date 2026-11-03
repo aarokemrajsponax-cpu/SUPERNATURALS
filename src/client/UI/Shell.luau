@@ -954,6 +954,8 @@ function Shell.open(id: string, args: any?)
 	updateBlur()
 	refreshNav()
 	syncBackBinding()
+	-- Toasts move to the strip under the top bar while a window is open (see relayout)
+	relayout()
 	local target = if entry.handlers.focus then entry.handlers.focus() else nil
 	focus(target or firstControl(entry.body :: Frame) or entry.parts.close)
 end

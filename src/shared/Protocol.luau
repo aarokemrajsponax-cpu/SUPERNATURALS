@@ -139,6 +139,9 @@ Protocol.DataEvent = {
 	-- Selection screens (docs/specs/SelectionContract.md)
 	Selection = "Selection", -- the whole snapshot: context, balances, equipped selection, every power and degree with price and status
 	SelectionQuote = "SelectionQuote", -- reply to Quote: one degree's entry plus loadout checks
+	-- Holiday calendars (CalendarService): { kind = "State", serverNow, catchUp, calendar, today, claimed, count, perfect, milestones, nextId, nextStartsAt }
+	-- | { kind = "Claimed", calendar, day, ok, text }
+	Calendar = "Calendar",
 	SelectionResult = "SelectionResult", -- { action, ok, code, message, charged, ... } reply to Confirm, Select, Trial, EndTrial, SetShowcase, SetLoadout and a Queue that carried a selection
 }
 
@@ -148,6 +151,8 @@ Protocol.ShopAction = {
 	Equip = "Equip", -- (slot, itemId?)
 	PromptProduct = "PromptProduct", -- (productKey) Robux developer product (e.g. a gem pack)
 	PromptPass = "PromptPass", -- (passKey) Robux game pass; the server checks the key, ownership and the id is set
+	ClaimGift = "ClaimGift", -- (day) holiday calendar gift: a whole day number; the server checks the date, catch-up and claims (CalendarService)
+	GiftState = "GiftState", -- () ask for the calendar state; the reply comes on DataEvent as Calendar
 	ClaimTier = "ClaimTier", -- (claimKey) season pass reward: "f" or "p" (free or premium track) then the tier, e.g. "f3", "p12" (SeasonPassService)
 }
 

@@ -66,6 +66,32 @@ local function owns(def): boolean
 	return powerData(def.id).owned == true
 end
 
+-- A running trial ticket for a premium fighter the player does not own: "Trial: 23 h left"
+-- (hours rounded down; "Trial: under 1 h left" in the last hour). Nil when there is none.
+-- The server holds the end time in profile.trials and ends the trial itself.
+local function trialText(def): string?
+	if not def.premium then
+		return nil
+	end
+	local view = Profile.get()
+	local trials = view and view.trials
+	local endsAt = typeof(trials) == "table" and trials[def.id]
+	if typeof(endsAt) ~= "number" then
+		return nil
+	end
+	local left = endsAt - workspace:GetServerTimeNow()
+	if left <= 0 then
+		return nil
+	end
+	local hours = math.floor(left / 3600)
+	if hours < 1 then
+		return "Trial: under 1 h left"
+	elseif hours >= 48 then
+		return `Trial: {math.floor(hours / 24)} d {hours % 24} h left`
+	end
+	return `Trial: {hours} h left`
+end
+
 local function degreeOpen(def, degree: number): boolean
 	return isOwnerAccount() or Powers.degreeUnlocked(def.id, degree, powerData(def.id))
 end
@@ -664,7 +690,7 @@ function PowersWindow.register()
 				local head = make("Frame", { Name = "Head", LayoutOrder = nextOrder(), Size = UDim2.fromScale(1, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = detail })
 				Components.list(head, Space.XS)
 				if def.premium then
-					Components.text({ Text = if ownsIt then "Premium fighter, owned" else "Premium fighter", Style = "overline", Color = Colors.Gold, LayoutOrder = 1, Wrap = true, Parent = head })
+					Components.text({ Text = if ownsIt then "Premium fighter, owned" else (if trialText(def) then `Premium fighter. {trialText(def)}` else "Premium fighter"), Style = "overline", Color = Colors.Gold, LayoutOrder = 1, Wrap = true, Parent = head })
 				end
 				Components.text({ Text = def.name, Style = "title", Track = true, TextSize = 20, LayoutOrder = 2, Wrap = true, Parent = head })
 				Components.text({ Text = def.tagline, Style = "strong", Color = accent, LayoutOrder = 3, Wrap = true, Parent = head })
@@ -892,11 +918,11 @@ function PowersWindow.register()
 						if typeof(equipped) == "table" and equipped.power == powerId then
 							chip, chipColor = "EQUIPPED", Colors.Success
 						elseif def.premium then
-							chip, chipColor = if ownsIt then "OWNED" else "PREMIUM", Colors.Gold
+							chip, chipColor = if ownsIt then "OWNED" elseif trialText(def) then "TRIAL" else "PREMIUM", Colors.Gold
 						end
 						if def.premium and not ownsIt then
 							local _, priceLabel = passPrice(def)
-							priceText = priceLabel
+							priceText = trialText(def) or priceLabel
 						else
 							priceText = if def.premium then "Owned" else "Free"
 						end
@@ -911,7 +937,7 @@ function PowersWindow.register()
 							Price = price,
 							PriceText = priceText,
 							Premium = def.premium ~= nil,
-							Locked = def.premium ~= nil and not ownsIt,
+							Locked = def.premium ~= nil and not ownsIt and trialText(def) == nil,
 							Selected = powerId == selectedPower,
 							Size = UDim2.new(1, -4, 0, 96),
 							onClick = function()

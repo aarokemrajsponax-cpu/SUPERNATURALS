@@ -30,6 +30,7 @@ local ORDER = {
 	"TutorialService",
 	"PracticeService",
 	"SeasonPassService",
+	"CalendarService",
 	"LoreService",
 	"AchievementService",
 	"AdminEventService",

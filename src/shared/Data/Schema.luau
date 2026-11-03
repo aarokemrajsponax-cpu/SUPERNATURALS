@@ -21,6 +21,7 @@ for _, chapter in Archive.Chapters do
 end
 
 local Homes = require(script.Parent.Parent.Config.Homes)
+local Calendars = require(script.Parent.Parent.Config.Calendars)
 
 -- Bump this when the shape changes, and add a MIGRATIONS step below
 Schema.VERSION = 1
@@ -147,6 +148,10 @@ export type Profile = {
 	-- The Archive: recovered files, documents read, and where the reader left off
 	lore: { found: { [string]: boolean }, read: { [string]: boolean }, last: string, page: number },
 	settings: Settings,
+	-- Holiday calendars (CalendarService): [calendarId] = { claimed = { [dayKey] = true }, perfect, milestones = { [countKey] = true } }
+	calendars: { [string]: { claimed: { [string]: boolean }, perfect: boolean, milestones: { [string]: boolean } } },
+	-- Premium fighter trials: [powerId] = os.time() the trial ends (PowerService)
+	trials: { [string]: number },
 	-- Last known game pass ownership by pass key (Roblox is asked again on join)
 	passes: { [string]: boolean },
 	-- Recent Robux PurchaseIds already granted, oldest first
@@ -340,6 +345,8 @@ local DEFAULT = {
 	-- The cosmetic season pass: which season, points earned, premium track, claimed tiers (SeasonPassService)
 	pass = { season = "", points = 0, premium = false, claimed = {} },
 	lore = { found = {}, read = {}, last = "", page = 0 },
+	calendars = {},
+	trials = {},
 	settings = defaultSettings(),
 	passes = {},
 	receipts = {},
@@ -571,6 +578,34 @@ local function repair(source: { [any]: any }): Profile
 		premium = pass.premium == true,
 		claimed = stringSet(pass.claimed),
 	}
+
+	-- Calendars: known calendar ids, known day and milestone keys only
+	profile.calendars = {}
+	for id, entry in asTable(source.calendars) do
+		local calendar = Calendars.get(id)
+		if calendar then
+			local saved = asTable(entry)
+			local claimed, milestones = {}, {}
+			for key in stringSet(saved.claimed) do
+				if Calendars.validDayKey(calendar, key) then
+					claimed[key] = true
+				end
+			end
+			for key in stringSet(saved.milestones) do
+				if Calendars.validMilestoneKey(calendar, key) then
+					milestones[key] = true
+				end
+			end
+			profile.calendars[id] = { claimed = claimed, perfect = saved.perfect == true, milestones = milestones }
+		end
+	end
+	-- Fighter trials: premium fighters a calendar can hand out, end times as whole seconds
+	profile.trials = {}
+	for powerId, endsAt in asTable(source.trials) do
+		if typeof(powerId) == "string" and Calendars.TrialPowers[powerId] and isFinite(endsAt) and endsAt > 0 then
+			profile.trials[powerId] = integer(endsAt, 1, 4102444800, 1)
+		end
+	end
 
 	-- Lore: only ids the Archive has (a file must be found before it can be read)
 	local lore = asTable(source.lore)

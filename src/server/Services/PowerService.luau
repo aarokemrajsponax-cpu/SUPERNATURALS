@@ -90,7 +90,7 @@ export type Runtime = {
 
 local modules: { [string]: any } = {}
 -- Players in a match: their power, degree and loadout as they were when it started
-local locked: { [Player]: { power: string, degree: number, loadout: { string }, phase: number? } } = {}
+local locked: { [Player]: { power: string, degree: number, loadout: { string }, phase: number?, viaTrial: boolean? } } = {}
 local keyCounter = 0
 -- Owners with showcase mode on, and when each player last saw the lobby notice
 local showcase: { [Player]: boolean } = {}
@@ -220,6 +220,16 @@ function PowerService:Start()
 
 	task.spawn(function()
 		while true do
+			task.wait(15)
+			local ok, err = pcall(self._sweepTrials, self)
+			if not ok then
+				warn("[Powers] trial sweep failed: " .. tostring(err))
+			end
+		end
+	end)
+
+	task.spawn(function()
+		while true do
 			task.wait(TICK)
 			self:_tick(TICK)
 		end
@@ -239,8 +249,120 @@ function PowerService:_profile(player: Player)
 	return if data then data:get(player) else nil
 end
 
+-- Fighter trial tickets (24 hours of full use of a premium fighter, from a holiday calendar or
+-- a trial product). profile.trials[powerId] holds the os.time() the ticket ends. While one is
+-- active the fighter counts as owned in every mode. A match that started during a ticket
+-- finishes with it (locked.viaTrial); it never ends mid-match.
+PowerService.TrialMaxSeconds = 7 * 86400
+
+-- Adds `hours` to a profile's trial of `powerId` (stacking on an active one, never past
+-- TrialMaxSeconds from `now`). Pure profile change, so callers can run it inside a DataService
+-- update and roll it back. Returns the new end time.
+function PowerService.applyTrial(profile, powerId: string, hours: number, now: number): number
+	local current = profile.trials[powerId]
+	local base = if typeof(current) == "number" and current > now then current else now
+	local endsAt = math.min(now + PowerService.TrialMaxSeconds, base + math.floor(hours * 3600))
+	profile.trials[powerId] = endsAt
+	return endsAt
+end
+
+-- When this player's trial of a premium fighter ends (os.time()), or nil when none is running
+function PowerService:trialEndsAt(player: Player, powerId: string): number?
+	local profile = self:_profile(player)
+	local endsAt = profile and profile.trials and profile.trials[powerId]
+	if typeof(endsAt) == "number" and endsAt > os.time() then
+		return endsAt
+	end
+	return nil
+end
+
+-- Gives a trial ticket for a premium fighter. Returns (ok, endsAt or reason).
+function PowerService:grantTrial(player: Player, powerId: any, hours: any, source: string?): (boolean, any)
+	if typeof(powerId) ~= "string" or not Powers.isPremium(powerId) then
+		return false, "Only premium fighters have trials."
+	end
+	if typeof(hours) ~= "number" or hours ~= hours or hours <= 0 or hours > 168 then
+		return false, "That trial length is not valid."
+	end
+	if not self:_profile(player) then
+		return false, "Your data is still loading."
+	end
+	local endsAt = 0
+	local ok = self.services.DataService:update(player, function(profile)
+		endsAt = PowerService.applyTrial(profile, powerId, hours, os.time())
+	end)
+	if not ok then
+		return false, "Could not save that."
+	end
+	local def = Powers.get(powerId)
+	-- A fighter being tried in Training is now a full fighter: drop the trial flag
+	local fighter = self.characters:getByPlayer(player)
+	if fighter and fighter.power and fighter.power.id == powerId then
+		fighter.power.trial = false
+	end
+	toast(player, `{def.name} trial started: full use in every mode for {math.max(1, math.floor((endsAt - os.time()) / 3600))} h.`, "reward")
+	self:_sendSnapshot(player)
+	return true, endsAt
+end
+
+-- Called after a trial changed outside grantTrial (a product purchase): refresh the fighter
+-- state and the player's Showcase.
+function PowerService:onTrialChanged(player: Player, powerId: string)
+	local fighter = self.characters:getByPlayer(player)
+	if fighter and fighter.power and fighter.power.id == powerId and self:owns(player, powerId) then
+		fighter.power.trial = false
+	end
+	self:_sendSnapshot(player)
+end
+
+-- May a trial product be sold to this player? Not for a fighter they own, and not past the
+-- 7 day stacking limit (Robux are never taken for time that would be thrown away).
+function PowerService:canSellTrial(player: Player, powerId: string, hours: number): (boolean, string?)
+	if not Powers.isPremium(powerId) then
+		return false, "Only premium fighters have trials."
+	end
+	if self:_ownsOutright(player, powerId) then
+		return false, "You already own that fighter."
+	end
+	local current = self:trialEndsAt(player, powerId)
+	if current and current + hours * 3600 > os.time() + PowerService.TrialMaxSeconds then
+		return false, "That trial already runs close to the 7 day limit. Try again once some of it is used."
+	end
+	return true, nil
+end
+
+-- Ends expired tickets: removes them from the profile, says so, and puts a fighter that was
+-- using one back to its trial state. A ticket a running match is using is left for after it.
+function PowerService:_sweepTrials()
+	local now = os.time()
+	for _, player in Players:GetPlayers() do
+		local profile = self:_profile(player)
+		if profile and profile.trials then
+			for powerId, endsAt in table.clone(profile.trials) do
+				if typeof(endsAt) ~= "number" or endsAt <= now then
+					local held = locked[player]
+					if not (held and held.viaTrial and held.power == powerId) then
+						self.services.DataService:update(player, function(saved)
+							saved.trials[powerId] = nil
+						end)
+						local def = Powers.get(powerId)
+						if def then
+							toast(player, `Your {def.name} trial has ended. You can still try it in Training and CPU Practice.`, "info")
+						end
+						local fighter = self.characters:getByPlayer(player)
+						if fighter and fighter.power and fighter.power.id == powerId and not self:_ownsOutright(player, powerId) then
+							fighter.power.trial = true
+						end
+						self:_sendSnapshot(player)
+					end
+				end
+			end
+		end
+	end
+end
+
 -- Does this player own a premium power outright (pass, Gems unlock, or the game's owner)?
-function PowerService:owns(player: Player, powerId: string): boolean
+function PowerService:_ownsOutright(player: Player, powerId: string): boolean
 	local def = Powers.get(powerId)
 	if not def then
 		return false
@@ -257,6 +379,18 @@ function PowerService:owns(player: Player, powerId: string): boolean
 		return true
 	end
 	return powerData(self:_profile(player), powerId).owned == true
+end
+
+-- Owned outright, or a trial ticket is running (or a match that began under one is still on)
+function PowerService:owns(player: Player, powerId: string): boolean
+	if self:_ownsOutright(player, powerId) then
+		return true
+	end
+	local held = locked[player]
+	if held and held.viaTrial and held.power == powerId then
+		return true
+	end
+	return self:trialEndsAt(player, powerId) ~= nil
 end
 
 -- Can this player use this power and degree at all? Premium powers they don't
@@ -310,7 +444,7 @@ function PowerService:queueCheck(player: Player, modeName: string): (boolean, st
 	local fighter = self.characters:getByPlayer(player)
 	local runtime = fighter and fighter.power
 	if runtime and not runtime.training then
-		if runtime.trial then
+		if runtime.trial or (runtime.def.premium and not self:owns(player, runtime.id)) then
 			return false, premiumRefusal(runtime.def)
 		end
 		return true, nil
@@ -339,7 +473,9 @@ function PowerService:lock(player: Player)
 			runtime = fighter.power
 			runtime.evolved = true -- match end puts the saved selection back
 		end
-		locked[player] = { power = runtime.id, degree = 1, loadout = table.clone(runtime.loadout), phase = runtime.degree }
+		local def = Powers.get(runtime.id)
+		local viaTrial = def ~= nil and def.premium ~= nil and not self:_ownsOutright(player, runtime.id) and self:trialEndsAt(player, runtime.id) ~= nil
+		locked[player] = { power = runtime.id, degree = 1, loadout = table.clone(runtime.loadout), phase = runtime.degree, viaTrial = viaTrial }
 	end
 end
 
@@ -728,6 +864,7 @@ function PowerService:snapshot(player: Player)
 				}
 				else nil,
 		},
+		serverNow = os.time(),
 		powers = {},
 	}
 	for _, powerId in Powers.Order do
@@ -744,6 +881,8 @@ function PowerService:snapshot(player: Player)
 				name = def.name,
 				premium = def.premium ~= nil,
 				owned = self:owns(player, powerId),
+				-- A running trial ticket: when it ends (os.time()); nil for owned fighters
+				trialEndsAt = if self:_ownsOutright(player, powerId) then nil else self:trialEndsAt(player, powerId),
 				level = Powers.masteryLevel(if typeof(xp) == "number" then xp else 0),
 				extraSlot = hasSlot,
 				unlock = if def.premium

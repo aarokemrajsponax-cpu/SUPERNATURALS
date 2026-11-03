@@ -131,10 +131,40 @@ Monetization.Products = {
 		name = "Season Tier Skip",
 		benefit = "Adds one tier of points to this season's pass, never past the last tier. Every tier can also be earned free by playing.",
 	},
+	-- Fighter trials (PowerService:grantTrial): 24 hours of one premium fighter in every mode.
+	-- Fixed reward, nothing random. `recommended` is for the owner's Creator Hub list only; the
+	-- shop shows Roblox's live price. Trials stack up to 7 days and never replace the unlock.
+	TrialCorruption = {
+		id = 0,
+		robux = nil,
+		recommended = 49,
+		trial = { power = "Corruption", hours = 24 },
+		name = "Corruption Trial",
+		benefit = "24 hours of Corruption, all three degrees, in every mode including Duel and Free-for-All. Fixed reward. Stacks up to 7 days. Does not unlock the fighter for good.",
+	},
+	TrialSyntax = {
+		id = 0,
+		robux = nil,
+		recommended = 49,
+		trial = { power = "Syntax", hours = 24 },
+		name = "Syntax Trial",
+		benefit = "24 hours of Syntax, all three degrees, in every mode including Duel and Free-for-All. Fixed reward. Stacks up to 7 days. Does not unlock the fighter for good.",
+	},
+	TrialAdmin = {
+		id = 0,
+		robux = nil,
+		recommended = 49,
+		trial = { power = "Admin", hours = 24 },
+		name = "Admin Powers Trial",
+		benefit = "24 hours of Admin Powers, all three degrees, in every mode including Duel and Free-for-All. Fixed reward. Stacks up to 7 days. Does not unlock the fighter for good. Never grants real admin rights.",
+	},
 }
 
 -- Order products appear in the shop
 Monetization.ProductOrder = { "GemsSmall", "GemsMedium", "GemsLarge", "GemsHuge", "GemsMassive" }
+
+-- The trial product for each premium fighter, shown next to the fighter's unlock
+Monetization.TrialProducts = { Corruption = "TrialCorruption", Syntax = "TrialSyntax", Admin = "TrialAdmin" }
 
 -- Shown when someone tries to buy an item whose id is still 0
 Monetization.NotOnSaleText = "This item isn't on sale yet"

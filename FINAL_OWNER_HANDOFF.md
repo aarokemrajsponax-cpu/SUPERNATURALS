@@ -13,11 +13,12 @@ the ids in chat and Claude will paste them, test and push.
 
 **Before launch (about 45 minutes)**
 1. Studio, Game Settings, Security: turn on "Enable Studio Access to API Services", then publish.
-2. Creator Hub, Monetization, Developer Products: create these 7, turn **Managed Pricing** on for
+2. Creator Hub, Monetization, Developer Products: create these 10, turn **Managed Pricing** on for
    each (regional prices), and paste each id into `src/shared/Config/Monetization.luau`:
    Pouch of Gems (100 Gems, 49 R$), Chest of Gems (450 Gems, 199 R$), Vault of Gems (1,100 Gems,
    449 R$), Hoard of Gems (2,600 Gems, 999 R$), Treasury of Gems (7,000 Gems, 2,499 R$),
-   Season Premium (499 R$), Season Tier Skip (49 R$). Prices are suggestions; descriptions are
+   Season Premium (499 R$), Season Tier Skip (49 R$), Corruption Trial (49 R$), Syntax Trial (49 R$),
+   Admin Powers Trial (49 R$). Prices are suggestions; descriptions are
    the `benefit` text in Monetization.luau.
 3. Creator Hub, Monetization, Passes: create these 7 (Managed Pricing is already on for passes)
    and paste each id: Corruption (6,666 R$), Syntax (9,999 R$), Admin Powers (12,000 R$),
@@ -66,6 +67,18 @@ Both are developer products handled by the same `ProcessReceipt`, idempotent by 
 | SeasonTierSkip "Season Tier Skip" | 0: OWNER ACTION REQUIRED, paste over `Products.SeasonTierSkip.id` | Adds one tier (100 points) to the current season pass, never past tier 30. Can be bought repeatedly; every tier is also free to earn. | 49 R$ | Name "Season Tier Skip". Description: the `benefit` text in `Monetization.luau`. |
 
 Season pass details: season "harvest_2026" (Harvest Week) runs 1 November 2026 00:00 UTC to 30 November 2026 23:59:59 UTC (`Config/SeasonPass.luau`). To start another season add an entry to `SeasonPass.Seasons`; every player's pass then resets by itself, and cosmetics already claimed are kept. Nothing random is sold; tier skip is the only paid way to move up and tiers can always be earned for free. No countdown or "last chance" wording appears anywhere.
+
+### Fighter trial products (new, holiday calendars)
+
+Three developer products, one per premium fighter, handled by the same `ProcessReceipt` and the same idempotent, save-before-grant pattern as the season products (`PurchaseService:_grantTrialProduct`; a failed save is rolled back and Roblox retries). Each gives a fixed 24 hours of that fighter in every mode, including Duel and Free-for-All, exactly as if owned. Trials stack up to 7 days and never replace the unlock; a trial is not sold to a player who already owns the fighter, or who is within a day of the 7 day limit. Nothing is random. All keep id 0 in code, show "Available soon" and can never be prompted until you paste the id. They appear in the shop's Premium powers category next to each fighter's unlock, with Roblox's live price (the `recommended` value is only a suggestion for Creator Hub). The Admin trial never grants real admin rights.
+
+| Product | Product ID | Gives | Recommended price | Creator Hub name and description |
+|---|---|---|---|---|
+| TrialCorruption "Corruption Trial" | 0: OWNER ACTION REQUIRED, paste over `Products.TrialCorruption.id` | 24 hours of Corruption, all three degrees, in every mode. Stacks up to 7 days. | 49 R$ | Name "Corruption Trial". Description: the `benefit` text in `Monetization.luau`. |
+| TrialSyntax "Syntax Trial" | 0: OWNER ACTION REQUIRED, paste over `Products.TrialSyntax.id` | 24 hours of Syntax, all three degrees, in every mode. Stacks up to 7 days. | 49 R$ | Name "Syntax Trial". Description: the `benefit` text in `Monetization.luau`. |
+| TrialAdmin "Admin Powers Trial" | 0: OWNER ACTION REQUIRED, paste over `Products.TrialAdmin.id` | 24 hours of Admin Powers, all three degrees, in every mode. Stacks up to 7 days. | 49 R$ | Name "Admin Powers Trial". Description: the `benefit` text in `Monetization.luau`. |
+
+The same 24 hour trial tickets are also free gifts in the holiday calendars (three days of each calendar: Corruption, Syntax and Admin), so players can try every premium fighter without paying.
 
 No other developer products exist in the code. Starter Pack is not built (no matching benefits exist in code).
 
@@ -153,7 +166,7 @@ Unresolved: (1) the live behaviour of ProcessReceipt, regional prices and pass c
 ## 3.6 Final owner action checklist
 
 REQUIRED BEFORE PUBLICATION
-1. Create the 7 Developer Products (5 Gem packs, SeasonPremium, SeasonTierSkip) and 7 Game Passes (3 powers, Extra Ability Slot, Celestial Dragon Style, VIP, Founders Collection) in 3.1 and 3.2; paste every id into `Monetization.luau`. Suggested prices for the new items are in the tables above.
+1. Create the 10 Developer Products (5 Gem packs, SeasonPremium, SeasonTierSkip, TrialCorruption, TrialSyntax, TrialAdmin) and 7 Game Passes (3 powers, Extra Ability Slot, Celestial Dragon Style, VIP, Founders Collection) in 3.1 and 3.2; paste every id into `Monetization.luau`. Suggested prices for the new items are in the tables above.
 2. Check each pass has Managed Pricing on; enable Managed Pricing for each product only after Dynamic Price Check passes.
 3. Run both Dynamic Price Check modes (Price pinned and Location pinned) and fix anything that does not update.
 4. Make real test purchases of every item; verify rewards, rejoin persistence, a cancelled purchase and an already-owned pass.

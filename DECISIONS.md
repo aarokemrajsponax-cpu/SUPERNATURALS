@@ -117,3 +117,13 @@ Newest first within each group. "Pending" means the owner has been asked to conf
     (APMOfficial, Monstercat) are in Config/AudioLibrary and play by area (MusicController).
     The 62 public uploads by other accounts stay out until the owner listens and decides
     (music rights cannot be checked from the API); one private id is unusable.
+35. **Holiday calendars (owner's idea, 3 Nov).** Thanksgiving (5 to 26 November) and Christmas
+    (1 to 25 December) calendars: one gift a day, rewards that grow with the number of days
+    claimed, and an exclusive "perfect" set for claiming every day that is never sold or
+    offered again. A missed day can still be claimed the next day (CatchUpDays = 1), so one
+    bad day does not end a run; the owner can make it strict. Gifts include Money, small Gem
+    gifts, calendar-only cosmetics and 24-hour premium fighter trials.
+36. **Paid spin wheel (declined).** A wheel bought with Robux is a paid random item, which the
+    master prompt, the competition directive and Roblox's rules on paid random items all rule
+    out. The same value is sold directly instead: 24-hour trials of Corruption, Syntax and
+    Admin as developer products with a fixed reward (a strong try-before-you-buy path).
