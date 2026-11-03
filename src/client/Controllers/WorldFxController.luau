@@ -69,8 +69,8 @@ function WorldFxController:Start()
 			end
 		elseif kind == "Travel" then
 			MatchRequest:FireServer(Protocol.MatchAction.Travel, argument)
-		elseif kind == "Base" and argument == "Home" then
-			BaseRequest:FireServer(Protocol.BaseAction.Home)
+		elseif kind == "Base" and (argument == "Home" or argument == "Street") then
+			BaseRequest:FireServer(Protocol.BaseAction[argument])
 		end
 	end)
 

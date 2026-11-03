@@ -20,6 +20,8 @@ for _, chapter in Archive.Chapters do
 	LORE_DOCUMENTS[chapter.id] = true
 end
 
+local Homes = require(script.Parent.Parent.Config.Homes)
+
 -- Bump this when the shape changes, and add a MIGRATIONS step below
 Schema.VERSION = 1
 
@@ -125,7 +127,17 @@ export type Profile = {
 	selected: { power: string, degree: number },
 	cosmetics: { owned: { [string]: boolean }, equipped: { [string]: string } },
 	furniture: { owned: { [string]: number } },
-	base: { floor: string, wall: string, lighting: string, access: string, capacity: number, items: { BaseItem } },
+	base: {
+		floor: string,
+		wall: string,
+		lighting: string,
+		access: string,
+		capacity: number,
+		items: { BaseItem },
+		-- Decor theme id and display toggles (Config/Homes)
+		theme: string,
+		show: { [string]: boolean },
+	},
 	daily: { day: number, progress: { [string]: number }, claimed: { [string]: boolean }, loginStreak: number },
 	tutorial: { done: { [string]: boolean }, welcomed: boolean },
 	-- The Archive: recovered files, documents read, and where the reader left off
@@ -310,7 +322,7 @@ local DEFAULT = {
 	selected = { power = "StrongDude", degree = 1 },
 	cosmetics = { owned = {}, equipped = {} },
 	furniture = { owned = {} },
-	base = { floor = "Oak", wall = "Plaster", lighting = "Warm", access = "Everyone", capacity = 1, items = {} },
+	base = { floor = "Oak", wall = "Plaster", lighting = "Warm", access = "Everyone", capacity = 1, items = {}, theme = Homes.DefaultTheme, show = {} },
 	daily = { day = 0, progress = {}, claimed = {}, loginStreak = 0 },
 	tutorial = { done = {}, welcomed = false },
 	lore = { found = {}, read = {}, last = "", page = 0 },
@@ -492,6 +504,13 @@ local function repair(source: { [any]: any }): Profile
 		else defaultBase.access
 	profile.base.capacity = integer(base.capacity, 1, 10000, defaultBase.capacity)
 	profile.base.items = repairBaseItems(base.items)
+	profile.base.theme = if typeof(base.theme) == "string" and Homes.Themes[base.theme] then base.theme else Homes.DefaultTheme
+	local show = {}
+	local savedShow = asTable(base.show)
+	for key, rule in Homes.Toggles do
+		show[key] = if typeof(savedShow[key]) == "boolean" then savedShow[key] else rule.default
+	end
+	profile.base.show = show
 
 	local daily = asTable(source.daily)
 	profile.daily = extras(daily, DEFAULT.daily)

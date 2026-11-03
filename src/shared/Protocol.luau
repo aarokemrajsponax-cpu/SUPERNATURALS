@@ -155,12 +155,16 @@ Protocol.BaseAction = {
 	Home = "Home",
 	Upgrade = "Upgrade", -- buy more furniture capacity
 	Buy = "Buy", -- (furnitureId | "Style:<kind>:<id>", count?) pays the listed price
+	Street = "Street", -- () go to Player Base Street (the hub door)
+	Decor = "Decor", -- (themeId) set the decor theme of your own base
+	Toggle = "Toggle", -- (key, value: boolean) a display toggle of your own base
 }
 
 -- Server -> clients, through Remotes.BaseEvent
 Protocol.BaseEvent = {
 	Result = "Result", -- { ok: boolean, message: string } (to the requester)
 	Plots = "Plots", -- { { index, userId, name, access } } who lives where
+	OpenConsole = "OpenConsole", -- () the owner used the vault console: open the owner panel
 }
 
 -- Client -> server, through Remotes.ProgressRequest
