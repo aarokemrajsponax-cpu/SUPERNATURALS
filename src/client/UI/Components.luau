@@ -1,14 +1,16 @@
--- Building blocks for every interface, in the "imperial codex meets precision
--- instrument" system (docs/ArtDirection.md section 6): warm graphite plates with
--- a 1 px bronze hairline and square corners, ivory text, one bronze-gold accent,
--- drawn line icons (UI/Icons) and no emoji anywhere.
+-- Building blocks for every interface, in the v3 system (docs/ArtDirection.md
+-- section 7, "next-generation facility software"): deep navy glass plates with
+-- a 1 px cool-grey hairline and 6 px corners, soft white text, warm amber for
+-- the one primary action, cyan for selection, focus and live information, drawn
+-- line icons (UI/Icons) and no emoji anywhere.
 --
--- Every control that can be pressed draws the same seven states (Theme.state):
+-- Every control that can be pressed draws the same seven states (Theme.state),
+-- each tweened in 0.15 s quint-out:
 --   default   hairline frame
---   hover     frame brightens, background +3% (120 ms)
---   pressed   scale 0.98 (80 ms)
---   selected  2 px bronze bar on the leading edge, bronze frame, ivory title
---   focused   2 px ivory outline outside the frame (gamepad selection)
+--   hover     frame and fill brighten
+--   pressed   scale 0.98 (0.1 s)
+--   selected  cyan bar on the leading edge, cyan-tinted fill and frame
+--   focused   2 px cyan outline outside the frame (gamepad and keyboard selection)
 --   disabled  45% opacity, plus the reason in text where there is room
 --   locked    a drawn lock and the requirement or exact price
 --
@@ -29,6 +31,9 @@
 --   section(parent, title, props)     window(props) -> frame, body, parts
 --   fade(root, show, info, done)      formatNumber(n)   textWidth(text, size, face)   snap(...)
 --   tween(instance, info, goal)       apply(instance, info?, goal)
+--   v3 additions: statBar(props, color) -> frame, set      sweep(props) -> frame, set(fraction)
+--   ring(props) -> frame, set(fraction)                    storeCard(props) -> frame, card
+--   keyRow(parent, hints, props) -> frame                  section header: eyebrow(text, props)
 
 local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
@@ -97,10 +102,10 @@ function Components.corner(radius: UDim?): UICorner
 	return make("UICorner", { CornerRadius = radius or Theme.Corner })
 end
 
--- A hairline: bronze, 1 px, at the panel transparency unless told otherwise
+-- A hairline: cool grey, 1 px, at the panel transparency unless told otherwise
 function Components.stroke(color: Color3?, thickness: number?, transparency: number?): UIStroke
 	return make("UIStroke", {
-		Color = color or Colors.Bronze,
+		Color = color or Colors.Stroke,
 		Thickness = thickness or 1,
 		Transparency = transparency or Theme.Glass.StrokeTransparency,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
@@ -170,8 +175,8 @@ local selectionImage = make("Frame", {
 	Size = UDim2.new(1, 6, 1, 6),
 	Position = UDim2.fromOffset(-3, -3),
 }, {
-	make("UICorner", { CornerRadius = UDim.new(0, 3) }),
-	make("UIStroke", { Color = Colors.Text, Thickness = 2, Transparency = 0 }),
+	make("UICorner", { CornerRadius = UDim.new(0, 9) }),
+	make("UIStroke", { Color = Colors.Cyan, Thickness = 2, Transparency = 0 }),
 })
 Components.selectionImage = selectionImage
 
@@ -195,8 +200,8 @@ local MEASURE_FONT = {
 local function measureFont(face: Font?): Enum.Font
 	if face then
 		local family = face.Family
-		if string.find(family, "Accanthis", 1, true) then
-			return Enum.Font.Bodoni
+		if string.find(family, "Michroma", 1, true) then
+			return Enum.Font.Michroma
 		elseif string.find(family, "RobotoMono", 1, true) then
 			return Enum.Font.RobotoMono
 		end
@@ -221,7 +226,7 @@ end
 
 -- Panels -------------------------------------------------------------------------
 
--- A flat graphite plate with a bronze hairline and square corners
+-- A flat navy plate with a cool-grey hairline and 6 px corners
 function Components.panel(props: { [string]: any }?): Frame
 	local merged = {
 		BackgroundColor3 = Colors.Panel,
@@ -235,7 +240,7 @@ function Components.panel(props: { [string]: any }?): Frame
 	end
 	return make("Frame", merged, {
 		corner(),
-		stroke(Colors.Bronze, 1, Theme.Glass.StrokeTransparency),
+		stroke(Colors.Stroke, 1, Theme.Glass.StrokeTransparency),
 	})
 end
 
@@ -540,7 +545,7 @@ export type Surface = {
 }
 
 -- Adds the pieces a framed control draws its seven states with: the hairline,
--- the 2 px bronze bar on the leading edge, the focus ring outside the frame and
+-- the 2 px cyan bar on the leading edge, the focus ring outside the frame and
 -- the press scale. options: Edge = "left" | "bottom" | "top" (where the bar sits),
 -- Title (a TextLabel that turns ivory when hovered or selected), Lock (a drawn
 -- lock is shown while locked; a Vector2/UDim2 position or true for the default),
@@ -550,13 +555,13 @@ function Components.surface(frame: GuiObject, options: { [string]: any }?): Surf
 	local edge = given.Edge or "left"
 	local outline = frame:FindFirstChild("Hairline") :: UIStroke?
 	if not outline then
-		outline = stroke(Colors.Bronze, 1, Theme.States.default.strokeAlpha)
+		outline = stroke(Colors.Stroke, 1, Theme.States.default.strokeAlpha)
 		;(outline :: UIStroke).Name = "Hairline"
 		;(outline :: UIStroke).Parent = frame
 	end
 	local bar = make("Frame", {
 		Name = "Bar",
-		BackgroundColor3 = Colors.Accent,
+		BackgroundColor3 = Colors.Cyan,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = frame.ZIndex + 1,
@@ -568,14 +573,14 @@ function Components.surface(frame: GuiObject, options: { [string]: any }?): Surf
 	local ring = make("Frame", {
 		Name = "FocusRing",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(-4, -4),
-		Size = UDim2.new(1, 8, 1, 8),
+		Position = UDim2.fromOffset(-3, -3),
+		Size = UDim2.new(1, 6, 1, 6),
 		Visible = false,
 		ZIndex = frame.ZIndex + 2,
 		Parent = frame,
 	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 3) }),
-		make("UIStroke", { Color = Colors.Text, Thickness = 2, Transparency = 0 }),
+		make("UICorner", { CornerRadius = UDim.new(0, 9) }),
+		make("UIStroke", { Color = Colors.Cyan, Thickness = 2, Transparency = 0 }),
 	})
 	local scale = frame:FindFirstChild("PressScale") :: UIScale?
 	if not scale then
@@ -728,7 +733,7 @@ function Components.button(text: string, props: { [string]: any }?, onClick: (()
 		merged.TextScaled = true
 		merged.SelectionImageObject = selectionImage
 	else
-		merged.TextSize = Theme.TextSize.Label
+		merged.TextSize = Theme.TextSize.Button
 		merged.TextTruncate = Enum.TextTruncate.AtEnd
 	end
 	local accent = variant.stroke
@@ -770,19 +775,19 @@ function Components.button(text: string, props: { [string]: any }?, onClick: (()
 	local ring = make("Frame", {
 		Name = "FocusRing",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(-4, -4),
-		Size = UDim2.new(1, 8, 1, 8),
+		Position = UDim2.fromOffset(-3, -3),
+		Size = UDim2.new(1, 6, 1, 6),
 		Visible = false,
 		ZIndex = button.ZIndex + 2,
 		Parent = button,
 	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 3) }),
-		make("UIStroke", { Color = Colors.Text, Thickness = 2, Transparency = 0 }),
+		make("UICorner", { CornerRadius = UDim.new(0, 9) }),
+		make("UIStroke", { Color = Colors.Cyan, Thickness = 2, Transparency = 0 }),
 	})
 	local bar = make("Frame", {
 		Name = "Bar",
 		Size = UDim2.new(0, 2, 1, 0),
-		BackgroundColor3 = Colors.Accent,
+		BackgroundColor3 = Colors.Cyan,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = button.ZIndex + 1,
@@ -844,7 +849,7 @@ function Components.button(text: string, props: { [string]: any }?, onClick: (()
 			TextColor3 = textColor,
 		})
 		apply(outline, info, {
-			Color = if state.selected then Colors.Accent elseif custom then accent else (if variant.stroke == Colors.Bronze then Colors.BronzeLight else accent),
+			Color = if state.selected then Colors.Cyan elseif custom then accent else (if variant.stroke == Colors.Stroke then Colors.SteelLight else accent),
 			Transparency = if state.selected then 0 else variant.hoverStrokeAlpha or 0.1,
 		})
 		if iconFrame then
@@ -869,7 +874,7 @@ function Components.button(text: string, props: { [string]: any }?, onClick: (()
 	return button
 end
 
--- A button's selected look (a toggle such as COMPARE): bronze frame and bar
+-- A button's selected look (a toggle such as COMPARE): cyan frame and bar
 function Components.setSelected(control: GuiButton, selected: boolean)
 	control:SetAttribute("SNSelected", if selected then true else nil)
 	local select = selectors[control]
@@ -952,7 +957,7 @@ function Components.chip(text: string, props: { [string]: any }?): Frame
 	end
 	local chip = make("Frame", merged, {
 		corner(Theme.TinyCorner),
-		stroke(Colors.Bronze, 1, 0.5),
+		stroke(Colors.Stroke, 1, 0.5),
 		padding(0, Space.S + 2, 0, Space.S + 2),
 	})
 	Components.list(chip, 6, { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center })
@@ -975,34 +980,51 @@ function Components.chip(text: string, props: { [string]: any }?): Frame
 	return chip
 end
 
--- A key cap for input hints ("E", "Shift", "LB"): bronze-framed, Builder Sans Bold
+-- A key cap for input hints ("E", "Shift", "LB"): a navy cap with a hairline and
+-- a darker lip along the bottom, so a row of them reads as keys. props: Height
+-- (28), Accent (the letter colour, default white) and frame properties.
 function Components.keycap(text: string, props: { [string]: any }?): Frame
+	local given = props or {}
+	local height = given.Height or 28
 	local merged: { [string]: any } = {
 		Name = "Keycap",
-		Size = UDim2.fromOffset(0, 28),
+		Size = UDim2.fromOffset(0, height),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = Colors.Ink,
-		BackgroundTransparency = 0.15,
+		BackgroundColor3 = Colors.Raised,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
+		ClipsDescendants = true,
 	}
-	for key, value in (props or {}) :: { [string]: any } do
-		merged[key] = value
+	for key, value in given do
+		if key ~= "Height" and key ~= "Accent" then
+			merged[key] = value
+		end
 	end
 	local cap = make("Frame", merged, {
-		corner(Theme.SmallCorner),
-		stroke(Colors.BronzeLight, 1, 0.25),
+		corner(Theme.TinyCorner),
+		stroke(Colors.SteelLight, 1, 0.55),
 		padding(0, Space.S, 0, Space.S),
-		make("UISizeConstraint", { MinSize = Vector2.new(merged.Size.Y.Offset, 0) }),
+		make("UISizeConstraint", { MinSize = Vector2.new(height, 0) }),
+	})
+	make("Frame", {
+		Name = "Lip",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 3),
+		BackgroundColor3 = Colors.Ink,
+		BackgroundTransparency = 0.35,
+		BorderSizePixel = 0,
+		Parent = cap,
 	})
 	Components.text({
 		Name = "Key",
 		Text = text,
-		Style = "Label",
+		Style = "label",
 		Weight = "Bold",
 		TextSize = 14,
-		Color = Colors.Text,
+		Color = given.Accent or Colors.Text,
 		AlignX = "Center",
-		Size = UDim2.fromScale(0, 1),
+		Size = UDim2.new(0, 0, 1, -2),
 		AutomaticSize = Enum.AutomaticSize.X,
 		TextTruncate = Enum.TextTruncate.None,
 		Parent = cap,
@@ -1015,7 +1037,7 @@ function Components.divider(props: { [string]: any }?): Frame
 	local merged: { [string]: any } = {
 		Name = "Divider",
 		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Colors.Bronze,
+		BackgroundColor3 = Colors.Stroke,
 		BackgroundTransparency = 0.7,
 		BorderSizePixel = 0,
 	}
@@ -1025,7 +1047,7 @@ function Components.divider(props: { [string]: any }?): Frame
 	return make("Frame", merged)
 end
 
--- The codex rule under headers: a bronze hairline with a short accent tick at
+-- The rule under headers: a cool-grey hairline with a short brighter tick at
 -- its start (the line is centred in whatever height the frame is given)
 function Components.accentLine(props: { [string]: any }?): Frame
 	local merged: { [string]: any } = {
@@ -1043,8 +1065,8 @@ function Components.accentLine(props: { [string]: any }?): Frame
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
 		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Colors.Bronze,
-		BackgroundTransparency = 0.5,
+		BackgroundColor3 = Colors.Stroke,
+		BackgroundTransparency = 0.65,
 		BorderSizePixel = 0,
 		ZIndex = frame.ZIndex,
 		Parent = frame,
@@ -1053,8 +1075,9 @@ function Components.accentLine(props: { [string]: any }?): Frame
 		Name = "Tick",
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(32, 2),
-		BackgroundColor3 = Colors.Accent,
+		Size = UDim2.fromOffset(24, 2),
+		BackgroundColor3 = Colors.SteelLight,
+		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
 		ZIndex = frame.ZIndex,
 		Parent = frame,
@@ -1089,7 +1112,7 @@ function Components.grid(parent: Instance, cellSize: Vector2 | UDim2, gap: numbe
 	})
 end
 
--- A scrolling area that grows with its content, with a thin bronze scrollbar.
+-- A scrolling area that grows with its content, with a thin steel scrollbar.
 -- props.Padding (number) pads the content; other keys are properties.
 function Components.scroll(props: { [string]: any }?): ScrollingFrame
 	local merged: { [string]: any } = {
@@ -1100,8 +1123,8 @@ function Components.scroll(props: { [string]: any }?): ScrollingFrame
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollBarThickness = 3,
-		ScrollBarImageColor3 = Colors.BronzeLight,
-		ScrollBarImageTransparency = 0.3,
+		ScrollBarImageColor3 = Colors.SteelLight,
+		ScrollBarImageTransparency = 0.45,
 		VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
 		Selectable = false,
 	}
@@ -1170,11 +1193,12 @@ local function cornerMarks(parent: GuiObject, length: number, color: Color3, alp
 end
 Components.cornerMarks = cornerMarks
 
--- Standard window chrome: a soft shadow, the graphite plate with its hairline
--- and corner marks, and a header with a drawn icon and the title in tracked
--- Accanthis capitals on the left, a header slot and the close button on the
--- right, and the codex rule under it. props: Title, Icon, Size (Vector2 or
--- UDim2), Accent, onClose, Padding (body padding, default 24), plus
+-- Standard window chrome: a soft shadow, the navy glass plate with its hairline,
+-- and a header with a drawn icon and the title in tracked Michroma capitals on
+-- the left, a header slot and the close button on the right, and a hairline
+-- rule under it. props: Title, Icon, Subtitle (a small annotation after the
+-- title), Size (Vector2 or UDim2), Accent (the icon's colour), onClose, Padding
+-- (body padding, default 24), HeaderHeight (default 60), plus
 -- Name/Position/AnchorPoint/Visible/ZIndex/Parent.
 -- Returns (frame, body, parts); fill `body`.
 function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts)
@@ -1191,7 +1215,7 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 	local scale = make("UIScale", { Parent = frame })
 
 	-- A soft, low shadow so the plate sits above the blurred world
-	for index, spec in { { grow = 40, drop = 16, alpha = 0.86, round = 24 }, { grow = 12, drop = 6, alpha = 0.7, round = 8 } } do
+	for index, spec in { { grow = 36, drop = 14, alpha = 0.88, round = 18 }, { grow = 10, drop = 5, alpha = 0.76, round = 10 } } do
 		make("Frame", {
 			Name = "Shadow" .. index,
 			AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1217,11 +1241,10 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 		Parent = frame,
 	}, {
 		corner(Theme.Corner),
-		stroke(Colors.Bronze, 1, 0.5),
+		stroke(Colors.Stroke, 1, 0.55),
 	})
-	cornerMarks(panel, 14, Colors.BronzeLight, 0.15)
 
-	local headerHeight = props.HeaderHeight or 64
+	local headerHeight = props.HeaderHeight or 60
 	local pad = props.Padding or Theme.Grid.Pad
 	local header = make("Frame", {
 		Name = "Header",
@@ -1229,8 +1252,8 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = panel,
-	}, { padding(0, Space.M, 0, Theme.Grid.Pad) })
-	local icon = Icons.make(Icons.resolve(props.Icon or "facet"), 20, props.Accent or Colors.Accent)
+	}, { padding(0, Space.S + 4, 0, Theme.Grid.Pad) })
+	local icon = Icons.make(Icons.resolve(props.Icon or "facet"), 20, props.Accent or Colors.SteelLight)
 	icon.AnchorPoint = Vector2.new(0, 0.5)
 	icon.Position = UDim2.fromScale(0, 0.5)
 	icon.ZIndex = 2
@@ -1241,11 +1264,24 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 		Track = true,
 		Style = "title",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 32, 0.5, 1),
-		Size = UDim2.new(0.6, -32, 0, 36),
+		Position = UDim2.new(0, 36, 0.5, 0),
+		Size = UDim2.new(0.5, -36, 0, 28),
 		ZIndex = 2,
 		Parent = header,
 	})
+	if props.Subtitle then
+		local width = Components.textWidth(Theme.track(props.Title or ""), 18, Faces.Display)
+		Components.text({
+			Name = "Subtitle",
+			Text = props.Subtitle,
+			Style = "caption",
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 36 + math.floor(width) + 16, 0.5, 1),
+			Size = UDim2.new(0.4, 0, 0, 20),
+			ZIndex = 2,
+			Parent = header,
+		})
+	end
 	local close = Components.button("", {
 		Name = "Close",
 		Variant = "Ghost",
@@ -1264,7 +1300,7 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 	local actions = make("Frame", {
 		Name = "HeaderActions",
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -(44 + Space.M), 0.5, 0),
+		Position = UDim2.new(1, -(44 + Space.S), 0.5, 0),
 		Size = UDim2.fromOffset(0, 44),
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
@@ -1571,7 +1607,7 @@ function Components.tabs(parent: Instance, tabs: { TabSpec }, onSelect: (id: str
 			apply(button, info, { TextColor3 = if state.selected or state.hovered or state.focused then Colors.Text else Colors.TextDim })
 			local icon = button:FindFirstChild("Icon")
 			if icon then
-				Icons.tint(icon, if state.selected then Colors.Accent else Colors.TextDim)
+				Icons.tint(icon, if state.selected then Colors.Cyan else Colors.TextDim)
 			end
 		end)
 		states[spec.id] = state
@@ -1622,7 +1658,7 @@ function Components.segmented(parent: Instance?, options: { SegmentOption }, val
 			merged[key] = prop
 		end
 	end
-	local frame = make("Frame", merged, { corner(Theme.SmallCorner), stroke(Colors.Bronze, 1, 0.45) })
+	local frame = make("Frame", merged, { corner(Theme.SmallCorner), stroke(Colors.Stroke, 1, 0.45) })
 	local count = math.max(1, #options)
 	local current: string? = value
 	local buttons: { [string]: TextButton } = {}
@@ -1667,7 +1703,7 @@ function Components.segmented(parent: Instance?, options: { SegmentOption }, val
 				Name = "Separator",
 				Position = UDim2.fromOffset(0, Space.S),
 				Size = UDim2.new(0, 1, 1, -Space.S * 2),
-				BackgroundColor3 = Colors.Bronze,
+				BackgroundColor3 = Colors.Stroke,
 				BackgroundTransparency = 0.55,
 				BorderSizePixel = 0,
 				Parent = button,
@@ -1876,7 +1912,7 @@ function Components.progress(props: { [string]: any }?, color: Color3?): (Frame,
 		Size = UDim2.new(1, 0, 0, 6),
 		Parent = frame,
 	}, color or Colors.Accent)
-	stroke(Colors.Bronze, 1, 0.7).Parent = track
+	stroke(Colors.Stroke, 1, 0.7).Parent = track
 	set(0)
 	return frame, function(fraction: number, text: string?, newColor: Color3?)
 		set(fraction, newColor)
@@ -1960,7 +1996,7 @@ function Components.row(props: { [string]: any }?): (Frame, Frame)
 		corner(if given.Grouped then UDim.new(0, 0) else Theme.SmallCorner),
 	})
 	if not given.Grouped then
-		stroke(Colors.Bronze, 1, 0.62).Parent = row
+		stroke(Colors.Stroke, 1, 0.62).Parent = row
 	end
 	rowText(row, given.Label or "", given.Description, width)
 	return row, rowControl(row, width)
@@ -1987,11 +2023,11 @@ function Components.section(parent: Instance?, title: string, props: { [string]:
 		LayoutOrder = 2,
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = Colors.Bronze,
+		BackgroundColor3 = Colors.Stroke,
 		BackgroundTransparency = 0.72,
 		BorderSizePixel = 0,
 		Parent = section,
-	}, { corner(Theme.SmallCorner), stroke(Colors.Bronze, 1, 0.5) })
+	}, { corner(Theme.SmallCorner), stroke(Colors.Stroke, 1, 0.5) })
 	Components.list(rows, 1)
 	if parent then
 		section.Parent = parent
@@ -2031,7 +2067,7 @@ function Components.toggle(label: string, value: boolean, onChange: (boolean) ->
 		ZIndex = row.ZIndex + 1,
 		Parent = row,
 	}, { corner(Theme.SmallCorner) })
-	local trackStroke = stroke(Colors.Bronze, 1, 0.4)
+	local trackStroke = stroke(Colors.Stroke, 1, 0.4)
 	trackStroke.Parent = track
 	local knob = make("Frame", {
 		Name = "Knob",
@@ -2045,14 +2081,14 @@ function Components.toggle(label: string, value: boolean, onChange: (boolean) ->
 	local on = value == true
 	local function render(instant: boolean?)
 		local info = if instant then nil else Motion.Normal
-		apply(track, info, { BackgroundColor3 = if on then Colors.Accent else Colors.Ink, BackgroundTransparency = if on then 0 else 0.2 })
+		apply(track, info, { BackgroundColor3 = if on then Colors.Cyan else Colors.Ink, BackgroundTransparency = if on then 0 else 0.2 })
 		apply(trackStroke, info, { Transparency = if on then 0.6 else 0.4 })
 		apply(knob, info, {
 			Position = if on then UDim2.new(1, -21, 0.5, 0) else UDim2.new(0, 3, 0.5, 0),
 			BackgroundColor3 = if on then Colors.Ink else Colors.TextDim,
 		})
 		stateText.Text = if on then "ON" else "OFF"
-		stateText.TextColor3 = if on then Colors.Accent else Colors.TextMuted
+		stateText.TextColor3 = if on then Colors.Cyan else Colors.TextMuted
 	end
 	render(true)
 	local surface = Components.surface(row, {
@@ -2103,7 +2139,7 @@ function Components.slider(label: string, min: number, max: number, step: number
 	merged.Name = if given.Name then given.Name else "Slider"
 	local frame = make("Frame", merged, { corner(if grouped then UDim.new(0, 0) else Theme.SmallCorner) })
 	if not grouped then
-		stroke(Colors.Bronze, 1, 0.62).Parent = frame
+		stroke(Colors.Stroke, 1, 0.62).Parent = frame
 	end
 	rowText(frame, label, given.Description, CONTROL_WIDTH)
 	local controls = rowControl(frame, CONTROL_WIDTH)
@@ -2187,10 +2223,10 @@ function Components.slider(label: string, min: number, max: number, step: number
 		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
 		Parent = hit,
-	}, { corner(Theme.TinyCorner), stroke(Colors.Bronze, 1, 0.55) })
+	}, { corner(Theme.TinyCorner), stroke(Colors.Stroke, 1, 0.55) })
 	fill = make("Frame", {
 		Name = "Fill",
-		BackgroundColor3 = Colors.Accent,
+		BackgroundColor3 = Colors.Cyan,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(0, 1),
 		Parent = bar,
@@ -2248,6 +2284,466 @@ function Components.slider(label: string, min: number, max: number, step: number
 	return frame, function(newValue: number)
 		setValue(newValue, false)
 	end
+end
+
+-- v3 additions ----------------------------------------------------------------------------------
+
+-- A gradient whose transparency is 0 up to the middle and 1 after it: with a
+-- rotation it becomes a half plane through the centre of whatever it sits on
+local function halfPlane(): NumberSequence
+	return NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.499, 0),
+		NumberSequenceKeypoint.new(0.5, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+end
+
+-- A radial cooldown sweep to lay over a button: dark where time is still left,
+-- clearing clockwise from the top as it runs out. set(1) darkens the whole
+-- face, set(0) clears it. Two clipped halves each carry a half-plane gradient,
+-- turned to the right angle. props: Color (default Ink), Transparency (0.3),
+-- Radius (the corner radius of the face under it, default 6), plus frame
+-- properties. Returns (frame, set).
+function Components.sweep(props: { [string]: any }?): (Frame, (number) -> ())
+	local given = props or {}
+	local merged: { [string]: any } = {
+		Name = "Sweep",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Active = false,
+	}
+	for key, value in given do
+		if key ~= "Color" and key ~= "Transparency" and key ~= "Radius" then
+			merged[key] = value
+		end
+	end
+	local root = make("Frame", merged, { corner(UDim.new(0, given.Radius or 6)) })
+	local gradients: { UIGradient } = {}
+	for index, spec in { { name = "Left", x = 0, inner = 0 }, { name = "Right", x = 0.5, inner = -1 } } do
+		local half = make("Frame", {
+			Name = spec.name,
+			Position = UDim2.fromScale(spec.x, 0),
+			Size = UDim2.fromScale(0.5, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ClipsDescendants = true,
+			ZIndex = root.ZIndex,
+			Parent = root,
+		})
+		local fill = make("Frame", {
+			Name = "Fill",
+			Position = UDim2.fromScale(spec.inner, 0),
+			Size = UDim2.fromScale(2, 1),
+			BackgroundColor3 = given.Color or Colors.Ink,
+			BackgroundTransparency = given.Transparency or 0.3,
+			BorderSizePixel = 0,
+			ZIndex = root.ZIndex,
+			Parent = half,
+		})
+		gradients[index] = make("UIGradient", { Transparency = halfPlane(), Rotation = 180, Parent = fill })
+	end
+	local function set(remaining: number)
+		local angle = math.clamp(if remaining == remaining then remaining else 0, 0, 1) * 360
+		gradients[1].Rotation = 180 - math.clamp(angle, 0, 180)
+		gradients[2].Rotation = 180 - math.clamp(angle, 180, 360)
+		root.Visible = angle > 0.5
+	end
+	set(0)
+	return root, set
+end
+
+-- A thin circular progress ring (the hold ring on a prompt), filling clockwise
+-- from the top. props: Size (a square, default 44), Thickness (3), Color
+-- (default amber), Track (the empty ring's colour), plus frame properties.
+-- Returns (frame, set(fraction 0..1)).
+function Components.ring(props: { [string]: any }?): (Frame, (number) -> ())
+	local given = props or {}
+	local thickness = given.Thickness or 3
+	local merged: { [string]: any } = {
+		Name = "Ring",
+		Size = UDim2.fromOffset(44, 44),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Active = false,
+	}
+	for key, value in given do
+		if key ~= "Thickness" and key ~= "Color" and key ~= "Track" then
+			merged[key] = value
+		end
+	end
+	local root = make("Frame", merged)
+	-- The empty ring
+	make("Frame", {
+		Name = "Track",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = root,
+	}, {
+		corner(Theme.Round),
+		make("UIStroke", { Color = given.Track or Colors.SteelLight, Thickness = thickness, Transparency = 0.7, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }),
+	})
+	local gradients: { UIGradient } = {}
+	for index, spec in { { name = "Right", x = 0.5, inner = -1 }, { name = "Left", x = 0, inner = 0 } } do
+		local half = make("Frame", {
+			Name = spec.name,
+			Position = UDim2.fromScale(spec.x, 0),
+			Size = UDim2.fromScale(0.5, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ClipsDescendants = true,
+			Parent = root,
+		})
+		local circle = make("Frame", {
+			Name = "Arc",
+			Position = UDim2.fromScale(spec.inner, 0),
+			Size = UDim2.fromScale(2, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Parent = half,
+		}, { corner(Theme.Round) })
+		local arc = make("UIStroke", {
+			Color = given.Color or Colors.Accent,
+			Thickness = thickness,
+			Transparency = 0,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Parent = circle,
+		})
+		gradients[index] = make("UIGradient", { Transparency = halfPlane(), Rotation = 0, Parent = arc })
+	end
+	local function set(fraction: number)
+		local angle = math.clamp(if fraction == fraction then fraction else 0, 0, 1) * 360
+		gradients[1].Rotation = math.clamp(angle, 0, 180)
+		gradients[2].Rotation = math.clamp(angle, 180, 360)
+	end
+	set(0)
+	return root, set
+end
+
+-- A one-line stat: caption on the left, a fine bar in the middle, the value on
+-- the right in the number face. props: Label, Value (text), LabelWidth (96),
+-- ValueWidth (44), plus frame properties.
+-- Returns (frame, set(fraction, valueText?, color?)).
+function Components.statBar(props: { [string]: any }?, color: Color3?): (Frame, (number, string?, Color3?) -> ())
+	local given = props or {}
+	local labelWidth = given.LabelWidth or 96
+	local valueWidth = given.ValueWidth or 44
+	local merged: { [string]: any } = {
+		Name = "Stat",
+		Size = UDim2.new(1, 0, 0, 24),
+		BackgroundTransparency = 1,
+	}
+	for key, value in given do
+		if key ~= "Label" and key ~= "Value" and key ~= "LabelWidth" and key ~= "ValueWidth" then
+			merged[key] = value
+		end
+	end
+	local frame = make("Frame", merged)
+	Components.text({
+		Name = "Label",
+		Text = given.Label or "",
+		Style = "caption",
+		Color = Colors.TextDim,
+		Size = UDim2.new(0, labelWidth, 1, 0),
+		Parent = frame,
+	})
+	local valueText = Components.text({
+		Name = "Value",
+		Text = given.Value or "",
+		Style = "number",
+		TextSize = 14,
+		AlignX = "Right",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.new(0, valueWidth, 1, 0),
+		Parent = frame,
+	})
+	local track, set = Components.bar({
+		Name = "Track",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, labelWidth + Space.S, 0.5, 0),
+		Size = UDim2.new(1, -(labelWidth + valueWidth + Space.S * 2), 0, 6),
+		BackgroundTransparency = 0.1,
+		Parent = frame,
+	}, color or Colors.Cyan)
+	stroke(Colors.Stroke, 1, 0.8).Parent = track
+	set(0)
+	return frame, function(fraction: number, text: string?, newColor: Color3?)
+		set(fraction, newColor)
+		if text then
+			valueText.Text = text
+		end
+	end
+end
+
+-- A small section label with a hairline running on after it: "ABILITIES ------"
+-- props: Parent, LayoutOrder, Color, Trailing (text on the right, e.g. a count).
+function Components.eyebrow(text: string, props: { [string]: any }?): Frame
+	local given = props or {}
+	local merged: { [string]: any } = {
+		Name = "Eyebrow",
+		Size = UDim2.new(1, 0, 0, 22),
+		BackgroundTransparency = 1,
+	}
+	for key, value in given do
+		if key ~= "Color" and key ~= "Trailing" then
+			merged[key] = value
+		end
+	end
+	local row = make("Frame", merged)
+	Components.list(row, Space.S, { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center })
+	local label = Components.text({
+		Name = "Label",
+		Text = text,
+		Style = "overline",
+		Color = given.Color or Colors.TextMuted,
+		Size = UDim2.fromScale(0, 1),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextTruncate = Enum.TextTruncate.None,
+		LayoutOrder = 1,
+		Parent = row,
+	})
+	local _ = label
+	local rule = make("Frame", {
+		Name = "Rule",
+		LayoutOrder = 2,
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = Colors.Stroke,
+		BackgroundTransparency = 0.75,
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	local _ = rule
+	if given.Trailing then
+		Components.text({
+			Name = "Trailing",
+			Text = given.Trailing,
+			Style = "caption",
+			Size = UDim2.fromScale(0, 1),
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextTruncate = Enum.TextTruncate.None,
+			LayoutOrder = 3,
+			Parent = row,
+		})
+	end
+	-- The rule takes whatever width is left
+	local flex = make("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill })
+	flex.Parent = rule
+	return row
+end
+
+-- A row of key caps with what each does: [E] Heavy  [F] Block ...
+-- hints = { { key = "E", label = "Heavy" }, ... }. Wraps into a grid of
+-- label-and-cap pairs. props: Parent, LayoutOrder, Columns (default 2), plus frame properties.
+function Components.keyRow(hints: { { key: string, label: string } }, props: { [string]: any }?): Frame
+	local given = props or {}
+	local columns = given.Columns or 2
+	local merged: { [string]: any } = {
+		Name = "Keys",
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+	}
+	for key, value in given do
+		if key ~= "Columns" then
+			merged[key] = value
+		end
+	end
+	local frame = make("Frame", merged)
+	Components.grid(frame, UDim2.new(1 / columns, -Space.S * (columns - 1) / columns, 0, 32), Space.S)
+	for order, hint in hints do
+		local cell = make("Frame", {
+			Name = "Hint_" .. hint.label,
+			LayoutOrder = order,
+			BackgroundTransparency = 1,
+			Parent = frame,
+		})
+		Components.list(cell, Space.S, { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center })
+		local cap = Components.keycap(hint.key, { LayoutOrder = 1 })
+		cap.Parent = cell
+		Components.text({
+			Name = "Label",
+			Text = hint.label,
+			Style = "small",
+			Color = Colors.TextDim,
+			Size = UDim2.new(1, -44, 1, 0),
+			LayoutOrder = 2,
+			Parent = cell,
+		})
+	end
+	return frame
+end
+
+-- The store card: a large framed plate for choosing one thing among several
+-- (fighters, degrees, items). An art well with a drawn icon on the left, the
+-- name, a one-line subtitle, then a state chip and an exact price along the
+-- bottom. It has every state (selected shows the cyan bar; locked shows the lock
+-- and the requirement; premium adds a gold hairline).
+-- props: Name, Subtitle, Icon (a drawn icon name), Accent (the art well's colour),
+-- Chip (state text), ChipColor, Price (a price table) or PriceText, Selected,
+-- Locked, Disabled, Premium, onClick, Size (default 232 x 92) and frame properties.
+-- Returns (frame, card) like Components.card.
+function Components.storeCard(props: { [string]: any }?): (TextButton, Card)
+	local given = props or {}
+	local accent = given.Accent or Colors.Cyan
+	local merged: { [string]: any } = {
+		Name = "StoreCard",
+		AutoButtonColor = false,
+		Text = "",
+		BackgroundColor3 = Colors.PanelLight,
+		BackgroundTransparency = 0.08,
+		BorderSizePixel = 0,
+		Selectable = true,
+		SelectionImageObject = noSelection,
+		ClipsDescendants = true,
+		Size = UDim2.fromOffset(232, 92),
+	}
+	local skip = { Name = true, Subtitle = true, Icon = true, Accent = true, Chip = true, ChipColor = true, Price = true, PriceText = true, Selected = true, Locked = true, Disabled = true, Premium = true, onClick = true }
+	for key, value in given do
+		if not skip[key] then
+			merged[key] = value
+		end
+	end
+	local frame = make("TextButton", merged, { corner(Theme.SmallCorner) })
+	local height = if merged.Size.Y.Offset > 0 then merged.Size.Y.Offset else 92
+	local well = height - Space.S * 2
+	-- The art well
+	local art = make("Frame", {
+		Name = "Art",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, Space.S, 0.5, 0),
+		Size = UDim2.fromOffset(well, well),
+		BackgroundColor3 = accent,
+		BackgroundTransparency = 0.82,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+		Parent = frame,
+	}, { corner(Theme.SmallCorner), stroke(accent, 1, 0.55) })
+	local glyph = Icons.make(Icons.resolve(given.Icon or "facet"), math.floor(well * 0.56), accent:Lerp(Colors.Text, 0.25))
+	glyph.AnchorPoint = Vector2.new(0.5, 0.5)
+	glyph.Position = UDim2.fromScale(0.5, 0.5)
+	glyph.ZIndex = 3
+	glyph.Parent = art
+	local textLeft = Space.S + well + Space.M
+	local titleLabel = Components.text({
+		Name = "Name",
+		Text = given.Name or "",
+		Style = "subheading",
+		TextSize = 17,
+		Color = Colors.TextDim,
+		Position = UDim2.fromOffset(textLeft, Space.S),
+		Size = UDim2.new(1, -(textLeft + Space.S), 0, 22),
+		ZIndex = 2,
+		Parent = frame,
+	})
+	Components.text({
+		Name = "Subtitle",
+		Text = given.Subtitle or "",
+		Style = "caption",
+		Color = Colors.TextMuted,
+		Position = UDim2.fromOffset(textLeft, Space.S + 22),
+		Size = UDim2.new(1, -(textLeft + Space.S), 0, 18),
+		ZIndex = 2,
+		Parent = frame,
+	})
+	-- The bottom line: state chip on the left, price on the right
+	local footer = make("Frame", {
+		Name = "Footer",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, textLeft, 1, -Space.S),
+		Size = UDim2.new(1, -(textLeft + Space.S), 0, 24),
+		BackgroundTransparency = 1,
+		ZIndex = 2,
+		Parent = frame,
+	})
+	local chipFrame: Frame? = nil
+	if given.Chip then
+		chipFrame = Components.badge(given.Chip, given.ChipColor or Colors.TextMuted)
+		local chip = chipFrame :: Frame
+		chip.AnchorPoint = Vector2.new(0, 0.5)
+		chip.Position = UDim2.fromScale(0, 0.5)
+		chip.ZIndex = 3
+		chip.Parent = footer
+	end
+	if given.Price or given.PriceText then
+		local priceFrame = if given.Price then Components.price(nil, given.Price, { Height = 24, TextSize = 14 }) else nil
+		if priceFrame then
+			priceFrame.AnchorPoint = Vector2.new(1, 0.5)
+			priceFrame.Position = UDim2.fromScale(1, 0.5)
+			priceFrame.Parent = footer
+		else
+			Components.text({
+				Name = "PriceText",
+				Text = given.PriceText,
+				Style = "number",
+				TextSize = 14,
+				AlignX = "Right",
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.fromScale(1, 0.5),
+				Size = UDim2.new(0.6, 0, 1, 0),
+				ZIndex = 3,
+				Parent = footer,
+			})
+		end
+	end
+	if given.Premium then
+		-- A gold hairline along the top edge marks the premium fighters
+		make("Frame", {
+			Name = "PremiumRule",
+			Size = UDim2.new(1, 0, 0, 2),
+			BackgroundColor3 = Colors.Gold,
+			BackgroundTransparency = 0.25,
+			BorderSizePixel = 0,
+			ZIndex = 4,
+			Parent = frame,
+		})
+	end
+
+	local surface = Components.surface(frame, { Title = titleLabel, Lock = UDim2.new(1, -Space.S - 16, 0, Space.S + 8), Edge = "left" })
+	local state, refresh = interactive(frame, surface.render)
+	local card: Card
+	card = {
+		frame = frame,
+		surface = surface,
+		setSelected = function(selected: boolean)
+			state.selected = selected
+			refresh()
+		end,
+		setDisabled = function(disabled: boolean)
+			Components.setDisabled(frame, disabled)
+			state.disabled = disabled
+			refresh()
+		end,
+		setLocked = function(locked: boolean)
+			Components.setLocked(frame, locked)
+			state.locked = locked
+			refresh()
+		end,
+		isSelected = function()
+			return state.selected
+		end,
+		isDisabled = function()
+			return state.disabled
+		end,
+	}
+	frame.Activated:Connect(function()
+		if given.onClick and not state.disabled then
+			given.onClick()
+		end
+	end)
+	if given.Selected then
+		card.setSelected(true)
+	end
+	if given.Locked then
+		card.setLocked(true)
+	end
+	if given.Disabled then
+		card.setDisabled(true)
+	end
+	return frame, card
 end
 
 return Components

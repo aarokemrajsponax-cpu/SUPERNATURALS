@@ -1,12 +1,14 @@
--- Everything shown during a match: the timer pill and a score card per
+-- Everything shown during a match: the timer plate and a score card per
 -- fighter at the top, the knockout feed on the right (newest on top), the big
--- countdown numbers in the middle, and the results panel at the end.
+-- countdown numbers in the middle, and the results panel at the end. Navy plates,
+-- hairlines and one signal colour at a time; no emoji, no gradients.
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
+local Icons = require(script.Parent.Icons)
 
 local Colors = Theme.Colors
 local Space = Theme.Space
@@ -34,9 +36,9 @@ local RESULTS_WIDTH = 560
 local COLUMN_WIDTH = 60
 local COLUMNS = { "SCORE", "KO", "DOWN" }
 local RANK_COLORS = {
-	Color3.fromRGB(255, 205, 90),
-	Color3.fromRGB(200, 210, 230),
-	Color3.fromRGB(222, 150, 96),
+	Colors.Gold,
+	Colors.SteelLight,
+	Colors.Copper,
 }
 
 local function formatTime(seconds: number): string
@@ -55,7 +57,7 @@ end
 local function glass(props: { [string]: any }): Frame
 	local merged: { [string]: any } = {
 		BackgroundColor3 = Colors.Panel,
-		BackgroundTransparency = 0.14,
+		BackgroundTransparency = Theme.Glass.Panel,
 		BorderSizePixel = 0,
 	}
 	for key, value in props do
@@ -63,7 +65,6 @@ local function glass(props: { [string]: any }): Frame
 	end
 	return make("Frame", merged, {
 		Components.corner(Theme.SmallCorner),
-		Components.glassGradient(),
 	})
 end
 
@@ -81,12 +82,11 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 	})
 	Components.list(top, Space.S, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
 	local timerPill = glass({ Name = "Timer", LayoutOrder = 1, Size = UDim2.fromOffset(240, 66), Parent = top })
-	local timerStroke = Components.stroke(Colors.Stroke, 1.5, 0.6)
+	local timerStroke = Components.stroke(Colors.Stroke, 1, 0.5)
 	timerStroke.Parent = timerPill
-	;(timerPill:FindFirstChildOfClass("UICorner") :: UICorner).CornerRadius = UDim.new(0, 14)
 	local modeLabel = Components.text({
 		Name = "Mode",
-		Style = "Micro",
+		Style = "overline",
 		AlignX = "Center",
 		Position = UDim2.fromOffset(Space.M, 7),
 		Size = UDim2.new(1, -Space.M * 2, 0, 16),
@@ -95,8 +95,8 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 	local timer = Components.text({
 		Name = "Clock",
 		Text = "0:00",
-		Style = "Title",
-		Weight = "Heavy",
+		Style = "number",
+		Weight = "Bold",
 		TextSize = 30,
 		AlignX = "Center",
 		Position = UDim2.fromOffset(Space.S, 24),
@@ -118,8 +118,7 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 	-- Big countdown in the middle -------------------------------------------------------
 	local countdown = Components.text({
 		Name = "Countdown",
-		Style = "Display",
-		Weight = "Heavy",
+		Style = "countdown",
 		TextSize = Theme.TextSize.Countdown,
 		AlignX = "Center",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -129,18 +128,13 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		Visible = false,
 		Parent = parent,
 	})
-	local countdownGradient = make("UIGradient", {
-		Color = ColorSequence.new(Colors.Cyan, Colors.Purple),
-		Rotation = 90,
-		Parent = countdown,
-	})
-	make("UIStroke", { Color = Colors.Ink, Thickness = 4, Transparency = 0.25, Parent = countdown })
+	make("UIStroke", { Color = Colors.Ink, Thickness = 4, Transparency = 0.35, Parent = countdown })
 	local countdownScale = make("UIScale", { Parent = countdown })
 
-	local function pop(text: string, gradient: ColorSequence)
+	local function pop(text: string, color: Color3)
 		countdown.Visible = true
 		countdown.Text = text
-		countdownGradient.Color = gradient
+		countdown.TextColor3 = color
 		countdown.TextTransparency = 1
 		countdownScale.Scale = 1.6
 		TweenService:Create(countdownScale, Motion.Pop, { Scale = 1 }):Play()
@@ -185,37 +179,34 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		Parent = dim,
 	}, {
 		Components.corner(Theme.Corner),
-		Components.glassGradient(),
 		Components.padding(Space.XL),
 	})
-	local cardStroke = Components.stroke(Colors.Stroke, 1.5, 0.5)
+	local cardStroke = Components.stroke(Colors.Stroke, 1, 0.4)
 	cardStroke.Parent = card
 	Components.list(card, Space.M, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
 
 	local headline = Components.text({
 		Name = "Headline",
-		Text = "VICTORY",
-		Style = "Display",
-		Weight = "Heavy",
+		Text = Theme.track("Victory"),
+		Style = "hero",
 		TextSize = Theme.TextSize.Hero,
 		AlignX = "Center",
 		LayoutOrder = 1,
 		Size = UDim2.new(1, 0, 0, 64),
 		Parent = card,
 	})
-	local headlineGradient = make("UIGradient", { Rotation = 90, Parent = headline })
 	local reason = Components.text({ Name = "Reason", Style = "Body", Color = Colors.TextDim, AlignX = "Center", LayoutOrder = 2, Parent = card })
-	local winnerLine = Components.text({ Name = "Winner", Style = "Label", Color = Colors.Gold, AlignX = "Center", LayoutOrder = 3, Parent = card })
+	local winnerLine = Components.text({ Name = "Winner", Style = "strong", Color = Colors.Gold, AlignX = "Center", LayoutOrder = 3, Parent = card })
 	Components.accentLine({ LayoutOrder = 4, Parent = card })
 
 	-- Column headers line up with the row numbers below
 	local headerRow = make("Frame", { Name = "Columns", LayoutOrder = 5, Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1, Parent = card })
 	Components.padding(0, Space.M, 0, Space.M).Parent = headerRow
-	Components.text({ Text = "FIGHTER", Style = "Micro", Color = Colors.TextMuted, Position = UDim2.fromOffset(40, 0), Size = UDim2.new(1, -40 - COLUMN_WIDTH * 3, 1, 0), Parent = headerRow })
+	Components.text({ Text = "FIGHTER", Style = "overline", Color = Colors.TextMuted, Position = UDim2.fromOffset(40, 0), Size = UDim2.new(1, -40 - COLUMN_WIDTH * 3, 1, 0), Parent = headerRow })
 	for index, name in COLUMNS do
 		Components.text({
 			Text = name,
-			Style = "Micro",
+			Style = "overline",
 			Color = Colors.TextMuted,
 			AlignX = "Right",
 			AnchorPoint = Vector2.new(1, 0),
@@ -233,13 +224,12 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		Parent = card,
 	})
 	Components.list(rows, Space.XS + 2)
-	local returnLabel = Components.text({ Name = "Returning", Style = "Caption", AlignX = "Center", LayoutOrder = 7, Parent = card })
+	local returnLabel = Components.text({ Name = "Returning", Style = "caption", AlignX = "Center", LayoutOrder = 7, Parent = card })
 	Components.button("BACK TO LOBBY", {
 		Name = "Back",
 		Variant = "Primary",
 		LayoutOrder = 8,
 		Size = UDim2.new(1, 0, 0, 48),
-		TextSize = Theme.TextSize.Heading,
 		Parent = card,
 	}, onReturn)
 	local cardScale = make("UIScale", { Parent = card })
@@ -319,7 +309,7 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		local count = #snapshot.participants
 		top.Size = UDim2.fromOffset(math.max(240, count * SCORE_CARD.X + (count - 1) * Space.S), 0)
 		if previous and previous.phase == "Countdown" and snapshot.phase == "Active" then
-			pop("FIGHT!", ColorSequence.new(Color3.fromRGB(255, 236, 160), Colors.Gold))
+			pop("FIGHT!", Colors.AccentHover)
 			task.delay(0.9, function()
 				if countdown.Text == "FIGHT!" then
 					TweenService:Create(countdown, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
@@ -356,14 +346,19 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 				Parent = entry,
 			})
 		end
+		local function iconPiece(order: number, name: string, color: Color3)
+			local drawn = Components.icon(name, 16, color)
+			drawn.LayoutOrder = order
+			drawn.Parent = entry
+		end
 		local victim = tostring(data.victim)
 		if data.credited then
 			local credited = tostring(data.credited)
 			piece(1, credited, if credited == player.DisplayName then Colors.Cyan else Colors.Text, "Bold")
-			piece(2, "⚔", Colors.Gold, "Bold")
+			iconPiece(2, "swords", Colors.Accent)
 			piece(3, victim, if victim == player.DisplayName then Colors.Cyan else Colors.TextDim, "SemiBold")
 		else
-			piece(1, "💀", Colors.Danger, "Bold")
+			iconPiece(1, "skull", Colors.Danger)
 			piece(2, victim, Colors.Text, "Bold")
 			piece(3, "was knocked out", Colors.TextDim, "Medium")
 		end
@@ -453,23 +448,21 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 		local won = table.find(data.winnerIds, myId) ~= nil
 		local accent
 		if data.draw and won then
-			headline.Text = "DRAW"
-			headlineGradient.Color = ColorSequence.new(Color3.fromRGB(190, 245, 255), Colors.Cyan)
+			headline.Text = Theme.track("Draw")
 			accent = Colors.Cyan
 		elseif won then
-			headline.Text = "VICTORY"
-			headlineGradient.Color = ColorSequence.new(Color3.fromRGB(255, 240, 180), Colors.Gold)
+			headline.Text = Theme.track("Victory")
 			accent = Colors.Gold
 		else
-			headline.Text = "DEFEAT"
-			headlineGradient.Color = ColorSequence.new(Color3.fromRGB(255, 170, 180), Colors.Danger)
+			headline.Text = Theme.track("Defeat")
 			accent = Colors.Danger
 		end
+		headline.TextColor3 = accent
 		cardStroke.Color = accent
 		reason.Text = REASONS[data.reason] or ""
 		local winners = if typeof(data.winners) == "table" then data.winners else {}
 		winnerLine.Visible = #winners > 0 and not data.draw
-		winnerLine.Text = if #winners > 1 then "🏆  Winners: " .. table.concat(winners, ", ") else "🏆  Winner: " .. tostring(winners[1] or "")
+		winnerLine.Text = if #winners > 1 then "Winners: " .. table.concat(winners, ", ") else "Winner: " .. tostring(winners[1] or "")
 		clearChildren(rows)
 		for rank, entry in data.ranking do
 			resultRow(rank, entry)
@@ -510,7 +503,7 @@ function MatchHud.build(parent: Instance, onReturn: () -> ())
 				countdown.Visible = false
 			elseif count ~= lastCount then
 				lastCount = count
-				pop(tostring(count), ColorSequence.new(Colors.Cyan, Colors.Purple))
+				pop(tostring(count), Colors.Text)
 			end
 		elseif state.phase == "Active" then
 			timer.Text = formatTime(remaining)

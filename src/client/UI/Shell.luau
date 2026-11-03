@@ -1,11 +1,13 @@
--- The app frame every lobby screen lives in:
+-- The app frame every lobby screen lives in (v3, docs/ArtDirection.md section 7):
 --   top bar   player card (avatar, name, power) on the left, Money and Gems on the right
 --   dock      vertical navigation on the left, one item per registered window
---   windows   one open at a time, built the first time they open
+--   windows   one open at a time, built the first time they open; opening one dims
+--             and blurs the world (a BlurEffect the Shell owns and always restores)
 --   toasts    short messages stacked top-right that fade on their own
 --   confirm   a modal "are you sure?" that shows the price before anything is bought
 -- It also owns the interface's single UIScale, so the whole interface fits
 -- phones, tablets, monitors and TVs. Modes hide whatever shouldn't cover a fight.
+-- Every control here draws the same seven states through Components.surface.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -14,6 +16,7 @@ local RunService = game:GetService("RunService")
 
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
+local Icons = require(script.Parent.Icons)
 local Profile = require(script.Parent.Parent.Profile)
 local Settings = require(script.Parent.Parent.Settings)
 
@@ -33,8 +36,8 @@ local EDGE = 12
 local TOP_BAR = 52
 local BANNER = 30
 local BANNER_WIDTH = 640
-local DOCK_ITEM_WIDTH = 80
-local DOCK_ITEM_MAX_HEIGHT = 62
+local DOCK_ITEM_WIDTH = 88
+local DOCK_ITEM_MAX_HEIGHT = 64
 local DOCK_COMPACT = 48
 local DOCK_PADDING = 8
 local DOCK_GAP = 6
@@ -50,9 +53,15 @@ local MATCH_TOAST_TOP = 236
 -- Below this many screen points the dock shows icons only
 local COMPACT_WIDTH = 900
 local COMPACT_HEIGHT = 500
-local BACKDROP_ALPHA = 0.5
+local BACKDROP_ALPHA = 0.55
+-- How strongly an open window blurs the world behind it, and a confirm dialog on top of that
+local BLUR_WINDOW = 14
+local BLUR_MODAL = 20
+local BLUR_NAME = "SNShellBlur"
 local BACK_ACTION = "SNShellBack"
 local DEFAULT_SAVING_MESSAGE = "Progress isn't being saved right now (Studio without API access)"
+-- Shown where a number has not arrived yet
+local NO_VALUE = "-"
 
 -- What each mode shows
 type ModeLook = { dock: boolean, topBar: "full" | "small" | "none", windows: boolean, hidden: boolean }
@@ -131,6 +140,7 @@ local playerCard: Frame
 local avatar: ImageLabel
 local avatarInitial: TextLabel
 local powerText: TextLabel
+local powerIcon: Frame? = nil
 local wallet: Frame
 local smallBar: Frame
 local gearButton: TextButton
@@ -194,18 +204,18 @@ local function sortedEntries(): { Entry }
 	return list
 end
 
-local function powerLabel(view: { [string]: any }?): string
+local function powerLabel(view: { [string]: any }?): (string, string?)
 	local selected = view and view.selected
 	local id = if typeof(selected) == "table" then selected.power else nil
 	if typeof(id) ~= "string" or id == "" then
-		return if view then "No power selected" else "Loading…"
+		return (if view then "No power selected" else "Loading..."), nil
 	end
 	local name = powerNames[id] or (string.gsub(id, "(%l)(%u)", "%1 %2"))
 	local degree = selected.degree
 	if typeof(degree) == "number" then
-		return `⚡ {name}  ·  Degree {degree}`
+		return `{name}  ·  Degree {degree}`, id
 	end
-	return "⚡ " .. name
+	return name, id
 end
 
 -- Back button (gamepad B / Escape) ----------------------------------------------------------
@@ -331,7 +341,7 @@ local function relayout()
 				nav.button.Size = UDim2.fromOffset(itemSize.X, itemSize.Y)
 				nav.label.Visible = not iconsOnly
 				nav.tile.AnchorPoint = Vector2.new(0.5, if iconsOnly then 0.5 else 0)
-				nav.tile.Position = if iconsOnly then UDim2.fromScale(0.5, 0.5) else UDim2.new(0.5, 0, 0, 7)
+				nav.tile.Position = if iconsOnly then UDim2.fromScale(0.5, 0.5) else UDim2.new(0.5, 0, 0, 9)
 			end
 		end
 		dockWidth = itemSize.X + DOCK_PADDING * 2
@@ -361,20 +371,19 @@ local function currencyPill(parent: Instance, order: number, kind: string, icon:
 		Name = kind == "money" and "Money" or "Gems",
 		LayoutOrder = order,
 		Size = UDim2.fromOffset(WALLET_PILL, TOP_BAR),
-		BackgroundTransparency = 0.18,
+		BackgroundTransparency = Theme.Glass.Panel,
 		Active = false,
 		Parent = parent,
 	})
 	local outline = pill:FindFirstChildOfClass("UIStroke") :: UIStroke
-	local tile = Components.iconTile(icon, 30, color)
-	tile.AnchorPoint = Vector2.new(0, 0.5)
-	tile.Position = UDim2.new(0, 10, 0.5, 0)
-	tile.Parent = pill
+	local drawn = Components.icon(icon, 22, color)
+	drawn.AnchorPoint = Vector2.new(0, 0.5)
+	drawn.Position = UDim2.new(0, 14, 0.5, 0)
+	drawn.Parent = pill
 	local amount = Components.text({
 		Name = "Amount",
-		Text = "—",
-		Style = "Label",
-		Weight = "ExtraBold",
+		Text = NO_VALUE,
+		Style = "number",
 		TextSize = 17,
 		AlignX = "Right",
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -382,12 +391,12 @@ local function currencyPill(parent: Instance, order: number, kind: string, icon:
 		Size = UDim2.new(1, -46 - 56, 0, 24),
 		Parent = pill,
 	})
-	local plus = Components.button("+", {
+	local plus = Components.button("", {
 		Name = "Add",
-		Variant = "Secondary",
+		Variant = "Ghost",
+		Icon = "plus",
+		IconSize = 16,
 		Accent = color,
-		TextColor3 = color,
-		TextSize = Theme.TextSize.Heading,
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -4, 0.5, 0),
 		Size = UDim2.fromOffset(44, 44),
@@ -397,20 +406,30 @@ local function currencyPill(parent: Instance, order: number, kind: string, icon:
 			Shell.open("Shop", { focus = kind })
 		end
 	end)
-	local plusPadding = plus:FindFirstChildOfClass("UIPadding")
-	if plusPadding then
-		plusPadding:Destroy()
-	end
 	return { pill = pill, amount = amount, plus = plus, outline = outline, color = color, shown = 0, target = 0, kind = kind, ready = false }
 end
 
 local function refreshProfile()
 	local view = Profile.get()
-	powerText.Text = powerLabel(view)
+	local text, powerId = powerLabel(view)
+	powerText.Text = text
+	if powerIcon then
+		powerIcon:Destroy()
+		powerIcon = nil
+	end
+	if powerId then
+		local drawn = Components.icon(Icons.sigil(powerId), 14, Colors.Cyan)
+		drawn.AnchorPoint = Vector2.new(0, 0.5)
+		drawn.Position = UDim2.new(0, 56, 0, 36)
+		drawn.Parent = playerCard
+		powerIcon = drawn
+	end
+	powerText.Position = UDim2.fromOffset(if powerId then 76 else 56, 27)
+	powerText.Size = UDim2.new(1, -(if powerId then 86 else 66), 0, 18)
 	for _, counter in counters do
 		if not view then
 			counter.ready = false
-			counter.amount.Text = "—"
+			counter.amount.Text = NO_VALUE
 		else
 			local value = Profile.currency(counter.kind)
 			if not counter.ready then
@@ -421,10 +440,10 @@ local function refreshProfile()
 				counter.amount.Text = Components.formatNumber(value)
 			elseif value ~= counter.target then
 				if value > counter.target then
-					-- A gain: flash the pill in its currency color
+					-- A gain: the pill's hairline lights in its currency colour and fades back
 					counter.outline.Color = counter.color
-					counter.outline.Transparency = 0
-					tween(counter.outline, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = Theme.Glass.StrokeTransparency })
+					counter.outline.Transparency = 0.1
+					tween(counter.outline, TweenInfo.new(0.9, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Transparency = Theme.Glass.StrokeTransparency })
 				end
 				counter.target = value
 			end
@@ -460,7 +479,7 @@ local function buildTopBar()
 		Name = "PlayerCard",
 		Position = UDim2.fromOffset(EDGE, EDGE),
 		Size = UDim2.fromOffset(PLAYER_CARD, TOP_BAR),
-		BackgroundTransparency = 0.18,
+		BackgroundTransparency = Theme.Glass.Panel,
 		Active = false,
 		Parent = chrome,
 	})
@@ -474,13 +493,13 @@ local function buildTopBar()
 		ScaleType = Enum.ScaleType.Crop,
 		Parent = playerCard,
 	}, {
-		Components.corner(UDim.new(0, 10)),
-		Components.stroke(Colors.Cyan, 1.5, 0.35),
+		Components.corner(Theme.SmallCorner),
+		Components.stroke(Colors.Stroke, 1, 0.5),
 	})
 	avatarInitial = Components.text({
 		Text = string.upper(string.sub(player.DisplayName, 1, 1)),
 		Style = "Heading",
-		Weight = "ExtraBold",
+		Weight = "Bold",
 		Color = Colors.TextDim,
 		AlignX = "Center",
 		Size = UDim2.fromScale(1, 1),
@@ -489,17 +508,16 @@ local function buildTopBar()
 	Components.text({
 		Name = "PlayerName",
 		Text = player.DisplayName,
-		Style = "Label",
+		Style = "strong",
 		Position = UDim2.fromOffset(56, 6),
 		Size = UDim2.new(1, -66, 0, 22),
 		Parent = playerCard,
 	})
 	powerText = Components.text({
 		Name = "Power",
-		Text = "Loading…",
-		Style = "Caption",
-		Weight = "SemiBold",
-		Color = Colors.Cyan,
+		Text = "Loading...",
+		Style = "caption",
+		Color = Colors.TextDim,
 		Position = UDim2.fromOffset(56, 27),
 		Size = UDim2.new(1, -66, 0, 18),
 		Parent = playerCard,
@@ -525,8 +543,8 @@ local function buildTopBar()
 	})
 	Components.list(wallet, Space.S, { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right })
 	counters = {
-		currencyPill(wallet, 1, "money", "💵", Colors.Money),
-		currencyPill(wallet, 2, "gems", "💎", Colors.Gems),
+		currencyPill(wallet, 1, "money", "coin", Colors.Money),
+		currencyPill(wallet, 2, "gems", "gem", Colors.Gems),
 	}
 
 	-- The small top bar for fights: just a settings button
@@ -538,10 +556,11 @@ local function buildTopBar()
 		Visible = false,
 		Parent = chrome,
 	})
-	gearButton = Components.button("⚙", {
+	gearButton = Components.button("", {
 		Name = "SettingsButton",
 		Variant = "Secondary",
-		TextSize = Theme.TextSize.Heading,
+		Icon = "gear",
+		IconSize = 22,
 		Size = UDim2.fromOffset(TOP_BAR - 4, TOP_BAR - 4),
 		Parent = smallBar,
 	}, function()
@@ -563,28 +582,25 @@ local function buildTopBar()
 		AnchorPoint = Vector2.new(0.5, 0),
 		Size = UDim2.fromOffset(BANNER_WIDTH, BANNER),
 		BackgroundColor3 = Colors.Warning,
-		BackgroundTransparency = 0.82,
+		BackgroundTransparency = 0.88,
 		BorderSizePixel = 0,
 		Visible = false,
 		Parent = chrome,
 	}, {
-		Components.corner(Theme.PillCorner),
-		Components.stroke(Colors.Warning, 1, 0.45),
+		Components.corner(Theme.SmallCorner),
+		Components.stroke(Colors.Warning, 1, 0.5),
 		Components.padding(0, Space.L, 0, Space.L),
 	})
-	Components.text({
-		Name = "Icon",
-		Text = "⚠️",
-		Style = "Caption",
-		AlignX = "Center",
-		Size = UDim2.new(0, 20, 1, 0),
-		Parent = banner,
-	})
+	local bannerIcon = Components.icon("warning", 16, Colors.Warning)
+	bannerIcon.Name = "Icon"
+	bannerIcon.AnchorPoint = Vector2.new(0, 0.5)
+	bannerIcon.Position = UDim2.fromScale(0, 0.5)
+	bannerIcon.Parent = banner
 	bannerText = Components.text({
 		Name = "Message",
 		Text = DEFAULT_SAVING_MESSAGE,
-		Style = "Caption",
-		Weight = "Bold",
+		Style = "caption",
+		Weight = "SemiBold",
 		Color = Colors.Warning,
 		AlignX = "Center",
 		Position = UDim2.fromOffset(24, 0),
@@ -613,39 +629,39 @@ local function buildNavItem(entry: Entry, order: number)
 		AutoButtonColor = false,
 		Text = "",
 		Selectable = true,
-		SelectionImageObject = Components.selectionImage,
+		SelectionImageObject = Components.noSelection,
 		Size = UDim2.fromOffset(DOCK_ITEM_WIDTH, DOCK_ITEM_MAX_HEIGHT),
-		BackgroundColor3 = Colors.Cyan,
+		BackgroundColor3 = Colors.PanelLight,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = dockList,
-	}, { Components.corner(UDim.new(0, 10)) })
-	local outline = Components.stroke(Colors.Cyan, 1.5, 1)
-	outline.Parent = button
-	local marker = make("Frame", {
-		Name = "Marker",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, -DOCK_PADDING + 2, 0.5, 0),
-		Size = UDim2.new(0, 3, 0.6, 0),
-		BackgroundColor3 = Colors.Cyan,
+	}, { Components.corner(Theme.SmallCorner) })
+	-- The icon sits in a fixed 28 px box so every item lines up
+	local tile = make("Frame", {
+		Name = "Tile",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 9),
+		Size = UDim2.fromOffset(28, 28),
 		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
+		ZIndex = 2,
 		Parent = button,
-	}, { Components.corner(Theme.PillCorner) })
-	local tile = Components.iconTile(spec.icon, 30, spec.accent or Colors.Cyan)
-	tile.AnchorPoint = Vector2.new(0.5, 0)
-	tile.Position = UDim2.new(0.5, 0, 0, 7)
-	tile.Parent = button
-	local tileScale = make("UIScale", { Parent = tile })
+	})
+	local drawn = Components.icon(spec.icon, 24, Colors.TextDim)
+	drawn.AnchorPoint = Vector2.new(0.5, 0.5)
+	drawn.Position = UDim2.fromScale(0.5, 0.5)
+	drawn.ZIndex = 2
+	drawn.Parent = tile
 	local label = Components.text({
 		Name = "Label",
 		Text = spec.label or string.upper(spec.title),
-		Style = "Micro",
-		Weight = "Bold",
+		Style = "caption",
+		Weight = "SemiBold",
+		Color = Colors.TextDim,
 		AlignX = "Center",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -5),
-		Size = UDim2.new(1, -6, 0, 15),
+		Position = UDim2.new(0.5, 0, 1, -6),
+		Size = UDim2.new(1, -6, 0, 18),
+		ZIndex = 2,
 		Parent = button,
 	})
 	local badge = make("Frame", {
@@ -654,7 +670,7 @@ local function buildNavItem(entry: Entry, order: number)
 		Position = UDim2.new(1, -2, 0, 2),
 		Size = UDim2.fromOffset(0, 18),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = Colors.Danger,
+		BackgroundColor3 = Colors.Accent,
 		BorderSizePixel = 0,
 		Visible = false,
 		ZIndex = 3,
@@ -666,9 +682,9 @@ local function buildNavItem(entry: Entry, order: number)
 		make("UISizeConstraint", { MinSize = Vector2.new(18, 18) }),
 	})
 	local badgeText = Components.text({
-		Style = "Micro",
-		Weight = "ExtraBold",
-		Color = Color3.new(1, 1, 1),
+		Style = "caption",
+		Weight = "Bold",
+		Color = Colors.TextOnLight,
 		AlignX = "Center",
 		Size = UDim2.fromScale(0, 1),
 		AutomaticSize = Enum.AutomaticSize.X,
@@ -676,14 +692,13 @@ local function buildNavItem(entry: Entry, order: number)
 		ZIndex = 3,
 		Parent = badge,
 	})
+	local surface = Components.surface(button, { Edge = "left", Flat = true, NoFrame = true, Title = label })
 	local _, refresh = Components.interactive(button, function(state, instant)
-		local info = if instant then nil else Motion.Fast
-		local active = openId == entry.id
-		apply(button, info, { BackgroundTransparency = if active then 0.8 elseif state.hovered then 0.9 else 1 })
-		apply(outline, info, { Transparency = if active then 0.25 elseif state.hovered then 0.6 else 1 })
-		apply(marker, info, { BackgroundTransparency = if active then 0 else 1 })
-		apply(tileScale, info, { Scale = if state.pressed then 0.94 elseif state.hovered then 1.08 else 1 })
-		label.TextColor3 = if active then Colors.Cyan elseif state.hovered then Colors.Text else Colors.TextDim
+		-- The open window's item is the selected one
+		state.selected = openId == entry.id
+		surface.render(state, instant)
+		local color = if state.selected then Colors.Cyan elseif state.hovered or state.focused then Colors.Text else Colors.TextDim
+		Icons.tint(drawn, color)
 	end)
 	button.Activated:Connect(function()
 		Shell.toggle(entry.id)
@@ -721,7 +736,7 @@ local function buildDock()
 		AnchorPoint = Vector2.new(0, 0.5),
 		Size = UDim2.fromOffset(DOCK_ITEM_WIDTH + DOCK_PADDING * 2, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 0.16,
+		BackgroundTransparency = Theme.Glass.Panel,
 		Active = false,
 		Visible = false,
 		Parent = layers.chrome,
@@ -745,6 +760,49 @@ local function setBackdrop(visible: boolean)
 			end
 		end)
 	end
+end
+
+-- The blur behind open windows: one BlurEffect the Shell owns (in the camera,
+-- like the other screen effects). It is tweened up when a window or a dialog
+-- opens and always back to zero when the last one closes.
+local blur: BlurEffect? = nil
+local blurWanted = 0
+
+local function blurEffect(): BlurEffect?
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return nil
+	end
+	if blur and blur.Parent == camera then
+		return blur
+	end
+	if blur then
+		blur:Destroy()
+	end
+	blur = make("BlurEffect", { Name = BLUR_NAME, Size = 0, Parent = camera })
+	return blur
+end
+
+local function updateBlur()
+	local wanted = if confirmState then BLUR_MODAL elseif openId then BLUR_WINDOW else 0
+	if Settings.get("reducedEffects") == true then
+		wanted = math.floor(wanted / 2)
+	end
+	blurWanted = wanted
+	local effect = blurEffect()
+	if effect then
+		tween(effect, if wanted > 0 then Motion.Slow else Motion.Normal, { Size = wanted })
+	end
+end
+
+-- The blur size the Shell is heading for (0 when nothing is open)
+function Shell.blurSize(): number
+	return blurWanted
+end
+
+-- The Shell's BlurEffect, once it has been needed (nil before)
+function Shell.blur(): BlurEffect?
+	return blur
 end
 
 local function ensureBuilt(entry: Entry): boolean
@@ -794,7 +852,7 @@ local function hideWindow(entry: Entry, instant: boolean)
 		frame.Visible = false
 		return
 	end
-	tween(entry.parts.scale, Motion.In, { Scale = 0.96 })
+	tween(entry.parts.scale, Motion.In, { Scale = 0.97 })
 	entry.fade = Components.fade(frame, false, Motion.In, function()
 		if openId ~= entry.id then
 			frame.Visible = false
@@ -852,10 +910,11 @@ function Shell.open(id: string, args: any?)
 	if entry.handlers.onOpen then
 		entry.handlers.onOpen(args)
 	end
-	entry.parts.scale.Scale = 0.95
+	entry.parts.scale.Scale = 0.96
 	tween(entry.parts.scale, Motion.Slow, { Scale = 1 })
 	entry.fade = Components.fade(frame, true, Motion.Normal)
 	setBackdrop(true)
+	updateBlur()
 	refreshNav()
 	syncBackBinding()
 	local target = if entry.handlers.focus then entry.handlers.focus() else nil
@@ -869,6 +928,7 @@ function Shell.close()
 	end
 	closeCurrent(false)
 	setBackdrop(false)
+	updateBlur()
 	syncBackBinding()
 end
 
@@ -950,39 +1010,39 @@ function Shell.toast(message: string, kind: string?)
 		AutoButtonColor = false,
 		Text = "",
 		Selectable = false,
-		Position = UDim2.fromOffset(40, 0),
+		Position = UDim2.fromOffset(32, 0),
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = Colors.Panel,
-		BackgroundTransparency = 0.08,
+		BackgroundTransparency = Theme.Glass.Window,
 		BorderSizePixel = 0,
+		ClipsDescendants = true,
 		Parent = holder,
 	}, {
-		Components.corner(UDim.new(0, 10)),
-		Components.stroke(look.color, 1.5, 0.45),
-		Components.glassGradient(),
-		Components.padding(Space.S + 2, Space.M, Space.S + 2, Space.M + 4),
+		Components.corner(Theme.SmallCorner),
+		Components.stroke(Colors.Stroke, 1, 0.5),
+		Components.padding(Space.M, Space.L, Space.M, Space.L + 4),
 	})
 	make("Frame", {
 		Name = "Accent",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, -(Space.M + 4) + 4, 0.5, 0),
-		Size = UDim2.new(0, 3, 1, 0),
+		Position = UDim2.fromOffset(-(Space.L + 4), -Space.M),
+		Size = UDim2.new(0, 3, 1, Space.M * 2),
 		BackgroundColor3 = look.color,
 		BorderSizePixel = 0,
 		Parent = panel,
-	}, { Components.corner(Theme.PillCorner) })
-	local tile = Components.iconTile(look.icon, 28, look.color)
-	tile.Parent = panel
+	})
+	local drawn = Components.icon(look.icon, 20, look.color)
+	drawn.Position = UDim2.fromOffset(0, 1)
+	drawn.Parent = panel
 	Components.text({
 		Name = "Message",
 		Text = message,
-		Style = "Body",
-		Weight = "SemiBold",
+		Style = "strong",
+		Weight = "Medium",
+		Color = Colors.Text,
 		Wrap = true,
-		Position = UDim2.fromOffset(40, 0),
-		Size = UDim2.new(1, -40, 0, 28),
-		AlignY = "Center",
+		Position = UDim2.fromOffset(32, 0),
+		Size = UDim2.new(1, -32, 0, 22),
 		Parent = panel,
 	})
 
@@ -995,7 +1055,7 @@ function Shell.toast(message: string, kind: string?)
 			return
 		end
 		gone = true
-		tween(panel, Motion.In, { Position = UDim2.fromOffset(40, 0) })
+		tween(panel, Motion.In, { Position = UDim2.fromOffset(32, 0) })
 		Components.fade(panel, false, Motion.In, function()
 			holder:Destroy()
 		end)
@@ -1056,47 +1116,47 @@ function Shell.confirm(options: ConfirmOptions)
 		Parent = dim,
 	}, {
 		Components.corner(Theme.Corner),
-		Components.stroke(if options.danger then Colors.Danger else Colors.Stroke, 1.5, if options.danger then 0.35 else 0.6),
-		Components.glassGradient(),
-		Components.padding(Space.L + 4, Space.XL, Space.XL, Space.XL),
+		Components.stroke(if options.danger then Colors.Danger else Colors.Stroke, 1, if options.danger then 0.35 else 0.5),
+		Components.padding(Space.XL, Space.XL, Space.XL, Space.XL),
 	})
-	local dialogScale = make("UIScale", { Scale = 0.95, Parent = dialog })
+	local dialogScale = make("UIScale", { Scale = 0.96, Parent = dialog })
 	Components.list(dialog, Space.M)
 
-	local accent = if options.danger then Colors.Danger elseif options.price then Colors.Gold else Colors.Cyan
+	local accent = if options.danger then Colors.Danger elseif options.price then Colors.Accent else Colors.Cyan
 	local header = make("Frame", {
 		Name = "Header",
 		LayoutOrder = 1,
-		Size = UDim2.new(1, 0, 0, 36),
+		Size = UDim2.new(1, 0, 0, 32),
 		BackgroundTransparency = 1,
 		Parent = dialog,
 	})
-	local icon = Components.iconTile(options.icon or (if options.danger then "⚠️" elseif options.price then "🛒" else "❔"), 36, accent)
-	icon.Parent = header
+	local headIcon = Components.icon(options.icon or (if options.danger then "warning" elseif options.price then "shop" else "info"), 22, accent)
+	headIcon.AnchorPoint = Vector2.new(0, 0.5)
+	headIcon.Position = UDim2.fromScale(0, 0.5)
+	headIcon.Parent = header
 	Components.text({
 		Name = "Title",
 		Text = options.title or "Are you sure?",
-		Style = "Heading",
-		Weight = "ExtraBold",
-		Position = UDim2.fromOffset(48, 0),
-		Size = UDim2.new(1, -48, 1, 0),
+		Style = "heading",
+		Position = UDim2.fromOffset(34, 0),
+		Size = UDim2.new(1, -34, 1, 0),
 		Parent = header,
 	})
-	Components.accentLine({ LayoutOrder = 2, Parent = dialog })
+	Components.divider({ LayoutOrder = 2, Parent = dialog })
 	if typeof(options.body) == "string" and options.body ~= "" then
-		Components.text({ Name = "Body", Text = options.body, Style = "Body", Color = Colors.TextDim, Wrap = true, LayoutOrder = 3, Parent = dialog })
+		Components.text({ Name = "Body", Text = options.body, Style = "body", Wrap = true, LayoutOrder = 3, Parent = dialog })
 	end
 	if typeof(options.price) == "table" then
 		local priceRow = make("Frame", {
 			Name = "PriceRow",
 			LayoutOrder = 4,
-			Size = UDim2.new(1, 0, 0, 44),
+			Size = UDim2.new(1, 0, 0, 48),
 			BackgroundColor3 = Colors.Ink,
-			BackgroundTransparency = 0.5,
+			BackgroundTransparency = 0.45,
 			BorderSizePixel = 0,
 			Parent = dialog,
-		}, { Components.corner(Theme.SmallCorner), Components.padding(0, Space.M, 0, Space.M) })
-		Components.text({ Text = "PRICE", Style = "Micro", Size = UDim2.new(0, 60, 1, 0), Parent = priceRow })
+		}, { Components.corner(Theme.SmallCorner), Components.stroke(Colors.Stroke, 1, 0.8), Components.padding(0, Space.M, 0, Space.M) })
+		Components.text({ Text = "Price", Style = "overline", Size = UDim2.new(0, 80, 1, 0), Parent = priceRow })
 		Components.price(priceRow, options.price, {
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.fromScale(1, 0.5),
@@ -1120,10 +1180,11 @@ function Shell.confirm(options: ConfirmOptions)
 		end
 		releaseFocus(dim)
 		tween(dim, Motion.In, { BackgroundTransparency = 1 })
-		tween(dialogScale, Motion.In, { Scale = 0.96 })
+		tween(dialogScale, Motion.In, { Scale = 0.97 })
 		Components.fade(dialog, false, Motion.In, function()
 			dim:Destroy()
 		end)
+		updateBlur()
 		syncBackBinding()
 		if confirmed then
 			options.onConfirm()
@@ -1139,10 +1200,9 @@ function Shell.confirm(options: ConfirmOptions)
 	}, function()
 		close(false)
 	end)
-	local hasRobux = typeof(options.price) == "table" and typeof(options.price.robux) == "number" and options.price.robux > 0
 	local confirmButton = Components.button(options.confirmText or (if options.price then "Buy" else "Confirm"), {
 		Name = "Confirm",
-		Variant = if options.danger then "Danger" elseif hasRobux then "Gold" else "Primary",
+		Variant = if options.danger then "Danger" else "Primary",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.new(0.5, -Space.S / 2, 1, 0),
@@ -1155,9 +1215,10 @@ function Shell.confirm(options: ConfirmOptions)
 	end)
 
 	confirmState = { close = close }
-	tween(dim, Motion.Normal, { BackgroundTransparency = 0.35 })
+	tween(dim, Motion.Normal, { BackgroundTransparency = 0.4 })
 	tween(dialogScale, Motion.Pop, { Scale = 1 })
 	Components.fade(dialog, true, Motion.Normal)
+	updateBlur()
 	syncBackBinding()
 	-- Purchases start on Cancel for gamepads, so a double press never buys
 	focus(if options.price then cancelButton else confirmButton)

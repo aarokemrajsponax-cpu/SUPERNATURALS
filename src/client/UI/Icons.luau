@@ -1,13 +1,16 @@
--- Drawn line icons for the whole interface (ArtDirection 6: 2 px strokes,
+-- Drawn line icons for the whole interface (ArtDirection 7: one stroke weight,
 -- square caps, centred in their box, no emoji anywhere). Each icon is drawn on
 -- a 24-unit grid from plain GuiObjects: bars (rotated Frames), rings and boxes
 -- (Frames with a UIStroke), and discs. They stay crisp from 16 to 64 px and take
 -- one colour, so they tint with their context.
 --   Icons.make(name, size, color?) -> Frame      Icons.has(name) -> boolean
---   Icons.resolve(nameOrEmoji) -> name           Icons.tint(icon, color, alpha?)
+--   Icons.resolve(nameOrEmoji, fallback?) -> name  Icons.tint(icon, color, alpha?)
 --   Icons.sigil(powerId) -> name                 Icons.forAbility(ability) -> name
--- Unknown names (and any emoji older code passes) draw the facet lozenge, so
--- no screen ever shows an emoji or a missing glyph.
+-- Unknown names (and any emoji older code passes) fall back to the name's
+-- `fallback` (an ability's kind, say) and then to the facet lozenge, so no
+-- screen ever shows an emoji, a text code like "ROOT" or a missing glyph.
+-- An ability gets its own drawing by id (ABILITY_ICONS), then by its power's
+-- emoji, then by its kind.
 
 local Icons = {}
 
@@ -226,6 +229,54 @@ local DEFS: { [string]: { Op } } = {
 	search = { { "c", 10.5, 10.5, 6 }, { "l", 15, 15, 20.5, 20.5 } },
 	compare = { { "r", 3.5, 5, 7, 14 }, { "r", 13.5, 5, 7, 14 }, { "l", 12, 2.5, 12, 21.5 } },
 
+	-- Ability drawings (one per fantasy; ABILITY_ICONS below picks them by ability id)
+	blade = { { "l", 5.5, 18.5, 18.5, 5.5 }, { "l", 7.75, 12.25, 11.75, 16.25 }, { "l", 5.5, 18.5, 3.5, 20.5 } },
+	wave = { { "a", 12, 15, 9, 200, 340 }, { "a", 12, 19, 7, 212, 328 }, { "l", 3.5, 21, 20.5, 21 } },
+	flurry = { { "l", 4, 6, 16, 6 }, { "l", 8, 12, 20, 12 }, { "l", 4, 18, 16, 18 } },
+	quake = { { "l", 3, 18, 21, 18 }, { "p", 12, 18, 9.5, 12.5, 14, 9.5, 11, 4 }, { "d", 5.5, 13, 1.2 }, { "d", 18.5, 13, 1.2 } },
+	fist = {
+		{ "q", 6, 9, 18, 9, 19, 15, 16.5, 20, 8.5, 20, 6, 15 },
+		{ "l", 9.5, 9, 9.5, 13.5 },
+		{ "l", 12, 9, 12, 13.5 },
+		{ "l", 14.5, 9, 14.5, 13.5 },
+		{ "l", 8, 5.5, 16, 5.5 },
+	},
+	claw = { { "l", 6, 4, 9.5, 20 }, { "l", 11.5, 3, 15, 19 }, { "l", 17, 4.5, 20, 19.5 } },
+	feather = { { "q", 5, 19, 7.5, 9, 14.5, 4, 20, 4, 19, 10.5, 13, 16 }, { "l", 4.5, 19.5, 14, 9.5 } },
+	jaw = { { "p", 4, 9, 7, 15, 10, 9, 13, 15, 16, 9, 19, 15 }, { "l", 3, 19.5, 21, 19.5 } },
+	wings = { { "p", 2.5, 14, 7.5, 8, 12, 14, 16.5, 8, 21.5, 14 }, { "l", 12, 14, 12, 19 } },
+	beam = { { "r", 3, 9.5, 5, 5 }, { "l", 8, 12, 19, 12 }, arrow(21, 12, 0, 4.5) },
+	missile = { { "q", 7, 9.5, 15, 9.5, 20, 12, 15, 14.5, 7, 14.5 }, { "p", 7, 9.5, 4, 6.5 }, { "p", 7, 14.5, 4, 17.5 }, { "l", 2, 12, 5, 12 } },
+	comet = { { "c", 16, 8, 3.8 }, { "l", 13, 11, 4, 20 }, { "l", 10, 8, 4.5, 13.5 }, { "l", 16, 14, 11.5, 18.5 } },
+	wall = {
+		{ "r", 3.5, 5, 17, 14 },
+		{ "l", 3.5, 9.7, 20.5, 9.7 },
+		{ "l", 3.5, 14.3, 20.5, 14.3 },
+		{ "l", 9, 5, 9, 9.7 },
+		{ "l", 15, 9.7, 15, 14.3 },
+		{ "l", 9, 14.3, 9, 19 },
+	},
+	cage = { { "r", 4.5, 4.5, 15, 15 }, { "l", 9.5, 4.5, 9.5, 19.5 }, { "l", 14.5, 4.5, 14.5, 19.5 }, { "l", 3, 21.5, 21, 21.5 } },
+	cursor = { { "q", 6, 4, 18, 13, 12.5, 14, 15.5, 20.5, 13, 21.5, 10, 15.5, 6, 18.5 } },
+	terminal = { { "r", 3, 5, 18, 14 }, { "p", 7, 9.5, 10, 12, 7, 14.5 }, { "l", 12.5, 15, 17, 15 } },
+	grid = { { "r", 4, 4, 16, 16 }, { "l", 12, 4, 12, 20 }, { "l", 4, 12, 20, 12 } },
+	chain = { { "d", 5, 12, 2 }, { "d", 12, 12, 2 }, { "d", 19, 12, 2 }, { "l", 7, 12, 10, 12 }, { "l", 14, 12, 17, 12 } },
+	freeze = { { "l", 12, 3, 12, 21 }, { "l", 4.2, 7.5, 19.8, 16.5 }, { "l", 4.2, 16.5, 19.8, 7.5 } },
+	mist = { { "p", 3, 8, 6, 6, 9, 8, 12, 6, 15, 8, 18, 6, 21, 8 }, { "p", 3, 13, 6, 11, 9, 13, 12, 11, 15, 13, 18, 11, 21, 13 }, { "p", 3, 18, 6, 16, 9, 18, 12, 16, 15, 18, 18, 16, 21, 18 } },
+	rift = { { "p", 12.5, 3, 9, 9, 14, 12, 10, 21 }, { "l", 5, 6, 7, 8 }, { "l", 19, 16, 17, 14 } },
+	spiral = { { "a", 12, 12, 8.5, 0, 270 }, { "a", 12, 12, 4.5, 90, 360 } },
+	mountain = { { "q", 3, 19, 9, 7, 13, 13, 16, 9.5, 21, 19 } },
+	lockon = {
+		{ "c", 12, 12, 4.5 },
+		{ "p", 4, 9, 4, 4, 9, 4 },
+		{ "p", 15, 4, 20, 4, 20, 9 },
+		{ "p", 20, 15, 20, 20, 15, 20 },
+		{ "p", 9, 20, 4, 20, 4, 15 },
+	},
+	hourglass = { { "q", 6.5, 3.5, 17.5, 3.5, 12, 12 }, { "q", 12, 12, 17.5, 20.5, 6.5, 20.5 } },
+	gravity = { { "c", 12, 8, 5 }, { "l", 12, 16, 12, 21 }, arrow(12, 21.5, 90, 4) },
+	globe = { { "c", 12, 12, 8.5 }, { "l", 3.5, 12, 20.5, 12 }, { "l", 12, 3.5, 12, 20.5 }, { "a", 12, 12, 4.5, 270, 90 } },
+
 	-- Ability kinds (fallbacks when a power doesn't name a drawn icon)
 	burst = {
 		{ "d", 12, 12, 1.8 },
@@ -375,14 +426,53 @@ local KINDS = {
 	Ultimate = "ultimate",
 }
 
+-- Each ability's own drawing, by ability id (the definitions still carry emoji
+-- and text codes like "ROOT"; the drawings come from here)
+local ABILITY_ICONS = {
+	-- Strong Dude
+	Groundbreaker = "burst", TitanGrip = "grab", MeteorCharge = "comet", CrushingUppercut = "fist",
+	QuakeStomp = "quake", Heave = "throw", IronBody = "shield", SeismicFissure = "rift", WorldBreaker = "globe",
+	-- The Ghost
+	InstantDraw = "blade", SpectralDash = "dash", PhantomVeil = "mist", SpectralCounter = "counter",
+	ShadowStep = "teleport", SlashWave = "wave", SlashFlurry = "flurry", FollowThrough = "dash",
+	ConvergingGrid = "grid", SpectralSeverance = "blade",
+	-- Shapeshifter
+	WolfForm = "paw", HawkForm = "wings", BearForm = "paw", CheetahForm = "dash", CrocodileForm = "jaw", PhoenixForm = "fire",
+	WolfBite = "jaw", WolfPounce = "dash", HawkTalon = "claw", HawkDive = "arrow-down", BearMaul = "claw", BearSlam = "quake",
+	CheetahSwipe = "claw", CheetahBurst = "dash", CrocSnap = "jaw", DeathRoll = "rotate", CinderRake = "claw",
+	PhoenixNova = "burst", PrimalAscendancy = "ultimate",
+	-- Machine Master
+	BlasterShot = "projectile", ChargedShot = "bolt", ScatterBlast = "burst", ShockPulse = "bolt", DeflectorShield = "shield",
+	Intercept = "target", RailShot = "beam", MissileVolley = "missile", BarrierProjector = "wall", SweepingStreams = "fire",
+	PressurizedBurst = "burst", SoulFireballs = "comet", SoulforgeDevice = "cog", BlueInferno = "fire",
+	-- Corruption
+	VoidStrike = "blade", CorruptBolt = "projectile", StaticBurst = "burst", RiftBlink = "rift", UnstableGround = "quake",
+	DistortionPulse = "spiral", Unravel = "spiral", DistortionZone = "zone", Phantasm = "users", Cataclysm = "burst",
+	TotalSystemCorruption = "ultimate",
+	-- Syntax
+	Keystroke = "terminal", Strikethrough = "flurry", TargetLock = "lockon", CodeBolt = "code", HoloBarrier = "wall",
+	PacketReroute = "counter", Interface = "grid", CommandZone = "zone", ConfinementField = "cage", ObjectOverride = "cursor",
+	ExecuteChain = "chain", RuleRewrite = "gravity", Reconstruct = "refresh", MovementOverride = "dash", SystemOverride = "ultimate",
+	-- Admin
+	FreezeCommand = "freeze", ForceField = "shield", SpeedCommand = "dash", Fly = "wings", Clone = "users", Barrier = "wall",
+	Jail = "cage", GravityCommand = "gravity", Fling = "throw", ArenaBarrier = "zone", GravityField = "globe",
+	TeleportSequence = "teleport", AreaCommand = "hourglass", BanHammer = "hammer",
+	-- Grandmaster
+	DragonsStep = "dash", TigerClaw = "claw", CranesReversal = "feather", IronMountain = "mountain", SweepingDragon = "spiral",
+	HundredFists = "flurry", FocusState = "target", DragonsAnswer = "fist", HeavenSplittingDragon = "ultimate",
+}
+
 function Icons.has(name: string): boolean
 	return typeof(name) == "string" and (DEFS[name] ~= nil or ALIASES[name] ~= nil)
 end
 
--- The drawing for a name, an alias or an emoji (the facet when unknown)
-function Icons.resolve(name: any): string
+-- The drawing for a name, an alias or an emoji. Anything unknown (a text code
+-- such as "ROOT" included) gives `fallback` when that is a real drawing, and
+-- the facet otherwise.
+function Icons.resolve(name: any, fallback: string?): string
+	local default = if fallback ~= nil and DEFS[fallback] ~= nil then fallback else "facet"
 	if typeof(name) ~= "string" then
-		return "facet"
+		return default
 	end
 	if DEFS[name] then
 		return name
@@ -405,14 +495,15 @@ function Icons.resolve(name: any): string
 		end
 		break
 	end
-	return "facet"
+	return default
 end
 
 function Icons.sigil(powerId: string?): string
 	return SIGILS[powerId or ""] or "facet"
 end
 
--- An ability's drawing: its own iconName, its emoji mapped, or its kind
+-- An ability's drawing: its own iconName, its id's drawing, its emoji mapped,
+-- or its kind (the facet when nothing fits)
 function Icons.forAbility(ability: any): string
 	if typeof(ability) ~= "table" then
 		return "facet"
@@ -420,8 +511,12 @@ function Icons.forAbility(ability: any): string
 	if typeof(ability.iconName) == "string" and DEFS[ability.iconName] then
 		return ability.iconName
 	end
+	local byId = if typeof(ability.id) == "string" then ABILITY_ICONS[ability.id] else nil
+	if byId then
+		return byId
+	end
 	local fromEmoji = if typeof(ability.icon) == "string" then EMOJI[ability.icon] else nil
-	if fromEmoji then
+	if fromEmoji and DEFS[fromEmoji] then
 		return fromEmoji
 	end
 	return KINDS[ability.kind] or "facet"

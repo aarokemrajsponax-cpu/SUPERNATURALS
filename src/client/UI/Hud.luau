@@ -1,14 +1,15 @@
 -- The player's own status at the bottom centre of the screen, from the top:
 --   ability row   the ability bar (up to 6 buttons, 64x64) goes here
---   vitals        name, health bar with the number inside, then guard and
---                 stamina side by side (stamina turns orange when low and red
+--   vitals        a navy plate: name and health numbers, the health bar, then guard
+--                 and stamina side by side (stamina turns amber when low and red
 --                 with WINDED when it runs out)
---   controls      a compact strip of key hints for keyboard or gamepad with
---                 cooldown sweeps (hidden on touch, where the touch buttons show them)
+--   controls      a neat row of key caps for keyboard or gamepad, each with what
+--                 it does and a small cooldown sweep (hidden on touch, where the
+--                 touch buttons show them)
 -- Plus, away from the strip: a charge meter under the crosshair while a heavy
 -- charges, and corner brackets over the lock-on target.
--- Everything sits on the 8 px grid. Nothing here catches clicks, so clicking
--- near the HUD still attacks.
+-- Everything sits on the 8 px grid and follows Theme. Nothing here catches clicks,
+-- so clicking near the HUD still attacks.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -33,16 +34,15 @@ local WIDTH = 460
 local ABILITY_SIZE = 64
 local ABILITY_SLOTS = 6
 local VITALS_HEIGHT = 80
-local CHIP_WIDTH = 52
-local CHIP_HEIGHT = 44
-local CHIP_GAP = 4
+local CAP_CELL = 56
+local CAP_HEIGHT = 28
+local CELL_HEIGHT = 50
 -- On touch the HUD moves left a little to leave room for the button cluster
 local TOUCH_SHIFT = -48
--- Health turns red below this fraction; stamina turns orange below this one
+-- Health turns red below this fraction; stamina turns amber below this one
 local LOW_HEALTH = 0.3
 local LOW_STAMINA = 0.25
-local STAMINA_COLOR = Color3.fromRGB(240, 214, 140)
-local CHARGE_COLOR = Color3.fromRGB(255, 196, 112)
+local CHARGE_COLOR = Colors.Accent
 
 Hud.Layout = {
 	width = WIDTH,
@@ -52,21 +52,22 @@ Hud.Layout = {
 	bottom = Space.L,
 }
 
-type Chip = { frame: Frame, key: TextLabel, cooldown: Frame, timer: TextLabel, outline: UIStroke, binding: any }
+type Chip = { frame: Frame, cap: Frame, key: TextLabel, sweep: (number) -> (), outline: UIStroke, binding: any }
 
--- A glass chip that doesn't catch input
+-- A navy plate that doesn't catch input
 local function glass(props: { [string]: any }): Frame
 	local merged: { [string]: any } = {
 		BackgroundColor3 = Colors.Panel,
-		BackgroundTransparency = 0.22,
+		BackgroundTransparency = Theme.Glass.Panel,
 		BorderSizePixel = 0,
+		Active = false,
 	}
 	for key, value in props do
 		merged[key] = value
 	end
 	return make("Frame", merged, {
 		Components.corner(Theme.SmallCorner),
-		Components.glassGradient(),
+		Components.stroke(Colors.Stroke, 1, 0.6),
 	})
 end
 
@@ -75,23 +76,24 @@ local function meter(parent: Instance, name: string, caption: string, position: 
 	local holder = make("Frame", {
 		Name = name,
 		Position = position,
-		Size = UDim2.new(0.5, -Space.S / 2, 0, 16),
+		Size = UDim2.new(0.5, -Space.S / 2, 0, 18),
 		BackgroundTransparency = 1,
 		Parent = parent,
 	})
 	local label = Components.text({
 		Name = "Caption",
 		Text = caption,
-		Style = "Micro",
+		Style = "caption",
+		Weight = "SemiBold",
 		Color = Colors.TextMuted,
-		Size = UDim2.new(0, 60, 1, 0),
+		Size = UDim2.new(0, 72, 1, 0),
 		Parent = holder,
 	})
 	local bar, set = Components.bar({
 		Name = "Bar",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 64, 0.5, 0),
-		Size = UDim2.new(1, -64, 0, 6),
+		Position = UDim2.new(0, 76, 0.5, 0),
+		Size = UDim2.new(1, -76, 0, 6),
 		Parent = holder,
 	}, color)
 	return holder, label, bar, set
@@ -135,61 +137,45 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 	abilityRow.Parent = frame
 
 	-- Vitals ---------------------------------------------------------------------------
-	-- 8 padding, name 18, gap 4, health 22, gap 6, guard/stamina 16, 6 padding = 80
+	-- 8 padding, name 22, gap 4, health 12, gap 8, guard/stamina 18, 8 padding = 80
 	local vitals = glass({
 		Name = "Vitals",
 		LayoutOrder = 2,
 		Size = UDim2.new(1, 0, 0, VITALS_HEIGHT),
 		Parent = frame,
 	})
-	local vitalsStroke = Components.stroke(Colors.Stroke, 1, 0.75)
-	vitalsStroke.Parent = vitals
-	Components.padding(Space.S, Space.M, Space.S - 2, Space.M).Parent = vitals
+	local vitalsStroke = vitals:FindFirstChildOfClass("UIStroke") :: UIStroke
+	Components.padding(Space.S, Space.L - 2, Space.S, Space.L - 2).Parent = vitals
 	local nameLabel = Components.text({
 		Name = "PlayerName",
 		Text = player.DisplayName,
-		Style = "Label",
-		Size = UDim2.new(1, -96, 0, 18),
+		Style = "strong",
+		Size = UDim2.new(1, -120, 0, 22),
 		Parent = vitals,
 	})
-	local healthCaption = Components.text({
-		Name = "HealthCaption",
-		Text = "HEALTH",
-		Style = "Micro",
-		Color = Colors.TextMuted,
+	local healthText = Components.text({
+		Name = "Amount",
+		Text = "100 / 100",
+		Style = "number",
 		AlignX = "Right",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromOffset(88, 18),
+		Size = UDim2.fromOffset(116, 22),
 		Parent = vitals,
 	})
 	local healthBar, setHealth = Components.bar({
 		Name = "Health",
-		Position = UDim2.fromOffset(0, 22),
-		Size = UDim2.new(1, 0, 0, 22),
+		Position = UDim2.fromOffset(0, 26),
+		Size = UDim2.new(1, 0, 0, 12),
 		Parent = vitals,
 	}, Colors.Health)
-	Components.stroke(Colors.Ink, 1.5, 0.2).Parent = healthBar
-	local healthText = Components.text({
-		Name = "Amount",
-		Text = "100",
-		Style = "Label",
-		Weight = "ExtraBold",
-		TextSize = 15,
-		AlignX = "Right",
-		TextStrokeTransparency = 0.35,
-		TextStrokeColor3 = Colors.Ink,
-		Size = UDim2.fromScale(1, 1),
-		ZIndex = 3,
-		Parent = healthBar,
-	})
-	Components.padding(0, Space.S, 0, Space.S).Parent = healthText
-	local _, _, _, setGuard = meter(vitals, "Guard", "GUARD", UDim2.fromOffset(0, 50), Colors.Guard)
-	local _, staminaCaption, staminaBar, setStamina = meter(vitals, "Stamina", "STAMINA", UDim2.new(0.5, Space.S / 2, 0, 50), STAMINA_COLOR)
+	Components.stroke(Colors.Stroke, 1, 0.75).Parent = healthBar
+	local _, _, _, setGuard = meter(vitals, "Guard", "GUARD", UDim2.fromOffset(0, 46), Colors.Guard)
+	local _, staminaCaption, staminaBar, setStamina = meter(vitals, "Stamina", "STAMINA", UDim2.new(0.5, Space.S / 2, 0, 46), Colors.Stamina)
 	local staminaStroke = Components.stroke(Colors.Danger, 1, 1)
 	staminaStroke.Parent = staminaBar
 
-	-- Controls hint strip -------------------------------------------------------------
+	-- Controls: a row of key caps, each with what it does -------------------------------
 	local hinted = {}
 	for _, binding in bindings do
 		if binding.hint ~= false then
@@ -199,79 +185,49 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 	local row = make("Frame", {
 		Name = "Actions",
 		LayoutOrder = 3,
-		Size = UDim2.new(1, 0, 0, CHIP_HEIGHT),
+		Size = UDim2.new(1, 0, 0, CELL_HEIGHT),
 		BackgroundTransparency = 1,
 		Parent = frame,
 	})
-	Components.list(row, CHIP_GAP, {
+	Components.list(row, 0, {
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 	})
 
 	local chips: { [string]: Chip } = {}
 	for order, binding in hinted do
-		local chip = glass({
+		local cell = make("Frame", {
 			Name = binding.name,
 			LayoutOrder = order,
-			Size = UDim2.fromOffset(CHIP_WIDTH, CHIP_HEIGHT),
-			ClipsDescendants = true,
+			Size = UDim2.fromOffset(CAP_CELL, CELL_HEIGHT),
+			BackgroundTransparency = 1,
 			Parent = row,
 		})
-		local outline = Components.stroke(Colors.Stroke, 1, 0.7)
-		outline.Parent = chip
-		-- Key cap on top, action name under it
-		local keyBox = make("Frame", {
-			Name = "Key",
+		-- The cap sits at the top of its cell, the label under it
+		local cap = Components.keycap(binding.keyText, {
+			Name = "Cap",
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 0, 5),
-			Size = UDim2.fromOffset(CHIP_WIDTH - 8, 18),
-			BackgroundColor3 = Colors.Cyan,
-			BackgroundTransparency = 0.82,
-			BorderSizePixel = 0,
-			Parent = chip,
-		}, { Components.corner(Theme.TinyCorner), Components.stroke(Colors.Cyan, 1, 0.4) })
-		local key = Components.text({
-			Text = binding.keyText,
-			Style = "Micro",
-			Weight = "ExtraBold",
-			Color = Colors.Cyan,
-			AlignX = "Center",
-			Size = UDim2.fromScale(1, 1),
-			Parent = keyBox,
+			Position = UDim2.new(0.5, 0, 0, 0),
+			Height = CAP_HEIGHT,
+			Parent = cell,
 		})
+		local outline = cap:FindFirstChildOfClass("UIStroke") :: UIStroke
+		local key = cap:FindFirstChild("Key") :: TextLabel
 		Components.text({
 			Name = "Label",
-			Text = string.upper(binding.label),
-			Style = "Micro",
-			Weight = "Bold",
-			Color = Colors.Text,
+			Text = binding.label,
+			Style = "caption",
+			Color = Colors.TextMuted,
 			AlignX = "Center",
 			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -4),
-			Size = UDim2.new(1, -4, 0, 14),
-			Parent = chip,
+			Position = UDim2.new(0.5, 0, 1, 0),
+			Size = UDim2.new(1, 0, 0, 18),
+			Parent = cell,
 		})
-		-- Cooldown: a dark sweep that shrinks to the left, with the seconds left
-		local cooldown = make("Frame", {
-			Name = "Cooldown",
-			Size = UDim2.fromScale(0, 1),
-			BackgroundColor3 = Colors.Ink,
-			BackgroundTransparency = 0.3,
-			BorderSizePixel = 0,
-			ZIndex = 5,
-			Parent = chip,
-		}, { Components.corner(Theme.SmallCorner) })
-		local timer = Components.text({
-			Name = "Timer",
-			Style = "Label",
-			Weight = "ExtraBold",
-			AlignX = "Center",
-			Size = UDim2.fromScale(1, 1),
-			ZIndex = 6,
-			Visible = false,
-			Parent = chip,
-		})
-		chips[binding.name] = { frame = chip, key = key, cooldown = cooldown, timer = timer, outline = outline, binding = binding }
+		-- Cooldown: a radial sweep over the cap, with the seconds left in place of the key
+		local sweep, setSweep = Components.sweep({ Name = "Cooldown", Radius = 3, Transparency = 0.25, ZIndex = 5, Parent = cap })
+		local _ = sweep
+		chips[binding.name] = { frame = cell, cap = cap, key = key, sweep = setSweep, outline = outline, binding = binding }
 	end
 
 	-- Charge meter: under the crosshair while a heavy charges --------------------------
@@ -287,18 +243,17 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 	local chargeCaption = Components.text({
 		Name = "Caption",
 		Text = "CHARGE",
-		Style = "Micro",
-		Weight = "ExtraBold",
+		Style = "overline",
 		Color = CHARGE_COLOR,
 		AlignX = "Center",
-		Size = UDim2.new(1, 0, 0, 16),
+		Size = UDim2.new(1, 0, 0, 18),
 		TextStrokeTransparency = 0.5,
 		TextStrokeColor3 = Colors.Ink,
 		Parent = chargeFrame,
 	})
 	local chargeBar, setCharge = Components.bar({
 		Name = "Bar",
-		Position = UDim2.fromOffset(0, 20),
+		Position = UDim2.fromOffset(0, 22),
 		Size = UDim2.new(1, 0, 0, 8),
 		Parent = chargeFrame,
 	}, CHARGE_COLOR)
@@ -406,20 +361,20 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		local low = fraction < LOW_HEALTH
 		setHealth(fraction, if low then Colors.HealthLow else Colors.Health)
 		healthText.Text = `{math.max(0, math.ceil(humanoid.Health))} / {math.ceil(humanoid.MaxHealth)}`
-		healthCaption.TextColor3 = if low then Colors.HealthLow else Colors.TextMuted
+		healthText.TextColor3 = if low then Colors.HealthLow else Colors.Text
 		vitalsStroke.Color = if low then Colors.HealthLow else Colors.Stroke
-		vitalsStroke.Transparency = if low then 0.3 else 0.75
+		vitalsStroke.Transparency = if low then 0.3 else 0.6
 		local maxGuard = character:GetAttribute(Attribute.MaxGuard) or Combat.Block.MaxGuard
 		setGuard(currentGuard(character) / math.max(1, maxGuard))
 
-		-- Stamina: low turns orange, empty turns red and says so
+		-- Stamina: low turns amber, empty turns red and says so
 		local stamina = character:GetAttribute(Attribute.Stamina)
 		local staminaMax = character:GetAttribute(Attribute.StaminaMax)
 		local maxValue = if typeof(staminaMax) == "number" and staminaMax > 0 then staminaMax else Combat.Stamina.Max
 		local share = if typeof(stamina) == "number" then math.clamp(stamina / maxValue, 0, 1) else 1
 		local isWinded = character:GetAttribute(Attribute.Winded) == true
 		local refused = combat ~= nil and os.clock() - (combat.lastWindedReject or -math.huge) < 0.6
-		local staminaColor = if isWinded then Colors.Danger elseif share < LOW_STAMINA then Colors.Warning else STAMINA_COLOR
+		local staminaColor = if isWinded then Colors.Danger elseif share < LOW_STAMINA then Colors.Warning else Colors.Stamina
 		setStamina(share, staminaColor)
 		staminaCaption.Text = if isWinded then "WINDED" else "STAMINA"
 		staminaCaption.TextColor3 = if isWinded then Colors.Danger elseif share < LOW_STAMINA then Colors.Warning else Colors.TextMuted
@@ -438,10 +393,10 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		chargeFrame.Visible = level ~= nil
 		if level then
 			local full = level >= 0.999
-			setCharge(level, if full then Colors.Gold else CHARGE_COLOR)
+			setCharge(level, if full then Colors.AccentHover else CHARGE_COLOR)
 			chargeCaption.Text = if full then "FULL CHARGE" elseif level < minShare then "CHARGE" else "CHARGED"
-			chargeCaption.TextColor3 = if full then Colors.Gold else CHARGE_COLOR
-			chargeStroke.Color = if full then Colors.Gold else Colors.Ink
+			chargeCaption.TextColor3 = if full then Colors.AccentHover else CHARGE_COLOR
+			chargeStroke.Color = if full then Colors.AccentHover else Colors.Ink
 			chargeTick.Position = UDim2.fromScale(minShare, 0.5)
 		end
 
@@ -455,23 +410,22 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 			character:GetAttribute(Attribute.Form)
 		)
 		for name, chip in chips do
-			chip.key.Text = if kind == "gamepad" then chip.binding.padText else chip.binding.keyText
+			local keyText = if kind == "gamepad" then chip.binding.padText else chip.binding.keyText
 			local spec = cooldowns[name]
 			local remaining = if spec then (character:GetAttribute(spec.attribute) or 0) - time else 0
-			local sweep = math.clamp(remaining / (if spec then math.max(0.1, spec.length(profile)) else 1), 0, 1)
+			local share = math.clamp(remaining / (if spec then math.max(0.1, spec.length(profile)) else 1), 0, 1)
 			if combat and not spec and combat.isReady and not combat:isReady(name) then
-				sweep = 1
+				share = 1
 			end
-			chip.cooldown.Size = UDim2.fromScale(sweep, 1)
-			chip.timer.Visible = remaining > 0.05
-			if remaining > 0.05 then
-				chip.timer.Text = string.format("%.1f", remaining)
-			end
+			chip.sweep(share)
+			-- While a move recharges the cap shows the seconds left instead of the key
+			chip.key.Text = if remaining > 0.05 then string.format("%.1f", remaining) else keyText
+			chip.key.TextColor3 = if remaining > 0.05 then Colors.Warning else Colors.Text
 			local lit = (name == "SNBlock" and character:GetAttribute(Attribute.Blocking) == true)
 				or (name == "SNSprint" and character:GetAttribute(Attribute.Sprinting) == true)
 				or (name == "SNLock" and target ~= nil)
-			chip.outline.Color = if lit then (if name == "SNBlock" then Colors.Guard else Colors.Cyan) else Colors.Stroke
-			chip.outline.Transparency = if lit then 0 else 0.7
+			chip.outline.Color = if lit then (if name == "SNBlock" then Colors.Guard else Colors.Cyan) else Colors.SteelLight
+			chip.outline.Transparency = if lit then 0 else 0.55
 		end
 	end
 

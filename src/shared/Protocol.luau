@@ -48,7 +48,10 @@ Protocol.CombatEvent = {
 
 -- Client -> server, through Remotes.MatchRequest
 Protocol.MatchAction = {
-	Queue = "Queue", -- (modeName, options: { arena: string?, cpuPower: string?, cpuDifficulty: string? }?)
+	-- options.selection = { power: string, degree: number, loadout: { string }? } is the pre-match confirm step: the
+	-- server confirms (and charges once, if it switches to a different priced degree) and then queues; if the
+	-- selection is refused nothing is charged and the player is not queued. Without it the saved selection is used.
+	Queue = "Queue", -- (modeName, options: { arena: string?, cpuPower: string?, cpuDifficulty: string?, selection: {}? }?)
 	LeaveQueue = "LeaveQueue",
 	Travel = "Travel", -- ("Lobby" | "Training" | "Base")
 	ReturnToLobby = "ReturnToLobby",
@@ -107,7 +110,15 @@ Protocol.PowerAction = {
 	UnlockAbility = "UnlockAbility", -- (powerId, abilityId) pays the listed Money/Gems price
 	UnlockDegree = "UnlockDegree", -- (powerId, degree) pays the listed Money price
 	UnlockPower = "UnlockPower", -- (powerId) premium power through the Gems path
-	PromptPass = "PromptPass", -- (powerId) opens the Roblox purchase prompt for its game pass
+	PromptPass = "PromptPass", -- (powerId) opens the Roblox purchase prompt for its game pass;
+	-- (powerId, "Cosmetic") the power's cosmetic pass; (powerId, "ExtraSlot") the all-powers extra ability slot pass
+	-- Selection, prices and training (docs/specs/SelectionContract.md). None of these charge unless noted.
+	State = "State", -- () asks for the whole selection snapshot (DataEvent.Selection)
+	Quote = "Quote", -- (powerId, degree, loadout?) read-only price and status of one selection (DataEvent.SelectionQuote)
+	Confirm = "Confirm", -- (powerId, degree, loadout?) the one confirm step: charges once when it switches to a different priced degree
+	Trial = "Trial", -- (powerId, degree, loadout?) Training (or the owner's showcase) only: any power and degree, free, never saved
+	EndTrial = "EndTrial", -- () back to the saved selection
+	SetShowcase = "SetShowcase", -- (on: boolean) owner only: combat powers work in the lobby while it is on
 }
 
 -- Server -> one client, through Remotes.DataEvent
@@ -116,6 +127,10 @@ Protocol.DataEvent = {
 	Persistence = "Persistence", -- { saving: boolean, message: string? } false when progress can't be saved
 	Reward = "Reward", -- { money, gems, xp, lines: { { label, money?, gems?, xp? } } } after a match
 	Toast = "Toast", -- { text, kind: "info" | "success" | "error" | "reward" }
+	-- Selection screens (docs/specs/SelectionContract.md)
+	Selection = "Selection", -- the whole snapshot: context, balances, equipped selection, every power and degree with price and status
+	SelectionQuote = "SelectionQuote", -- reply to Quote: one degree's entry plus loadout checks
+	SelectionResult = "SelectionResult", -- { action, ok, code, message, charged, ... } reply to Confirm, Select, Trial, EndTrial, SetShowcase, SetLoadout and a Queue that carried a selection
 }
 
 -- Client -> server, through Remotes.ShopRequest
@@ -239,6 +254,11 @@ Protocol.Attribute = {
 	CanFly = "SNCanFly",
 	Immune = "SNImmune",
 	Invisible = "SNInvisible",
+	-- On fighter models: one of Protocol.CombatContext, kept current by PowerService. Combat
+	-- powers only work in "Match" (while fighting), "Training" and "Showcase"; the lobby is off.
+	CombatContext = "SNCombatContext",
+	-- On Player objects: the owner's showcase mode is on
+	Showcase = "SNShowcase",
 	-- On ReplicatedStorage
 	AdminEvent = "AdminEvent",
 	AdminEventStartedAt = "AdminEventStartedAt",
@@ -252,6 +272,38 @@ Protocol.Attribute = {
 	-- On Lighting: the lighting the server wants ("SNBase_" .. property), so
 	-- clients can return to it after an event changed their lighting locally
 	BaseLightingPrefix = "SNBase_",
+}
+
+-- Where a fighter stands as far as combat goes (Attribute.CombatContext). Decided only on the
+-- server, by PowerService:combatContext, which every combat entry point asks.
+Protocol.CombatContext = {
+	Lobby = "Lobby", -- no attacks, abilities, ultimates or grabs; movement and emotes still work
+	Training = "Training", -- the training hall: everything works against dummies, powers are free trials
+	Match = "Match", -- in a match (combat works while the fight is on, not in the countdown or results)
+	Showcase = "Showcase", -- the owner with showcase mode on, anywhere
+	Npc = "Npc", -- training dummies and CPU opponents, which are run by the server
+}
+
+-- The reason sent in CombatEvent.Rejected and AbilityEvent.Rejected when the lobby refuses combat.
+-- The player also gets a calm MatchEvent.Notice (at most one every few seconds).
+Protocol.RejectReason = {
+	Lobby = "lobby",
+}
+
+-- Answers to selection requests (SelectionResult.code, SelectionQuote.code and each degree's code
+-- in the snapshot). Stable strings: screens switch on them. See docs/specs/SelectionContract.md.
+Protocol.SelectionCode = {
+	Ok = "OK", -- accepted (charged says how much, 0 when free)
+	BadRequest = "BAD_REQUEST", -- junk or forged arguments
+	Loading = "LOADING", -- the profile has not loaded yet
+	DegreeLocked = "DEGREE_LOCKED", -- reach the mastery level or pay the unlock first
+	NotOwned = "NOT_OWNED", -- Duel and Free-for-All need the premium power to be owned
+	CantAfford = "CANT_AFFORD", -- not enough Money; nothing was taken
+	InMatch = "IN_MATCH", -- locked until the match ends
+	Queued = "QUEUED", -- leave the queue to change the selection
+	NotInTraining = "NOT_IN_TRAINING", -- Trial works in the training hall (or the owner's showcase) only
+	NotOwner = "NOT_OWNER", -- showcase mode is for the owner
+	BadLoadout = "BAD_LOADOUT", -- the loadout is invalid or has too many abilities for the slots
 }
 
 Protocol.Tag = {

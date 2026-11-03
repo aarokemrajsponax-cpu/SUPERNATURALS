@@ -1,75 +1,91 @@
--- The look of every interface in one place, from docs/ArtDirection.md section 6
--- ("imperial codex meets precision instrument"): warm graphite panels with a
--- 1 px bronze hairline, square corners, ivory text, one bronze-gold accent,
--- Accanthis capitals for display type, Builder Sans for everything you read,
--- RobotoMono for timers and technical numbers, and an 8 px grid.
+-- The look of every interface in one place, from docs/ArtDirection.md section 7
+-- ("next-generation facility software", v3): deep navy glass panels with a 1 px
+-- cool-grey hairline and 6 px corners, soft cool-white text, warm amber for the
+-- one primary action, electric cyan for selection, focus and live information,
+-- red only for danger. Michroma for short display titles in tracked capitals,
+-- Builder Sans for everything you read, RobotoMono for numbers, an 8 px grid.
 -- Sizes are design pixels at 1280x720; the Shell's single UIScale fits them to
 -- the screen, so 14 here is 14 real pixels at 720p and never smaller.
 --
--- Older code still reads the legacy names (Colors.Cyan, TextSize.Micro,
--- Fonts.Title, PillCorner...). They stay, mapped onto the new palette and type
--- scale, so every screen inherits the new look without being rewritten.
+-- Older code still reads the legacy names (Colors.Cyan, Colors.Gold, Colors.Bronze,
+-- TextSize.Micro, Fonts.Title, PillCorner...). They stay, mapped onto the v3
+-- palette and type scale, so every screen inherits the look without a rewrite.
 
 local rgb = Color3.fromRGB
 
 local Theme = {}
 
-local GRAPHITE = rgb(26, 24, 20)
-local ACCENT = rgb(201, 164, 92)
-local BRONZE = rgb(140, 106, 63)
+local NAVY = rgb(14, 22, 36)
+local AMBER = rgb(232, 162, 74)
+local CYAN = rgb(63, 214, 232)
+local STEEL = rgb(138, 146, 156)
+local STEEL_LIGHT = rgb(184, 192, 202)
 
 Theme.Colors = {
-	-- Surfaces, darkest to lightest (warm graphite, never pure black)
-	Ink = rgb(15, 14, 11),
-	Background = rgb(21, 20, 15),
-	Panel = GRAPHITE,
-	PanelLight = rgb(33, 31, 26),
-	PanelHover = rgb(41, 38, 31),
-	Raised = rgb(38, 35, 29),
-	-- The 1 px bronze hairline every frame uses (at Glass.StrokeTransparency)
-	Stroke = BRONZE,
-	Bronze = BRONZE,
-	BronzeLight = rgb(181, 139, 79),
-	-- The single accent: selection, focus and the one primary action per screen
-	Accent = ACCENT,
-	AccentHover = rgb(214, 180, 112),
-	AccentDeep = rgb(176, 142, 76),
-	-- Rare gold leaf and the cool Meridian instrument light
-	GoldLeaf = rgb(217, 178, 95),
-	Meridian = rgb(221, 235, 255),
-	Lapis = rgb(31, 43, 74),
-	-- Text: primary, secondary, tertiary (the minimum for text, about 5:1 on a panel)
-	Text = rgb(237, 230, 214),
-	TextDim = rgb(185, 176, 160),
-	TextMuted = rgb(142, 134, 118),
-	-- Dark text on the bronze-gold primary button
-	TextOnLight = rgb(23, 21, 16),
+	-- Surfaces, darkest to lightest (deep navy, never pure black)
+	Ink = rgb(6, 10, 18),
+	Background = rgb(10, 16, 27),
+	Panel = NAVY,
+	PanelLight = rgb(20, 30, 47),
+	PanelHover = rgb(29, 42, 64),
+	Raised = rgb(24, 36, 56),
+	-- A selected plate: navy with a trace of cyan
+	Selected = rgb(21, 48, 64),
+	-- The 1 px hairline every frame uses (brushed steel, drawn at Glass.StrokeTransparency)
+	Stroke = STEEL,
+	Steel = STEEL,
+	SteelLight = STEEL_LIGHT,
+	-- Copper and bronze: warm metal accents for artwork, never for frames
+	Copper = rgb(184, 115, 63),
+	Bronze = STEEL,
+	BronzeLight = STEEL_LIGHT,
+	-- The one primary action (amber)
+	Accent = AMBER,
+	AccentHover = rgb(244, 182, 100),
+	AccentDeep = rgb(196, 134, 52),
+	-- Selection, focus and live information (cyan, used sparingly)
+	Cyan = CYAN,
+	CyanDeep = rgb(34, 154, 176),
+	-- Text: primary, secondary, tertiary (contrast on a panel: about 14:1, 8:1, 5:1)
+	Text = rgb(232, 238, 244),
+	TextDim = rgb(172, 183, 198),
+	TextMuted = rgb(128, 142, 160),
+	-- Dark text on the amber primary button
+	TextOnLight = rgb(14, 20, 30),
 	-- Status
-	Danger = rgb(192, 83, 63),
-	DangerDeep = rgb(158, 67, 50),
-	Success = rgb(111, 162, 135),
-	Warning = rgb(208, 143, 71),
-	Health = rgb(111, 162, 135),
-	HealthLow = rgb(192, 83, 63),
-	Guard = rgb(143, 163, 184),
-	-- Currencies: drawn coin in bronze-gold, drawn gem in pale crystal, Robux in ivory
-	Money = rgb(210, 178, 110),
-	Gems = rgb(169, 195, 214),
-	Robux = rgb(237, 230, 214),
+	Danger = rgb(229, 88, 76),
+	DangerDeep = rgb(168, 56, 48),
+	Success = rgb(95, 196, 138),
+	Warning = rgb(240, 182, 82),
+	Health = rgb(95, 196, 138),
+	HealthLow = rgb(229, 88, 76),
+	Guard = rgb(110, 172, 220),
+	Stamina = rgb(232, 190, 104),
+	-- Currencies: a coin in soft gold, a gem in pale crystal, Robux in white
+	Money = rgb(222, 184, 100),
+	Gems = rgb(150, 214, 238),
+	Robux = rgb(232, 238, 244),
+	-- Premium and ranking gold (a lighter yellow than the amber action colour)
+	Gold = rgb(244, 200, 110),
+	GoldDeep = rgb(200, 150, 60),
 
-	-- Legacy names (older screens): every old accent folds into the bronze family
-	Cyan = ACCENT,
-	CyanDeep = rgb(176, 142, 76),
-	Purple = rgb(181, 139, 79),
-	PurpleDeep = BRONZE,
-	Pink = rgb(194, 122, 90),
-	Gold = ACCENT,
-	GoldDeep = rgb(176, 142, 76),
+	-- Wayfinding colours (ArtDirection 2): thin marks and mode accents only
+	Combat = rgb(224, 122, 58),
+	Training = CYAN,
+	Social = rgb(242, 230, 208),
+	Personal = rgb(95, 196, 138),
+	Special = rgb(142, 123, 224),
+	Expansion = rgb(224, 106, 106),
+
+	-- Legacy names (older screens)
+	Purple = rgb(142, 123, 224),
+	PurpleDeep = rgb(104, 88, 190),
+	Pink = rgb(224, 106, 106),
 }
 
 local SANS = "rbxasset://fonts/families/BuilderSans.json"
--- Accanthis ADF Std is the family behind Enum.Font.Bodoni
-local DISPLAY = "rbxasset://fonts/families/AccanthisADFStd.json"
+-- Michroma has one weight (Regular); it is wide, so it is for short titles only
+local DISPLAY = "rbxasset://fonts/families/Michroma.json"
 local MONO = "rbxasset://fonts/families/RobotoMono.json"
 
 local function face(family: string, weight: Enum.FontWeight): Font
@@ -86,7 +102,7 @@ Theme.Faces = {
 	Medium = face(SANS, Enum.FontWeight.Medium),
 	Regular = face(SANS, Enum.FontWeight.Regular),
 	Display = face(DISPLAY, Enum.FontWeight.Regular),
-	DisplayBold = face(DISPLAY, Enum.FontWeight.Bold),
+	DisplayBold = face(DISPLAY, Enum.FontWeight.Regular),
 	Mono = face(MONO, Enum.FontWeight.Medium),
 	MonoBold = face(MONO, Enum.FontWeight.Bold),
 }
@@ -105,46 +121,50 @@ Theme.FaceForFont = {
 	GothamBold = Theme.Faces.SemiBold,
 	GothamMedium = Theme.Faces.Medium,
 	Gotham = Theme.Faces.Regular,
+	Michroma = Theme.Faces.Display,
 	Bodoni = Theme.Faces.Display,
 	RobotoMono = Theme.Faces.Mono,
 	Code = Theme.Faces.Mono,
 }
 
--- The type scale (ArtDirection 6). Each role: face, size, line height, and
--- whether it is set in tracked capitals.
+-- The type scale (ArtDirection 7). Each role: face, size, line height, whether
+-- it is set in capitals, and the default colour name.
 export type TypeRole = { face: Font, size: number, lineHeight: number, caps: boolean, color: string }
 
 local ROLES: { [string]: TypeRole } = {
-	-- Window titles, big headings
-	display = { face = Theme.Faces.Display, size = 40, lineHeight = 1.1, caps = true, color = "Text" },
-	-- Power codenames, dialog titles
-	title = { face = Theme.Faces.Display, size = 28, lineHeight = 1.1, caps = false, color = "Text" },
-	-- Section titles
-	heading = { face = Theme.Faces.SemiBold, size = 20, lineHeight = 1.15, caps = false, color = "Text" },
-	-- Descriptions (keep lines to 60-80 characters)
-	body = { face = Theme.Faces.Regular, size = 17, lineHeight = 1.3, caps = false, color = "TextDim" },
-	small = { face = Theme.Faces.Regular, size = 15, lineHeight = 1.25, caps = false, color = "TextDim" },
+	-- Results headline
+	hero = { face = Theme.Faces.Display, size = 40, lineHeight = 1.1, caps = true, color = "Text" },
+	-- The match countdown (a single digit)
+	countdown = { face = Theme.Faces.Display, size = 112, lineHeight = 1, caps = false, color = "Text" },
+	-- Fighter names on a stage, big headings
+	display = { face = Theme.Faces.Display, size = 26, lineHeight = 1.15, caps = true, color = "Text" },
+	-- Window and dialog titles (short, tracked capitals)
+	title = { face = Theme.Faces.Display, size = 18, lineHeight = 1.15, caps = true, color = "Text" },
+	-- Section titles inside a screen
+	heading = { face = Theme.Faces.SemiBold, size = 22, lineHeight = 1.15, caps = false, color = "Text" },
+	subheading = { face = Theme.Faces.SemiBold, size = 18, lineHeight = 1.2, caps = false, color = "Text" },
+	-- Names in lists and rows
+	strong = { face = Theme.Faces.SemiBold, size = 16, lineHeight = 1.2, caps = false, color = "Text" },
+	-- Descriptions (keep lines to 60 to 80 characters)
+	body = { face = Theme.Faces.Regular, size = 16, lineHeight = 1.35, caps = false, color = "TextDim" },
+	small = { face = Theme.Faces.Regular, size = 15, lineHeight = 1.3, caps = false, color = "TextDim" },
 	-- The absolute minimum, never smaller
-	caption = { face = Theme.Faces.Medium, size = 14, lineHeight = 1.2, caps = false, color = "TextMuted" },
+	caption = { face = Theme.Faces.Medium, size = 14, lineHeight = 1.25, caps = false, color = "TextMuted" },
+	label = { face = Theme.Faces.SemiBold, size = 14, lineHeight = 1.2, caps = false, color = "Text" },
 	-- Small capitals above a section ("DOSSIER", "LOADOUT")
 	overline = { face = Theme.Faces.SemiBold, size = 14, lineHeight = 1.1, caps = true, color = "TextMuted" },
 	-- Button labels (capitals only when 12 characters or fewer)
-	label = { face = Theme.Faces.Bold, size = 16, lineHeight = 1.1, caps = false, color = "Text" },
-	-- Names in lists and rows
-	strong = { face = Theme.Faces.SemiBold, size = 17, lineHeight = 1.2, caps = false, color = "Text" },
-	-- Readouts (counts, prices)
-	number = { face = Theme.Faces.Medium, size = 17, lineHeight = 1.1, caps = false, color = "Text" },
+	button = { face = Theme.Faces.Bold, size = 15, lineHeight = 1.1, caps = false, color = "Text" },
+	-- Readouts (counts, prices, cooldowns)
+	number = { face = Theme.Faces.Mono, size = 16, lineHeight = 1.1, caps = false, color = "Text" },
 	-- Timers and technical values
 	mono = { face = Theme.Faces.Mono, size = 15, lineHeight = 1.1, caps = false, color = "TextDim" },
-	-- Results headline and the match countdown
-	hero = { face = Theme.Faces.Display, size = 56, lineHeight = 1.05, caps = true, color = "Text" },
-	countdown = { face = Theme.Faces.Display, size = 120, lineHeight = 1, caps = false, color = "Text" },
 }
 Theme.Roles = ROLES
 
 -- Face, size and line height for a type role ("display", "title", "heading",
--- "body", "small", "caption", "overline", "label", "strong", "number", "mono",
--- "hero", "countdown"). Unknown roles fall back to body.
+-- "body", "small", "caption", "label", "overline", "button", "strong", "number",
+-- "mono", "hero", "countdown"). Unknown roles fall back to body.
 function Theme.type(role: string): TypeRole
 	return ROLES[role] or ROLES.body
 end
@@ -176,20 +196,20 @@ function Theme.untrack(text: string): string
 	return (string.gsub(text, HAIR, ""))
 end
 
--- Text sizes by legacy name. Every visible text is at least 14 px at 720p,
--- so the old 12 and 13 px steps now sit on the 14 px caption.
+-- Text sizes by legacy name. Every visible text is at least 14 px at 720p.
 Theme.TextSize = {
 	Micro = 14,
 	Caption = 14,
 	Small = 15,
-	Body = 15,
-	Label = 16,
-	Reading = 17,
+	Button = 15,
+	Body = 16,
+	Label = 14,
+	Reading = 16,
 	Heading = 20,
-	Title = 28,
-	Display = 40,
-	Hero = 56,
-	Countdown = 120,
+	Title = 24,
+	Display = 28,
+	Hero = 40,
+	Countdown = 112,
 }
 
 -- Legacy text styles for Components.text (Style = "Micro" ... "Display").
@@ -197,11 +217,11 @@ Theme.TextSize = {
 Theme.TextStyles = {
 	Micro = { size = 14, face = "SemiBold", color = "TextMuted" },
 	Caption = { size = 14, face = "Medium", color = "TextDim" },
-	Body = { size = 15, face = "Regular", color = "Text" },
+	Body = { size = 16, face = "Regular", color = "Text" },
 	Label = { size = 16, face = "SemiBold", color = "Text" },
 	Heading = { size = 20, face = "SemiBold", color = "Text" },
-	Title = { size = 28, face = "Display", color = "Text" },
-	Display = { size = 40, face = "Display", color = "Text" },
+	Title = { size = 24, face = "Bold", color = "Text" },
+	Display = { size = 28, face = "Display", color = "Text" },
 }
 
 -- Spacing: an 8 px grid. Panels pad 24, gutters are 16, sections 32 apart.
@@ -221,12 +241,12 @@ Theme.Grid = {
 	Section = 32,
 }
 
--- Square corners: 2 px at most. The old pill corner is square too (no bubbly
--- pills); Round is only for things that are truly circular (the hold ring).
-Theme.Corner = UDim.new(0, 2)
-Theme.SmallCorner = UDim.new(0, 2)
-Theme.TinyCorner = UDim.new(0, 1)
-Theme.PillCorner = UDim.new(0, 2)
+-- Corners: 6 px on panels and controls, 3 px on small marks (badges, bars,
+-- key caps). Round is only for things that are truly circular (rings, dots).
+Theme.Corner = UDim.new(0, 6)
+Theme.SmallCorner = UDim.new(0, 6)
+Theme.TinyCorner = UDim.new(0, 3)
+Theme.PillCorner = UDim.new(0, 4)
 Theme.Round = UDim.new(1, 0)
 
 -- Control sizes (touch targets are never shorter than 44)
@@ -234,7 +254,7 @@ Theme.Size = {
 	Control = 44,
 	SmallControl = 36,
 	IconTile = 32,
-	Header = 80,
+	Header = 64,
 	DefaultWindow = Vector2.new(880, 560),
 	-- The design resolution the UIScale is measured against
 	Design = Vector2.new(1280, 720),
@@ -246,43 +266,42 @@ Theme.Scale = {
 	Max = 1.25,
 }
 
--- Panel opacity (92-96%) and the hairline's transparency (bronze at about 45%)
+-- Panel opacity (about 92%) and the hairline's transparency (steel at about 30%)
 Theme.Glass = {
-	Window = 0.05,
-	Panel = 0.06,
-	Chip = 0.08,
-	StrokeTransparency = 0.55,
+	Window = 0.06,
+	Panel = 0.08,
+	Chip = 0.1,
+	StrokeTransparency = 0.7,
 }
 
--- Motion: 120-180 ms for small feedback, 240-320 ms for panels, quint-out,
--- 30 ms list stagger. Nothing bounces (Pop is kept as a name, not a bounce).
+-- Motion: 0.15 to 0.3 s, quint-out. Nothing bounces (Pop is a name, not a bounce).
 local function quint(seconds: number, direction: Enum.EasingDirection?): TweenInfo
 	return TweenInfo.new(seconds, Enum.EasingStyle.Quint, direction or Enum.EasingDirection.Out)
 end
 Theme.Motion = {
-	Press = quint(0.08),
-	Fast = quint(0.12),
-	Normal = quint(0.18),
-	Slow = quint(0.28),
-	Pop = quint(0.28),
-	In = quint(0.16, Enum.EasingDirection.In),
+	Press = quint(0.1),
+	Fast = quint(0.15),
+	Normal = quint(0.22),
+	Slow = quint(0.3),
+	Pop = quint(0.3),
+	In = quint(0.15, Enum.EasingDirection.In),
 	Stagger = 0.03,
 }
 
 -- The seven interaction states for a framed surface (plates, rows, tabs,
--- chips, buttons). Distinct without colour alone: a frame, a leading bar, an
--- outline, opacity and a lock all differ, not just a hue.
+-- chips, buttons). Distinct without colour alone: a leading bar, an outline,
+-- opacity and a lock all differ, not just a hue.
 export type StateLook = {
 	fill: Color3,
 	fillAlpha: number,
 	stroke: Color3,
 	strokeAlpha: number,
 	text: Color3,
-	-- The 2 px bronze bar on the leading edge (selected)
+	-- The 2 px cyan bar on the leading edge (selected)
 	bar: boolean,
 	-- Pressed shrinks to 0.98
 	scale: number,
-	-- The 2 px ivory outline outside the frame (gamepad focus)
+	-- The 2 px cyan outline outside the frame (gamepad and keyboard focus)
 	outline: boolean,
 	-- Content opacity (disabled is 45%)
 	opacity: number,
@@ -291,13 +310,13 @@ export type StateLook = {
 
 local Colors = Theme.Colors
 local STATES: { [string]: StateLook } = {
-	default = { fill = Colors.PanelLight, fillAlpha = 0.04, stroke = Colors.Bronze, strokeAlpha = 0.62, text = Colors.TextDim, bar = false, scale = 1, outline = false, opacity = 1, lock = false },
-	hover = { fill = Colors.PanelHover, fillAlpha = 0.02, stroke = Colors.BronzeLight, strokeAlpha = 0.25, text = Colors.Text, bar = false, scale = 1, outline = false, opacity = 1, lock = false },
-	pressed = { fill = Colors.Raised, fillAlpha = 0.02, stroke = Colors.BronzeLight, strokeAlpha = 0.2, text = Colors.Text, bar = false, scale = 0.98, outline = false, opacity = 1, lock = false },
-	selected = { fill = Colors.PanelHover, fillAlpha = 0.02, stroke = Colors.Accent, strokeAlpha = 0.05, text = Colors.Text, bar = true, scale = 1, outline = false, opacity = 1, lock = false },
-	focused = { fill = Colors.PanelHover, fillAlpha = 0.02, stroke = Colors.BronzeLight, strokeAlpha = 0.25, text = Colors.Text, bar = false, scale = 1, outline = true, opacity = 1, lock = false },
-	disabled = { fill = Colors.PanelLight, fillAlpha = 0.04, stroke = Colors.Bronze, strokeAlpha = 0.62, text = Colors.TextDim, bar = false, scale = 1, outline = false, opacity = 0.45, lock = false },
-	locked = { fill = Colors.Background, fillAlpha = 0.04, stroke = Colors.Bronze, strokeAlpha = 0.7, text = Colors.TextMuted, bar = false, scale = 1, outline = false, opacity = 1, lock = true },
+	default = { fill = Colors.PanelLight, fillAlpha = 0.08, stroke = Colors.Stroke, strokeAlpha = 0.72, text = Colors.TextDim, bar = false, scale = 1, outline = false, opacity = 1, lock = false },
+	hover = { fill = Colors.PanelHover, fillAlpha = 0.04, stroke = Colors.SteelLight, strokeAlpha = 0.5, text = Colors.Text, bar = false, scale = 1, outline = false, opacity = 1, lock = false },
+	pressed = { fill = Colors.Raised, fillAlpha = 0, stroke = Colors.SteelLight, strokeAlpha = 0.4, text = Colors.Text, bar = false, scale = 0.98, outline = false, opacity = 1, lock = false },
+	selected = { fill = Colors.Selected, fillAlpha = 0.02, stroke = Colors.Cyan, strokeAlpha = 0.35, text = Colors.Text, bar = true, scale = 1, outline = false, opacity = 1, lock = false },
+	focused = { fill = Colors.PanelHover, fillAlpha = 0.04, stroke = Colors.Cyan, strokeAlpha = 0.3, text = Colors.Text, bar = false, scale = 1, outline = true, opacity = 1, lock = false },
+	disabled = { fill = Colors.PanelLight, fillAlpha = 0.08, stroke = Colors.Stroke, strokeAlpha = 0.72, text = Colors.TextDim, bar = false, scale = 1, outline = false, opacity = 0.45, lock = false },
+	locked = { fill = Colors.Background, fillAlpha = 0.1, stroke = Colors.Stroke, strokeAlpha = 0.8, text = Colors.TextMuted, bar = false, scale = 1, outline = false, opacity = 1, lock = true },
 }
 Theme.States = STATES
 
@@ -332,16 +351,17 @@ end
 
 -- Button looks: fill, fill on hover, fill when pressed, text, and the hairline
 Theme.Variants = {
-	Primary = { fill = Colors.Accent, hover = Colors.AccentHover, press = Colors.AccentDeep, text = Colors.TextOnLight, stroke = rgb(228, 204, 150), strokeAlpha = 0.55, hoverStrokeAlpha = 0.2 },
-	Secondary = { fill = Colors.PanelLight, hover = Colors.PanelHover, press = Colors.Raised, text = Colors.Text, stroke = Colors.Bronze, strokeAlpha = 0.5, hoverStrokeAlpha = 0.1 },
-	Ghost = { fill = Colors.PanelLight, fillAlpha = 1, hoverAlpha = 0.3, hover = Colors.PanelHover, press = Colors.Raised, text = Colors.TextDim, hoverText = Colors.Text, stroke = Colors.Bronze, strokeAlpha = 1, hoverStrokeAlpha = 0.45 },
-	Danger = { fill = rgb(122, 52, 39), hover = rgb(140, 60, 45), press = rgb(106, 45, 34), text = Colors.Text, stroke = Colors.Danger, strokeAlpha = 0.35, hoverStrokeAlpha = 0.05 },
-	Gold = { fill = Colors.Accent, hover = Colors.AccentHover, press = Colors.AccentDeep, text = Colors.TextOnLight, stroke = rgb(228, 204, 150), strokeAlpha = 0.55, hoverStrokeAlpha = 0.2 },
+	Primary = { fill = Colors.Accent, hover = Colors.AccentHover, press = Colors.AccentDeep, text = Colors.TextOnLight, stroke = Colors.AccentHover, strokeAlpha = 0.6, hoverStrokeAlpha = 0.3 },
+	Secondary = { fill = Colors.PanelLight, hover = Colors.PanelHover, press = Colors.Raised, text = Colors.Text, stroke = Colors.Stroke, strokeAlpha = 0.55, hoverStrokeAlpha = 0.3 },
+	Ghost = { fill = Colors.PanelLight, fillAlpha = 1, hoverAlpha = 0.4, hover = Colors.PanelHover, press = Colors.Raised, text = Colors.TextDim, hoverText = Colors.Text, stroke = Colors.Stroke, strokeAlpha = 1, hoverStrokeAlpha = 0.55 },
+	Danger = { fill = rgb(112, 38, 36), hover = rgb(136, 46, 42), press = rgb(94, 30, 29), text = Colors.Text, stroke = Colors.Danger, strokeAlpha = 0.45, hoverStrokeAlpha = 0.15 },
+	-- Older screens ask for Gold: it is the same one primary action
+	Gold = { fill = Colors.Accent, hover = Colors.AccentHover, press = Colors.AccentDeep, text = Colors.TextOnLight, stroke = Colors.AccentHover, strokeAlpha = 0.6, hoverStrokeAlpha = 0.3 },
 }
 
 -- Toast looks: the colour of the leading bar and the drawn icon's name
 Theme.ToastKinds = {
-	info = { color = Colors.TextDim, icon = "info" },
+	info = { color = Colors.Cyan, icon = "info" },
 	success = { color = Colors.Success, icon = "check" },
 	error = { color = Colors.Danger, icon = "warning" },
 	reward = { color = Colors.Accent, icon = "star" },

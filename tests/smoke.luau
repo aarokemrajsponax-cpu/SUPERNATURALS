@@ -192,7 +192,7 @@ check("components: numbers, prices and every building block", function()
 		assert(findText(price, text), "price shows " .. text)
 	end
 	local mixed = Components.price(holder, { money = 1500, gems = 40 })
-	assert(findText(mixed, "💵 1,500") and findText(mixed, "💎 40"), "money and gems prices")
+	assert(findText(mixed, "1,500") and findText(mixed, "40") and findNamed(mixed, "Icon"), "money and gems prices (drawn coin and gem, no emoji)")
 	assert(findText(Components.price(holder, {}), "FREE"), "an empty price is free")
 
 	for _, style in { "Micro", "Caption", "Body", "Label", "Heading", "Title", "Display" } do
@@ -204,7 +204,7 @@ check("components: numbers, prices and every building block", function()
 	assert(paragraph.TextWrapped and paragraph.AutomaticSize == roblox.Enum.AutomaticSize.Y, "paragraphs wrap and grow")
 	-- Older callers: TextScaled labels and buttons, legacy fonts upgraded to Builder Sans
 	local legacy = Components.label("Old", { Font = Theme.Fonts.Title, MaxTextSize = 20, Parent = holder })
-	assert(legacy.TextScaled and legacy.FontFace.Weight == roblox.Enum.FontWeight.ExtraBold, "legacy labels still scale, in Builder Sans")
+	assert(legacy.TextScaled and legacy.FontFace.Weight == roblox.Enum.FontWeight.Bold, "legacy labels still scale, in Builder Sans")
 	local clicks = 0
 	for _, variant in { "Primary", "Secondary", "Ghost", "Danger", "Gold" } do
 		local button = Components.button(variant, { Variant = variant, Parent = holder }, function()
@@ -230,7 +230,7 @@ check("components: numbers, prices and every building block", function()
 	local tile = Components.iconTile("⚔️", 40, Theme.Colors.Purple)
 	assert(tile.Size.X.Offset == 40, "icon tiles are fixed size")
 	local frame, body, parts = Components.window({ Title = "Test", Icon = "🧪", Parent = holder })
-	assert(frame and body and parts.close and parts.title.Text == "TEST", "window chrome")
+	assert(frame and body and parts.close and Theme.untrack(parts.title.Text) == "TEST", "window chrome")
 	local picked
 	local cardFrame, card = Components.card({ Icon = "🎯", Title = "Card", Body = "Body", Badge = "NEW", Parent = holder, onClick = function()
 		picked = true
@@ -328,7 +328,7 @@ check("interface: shell, play and settings windows, toasts, confirms, modes, scr
 	})
 	local wallet = findNamed(gui, "Wallet")
 	assert(findText(wallet, "12,000") and findText(wallet, "6,666"), "wallet shows money and gems with separators")
-	assert(findText(gui, "⚡ Strong Dude  ·  Degree 1"), "player card shows the selected power")
+	assert(findText(gui, "Strong Dude  ·  Degree 1"), "player card shows the selected power")
 	fireData("Profile", { currencies = { money = 12500, gems = 6666 }, selected = { power = "StrongDude", degree = 2 } })
 	Engine.step(game, 60, 0.05)
 	assert(findText(wallet, "12,500"), "wallet counts up to the new balance")

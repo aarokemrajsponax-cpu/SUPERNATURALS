@@ -1,8 +1,9 @@
--- The ability bar above the health bar: one button per equipped ability (key
--- hint, cost, cooldown sweep with seconds left), the ultimate with its charge
--- filling up, and the power's resource meter (plus a power's extra meters,
--- like The Grandmaster's Focus and Perfect Form). Buttons are tappable on touch
--- and show a short explanation when a press can't work ("Not enough Grit").
+-- The ability bar above the health bar: one button per equipped ability (a drawn
+-- icon, a key cap, the cost, a radial cooldown sweep with the seconds left), the
+-- ultimate with its charge filling up, and the power's resource meter (plus a
+-- power's extra meters, like The Grandmaster's Focus and Perfect Form). Buttons
+-- are tappable on touch and show a short explanation when a press can't work
+-- ("Not enough Grit"). No emoji: icons come from UI/Icons by ability.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,6 +14,7 @@ local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
+local Icons = require(script.Parent.Icons)
 
 local Attribute = Protocol.Attribute
 local Colors = Theme.Colors
@@ -28,10 +30,10 @@ local ULT_SIZE = 70
 
 type Button = {
 	frame: TextButton,
-	icon: TextLabel,
+	icon: Frame,
 	key: TextLabel,
 	cost: TextLabel,
-	sweep: Frame,
+	sweep: (number) -> (),
 	timer: TextLabel,
 	outline: UIStroke,
 	charge: Frame?,
@@ -67,7 +69,8 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 		Parent = holder,
 	})
 	local resourceLabel = Components.text({
-		Style = "Micro",
+		Style = "caption",
+		Weight = "SemiBold",
 		Color = Colors.TextDim,
 		Size = UDim2.new(0, 120, 1, 0),
 		Parent = meter,
@@ -77,14 +80,15 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = UDim2.new(1, -126, 0, 6),
 		BackgroundColor3 = Colors.Ink,
-		BackgroundTransparency = 0.2,
+		BackgroundTransparency = 0.1,
 		Parent = meter,
-	}, { Components.corner(Theme.PillCorner) })
+	}, { Components.corner(Theme.TinyCorner), Components.stroke(Colors.Stroke, 1, 0.8) })
 	local fill = make("Frame", {
 		Size = UDim2.fromScale(0, 1),
 		BackgroundColor3 = Colors.Cyan,
+		BorderSizePixel = 0,
 		Parent = track,
-	}, { Components.corner(Theme.PillCorner) })
+	}, { Components.corner(Theme.TinyCorner) })
 
 	-- Extra meters some powers expose as attributes, either side of the resource
 	-- meter (The Grandmaster: Focus on the left, Perfect Form on the right)
@@ -100,7 +104,8 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 			Parent = holder,
 		})
 		local label = Components.text({
-			Style = "Micro",
+			Style = "caption",
+			Weight = "SemiBold",
 			Color = Colors.TextDim,
 			Size = UDim2.new(0, 62, 1, 0),
 			Parent = frame,
@@ -110,14 +115,15 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 			Position = UDim2.new(1, 0, 0.5, 0),
 			Size = UDim2.new(1, -68, 0, 6),
 			BackgroundColor3 = Colors.Ink,
-			BackgroundTransparency = 0.2,
+			BackgroundTransparency = 0.1,
 			Parent = frame,
-		}, { Components.corner(Theme.PillCorner) })
+		}, { Components.corner(Theme.TinyCorner), Components.stroke(Colors.Stroke, 1, 0.8) })
 		local miniFill = make("Frame", {
 			Size = UDim2.fromScale(0, 1),
 			BackgroundColor3 = color,
+			BorderSizePixel = 0,
 			Parent = miniTrack,
-		}, { Components.corner(Theme.PillCorner) })
+		}, { Components.corner(Theme.TinyCorner) })
 		return frame, label, miniFill
 	end
 	local extraMeters = {
@@ -127,7 +133,7 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 
 	-- A short message above the bar when a press doesn't work
 	local message = Components.text({
-		Style = "Label",
+		Style = "strong",
 		Color = Colors.Warning,
 		AlignX = "Center",
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -166,8 +172,8 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 	local function buildButton(entry, order: number): Button
 		local ultimate = entry.slot == "Ultimate"
 		local size = if ultimate then ULT_SIZE else SIZE
-		local accent = if ultimate then Colors.Gold else Colors.Cyan
-		local outline = Components.stroke(accent, if ultimate then 2 else 1.5, 0.45)
+		local accent = if ultimate then Colors.Gold else Colors.SteelLight
+		local outline = Components.stroke(accent, 1, if ultimate then 0.35 else 0.5)
 		local frame = make("TextButton", {
 			Name = "Ability_" .. entry.abilityId,
 			LayoutOrder = order,
@@ -175,13 +181,14 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 			Text = "",
 			Size = UDim2.fromOffset(size, size),
 			BackgroundColor3 = Colors.Panel,
-			BackgroundTransparency = 0.15,
+			BackgroundTransparency = Theme.Glass.Panel,
+			BorderSizePixel = 0,
 			Selectable = false,
+			ClipsDescendants = true,
 			Parent = row,
 		}, {
-			Components.corner(UDim.new(0, 12)),
+			Components.corner(Theme.SmallCorner),
 			outline,
-			Components.glassGradient(),
 		})
 		local charge = nil
 		if ultimate then
@@ -192,66 +199,62 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 				Position = UDim2.fromScale(0, 1),
 				Size = UDim2.fromScale(1, 0),
 				BackgroundColor3 = Colors.Gold,
-				BackgroundTransparency = 0.55,
+				BackgroundTransparency = 0.72,
+				BorderSizePixel = 0,
 				ZIndex = 1,
 				Parent = frame,
-			}, { Components.corner(UDim.new(0, 12)) })
+			})
 		end
-		local icon = Components.text({
-			Text = entry.def.icon or "✦",
-			TextSize = if ultimate then 32 else 28,
-			AlignX = "Center",
-			Size = UDim2.new(1, 0, 1, -14),
-			ZIndex = 2,
-			Parent = frame,
-		})
-		local key = Components.text({
-			Text = keyText(entry.slot),
-			Style = "Micro",
-			Weight = "ExtraBold",
-			Color = accent,
-			AlignX = "Right",
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -6, 0, 3),
-			Size = UDim2.fromOffset(28, 16),
+		-- The drawn icon sits a little above the middle; the cost is under it
+		local icon = Components.icon(Icons.forAbility(entry.def), if ultimate then 32 else 28, Colors.Text)
+		icon.Name = "Icon"
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.new(0.5, 0, 0.5, -6)
+		icon.ZIndex = 2
+		icon.Parent = frame
+		-- The key cap sits in the top-left corner: it names the key without crowding the icon
+		local keyCap = Components.keycap(keyText(entry.slot), {
+			Name = "KeyCap",
+			AnchorPoint = Vector2.new(0, 0),
+			Position = UDim2.fromOffset(4, 4),
+			Height = 20,
 			ZIndex = 3,
 			Parent = frame,
 		})
+		local keyLabel = keyCap:FindFirstChild("Key") :: TextLabel
+		keyLabel.ZIndex = 4
 		local cost = Components.text({
+			Name = "Cost",
 			Text = if ultimate then "ULT" elseif (entry.def.cost or 0) > 0 then tostring(entry.def.cost) else "",
-			Style = "Micro",
+			Style = "number",
+			TextSize = 14,
 			Color = Colors.TextDim,
 			AlignX = "Center",
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -3),
-			Size = UDim2.new(1, -8, 0, 14),
+			Size = UDim2.new(1, -8, 0, 16),
 			ZIndex = 3,
 			Parent = frame,
 		})
-		-- Cooldown: a dark sweep that drains from the top, with seconds left
-		local sweep = make("Frame", {
-			Name = "Cooldown",
-			Size = UDim2.fromScale(1, 0),
-			BackgroundColor3 = Colors.Ink,
-			BackgroundTransparency = 0.3,
-			ZIndex = 4,
-			Parent = frame,
-		}, { Components.corner(UDim.new(0, 12)) })
+		-- Cooldown: a radial sweep that clears clockwise, with the seconds left in the middle
+		local _, setSweep = Components.sweep({ Name = "Cooldown", Radius = 6, Transparency = 0.2, ZIndex = 5, Parent = frame })
 		local timer = Components.text({
+			Name = "Timer",
 			Text = "",
-			Style = "Heading",
-			Weight = "ExtraBold",
+			Style = "number",
+			Weight = "Bold",
+			TextSize = 20,
 			AlignX = "Center",
 			Size = UDim2.fromScale(1, 1),
-			ZIndex = 5,
+			ZIndex = 6,
 			Parent = frame,
 		})
 		local button: Button = {
 			frame = frame,
 			icon = icon,
-			key = key,
+			key = keyLabel,
 			cost = cost,
-			sweep = sweep,
+			sweep = setSweep,
 			timer = timer,
 			outline = outline,
 			charge = charge,
@@ -286,8 +289,8 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 				TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 3, true), { Position = origin + UDim2.fromOffset(3, 0) }):Play()
 				task.delay(0.45, function()
 					if button.charge == nil then
-						button.outline.Color = Colors.Cyan
-						button.outline.Transparency = 0.45
+						button.outline.Color = Colors.SteelLight
+						button.outline.Transparency = 0.5
 					end
 				end)
 			end
@@ -336,10 +339,10 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 			local remaining = readyAt - time
 			local length = math.max(0.1, button.def.cooldown or 1)
 			if remaining > 0 then
-				button.sweep.Size = UDim2.fromScale(1, math.clamp(remaining / length, 0, 1))
+				button.sweep(math.clamp(remaining / length, 0, 1))
 				button.timer.Text = if remaining >= 1 then tostring(math.ceil(remaining)) else string.format("%.1f", remaining)
 			else
-				button.sweep.Size = UDim2.fromScale(1, 0)
+				button.sweep(0)
 				button.timer.Text = ""
 			end
 			if button.charge then
@@ -349,11 +352,11 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 				button.cost.Text = if ready then "READY" else `{math.floor(share * 100)}%`
 				button.cost.TextColor3 = if ready then Colors.Gold else Colors.TextDim
 				button.outline.Color = Colors.Gold
-				-- A slow glow pulse once it's ready
+				-- A slow pulse of the hairline once it's ready
 				button.outline.Transparency = if ready then 0.1 + 0.3 * (math.sin(os.clock() * 5) + 1) / 2 else 0.45
 			else
 				local affordable = resource + 0.5 >= (button.def.cost or 0)
-				button.icon.TextTransparency = if affordable then 0 else 0.55
+				Icons.tint(button.icon, if affordable then Colors.Text else Colors.TextMuted)
 				button.cost.TextColor3 = if affordable then Colors.TextDim else Colors.Danger
 			end
 		end
