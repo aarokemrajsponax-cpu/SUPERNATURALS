@@ -121,6 +121,7 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		Parent = parent,
 	})
 	Components.list(frame, Space.S, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
+	require(script.Parent.PhaseMeter).mount(frame)
 
 	-- The ability bar's home: centred, room for six 64x64 buttons
 	local abilityRow = make("Frame", {

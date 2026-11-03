@@ -41,6 +41,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local PowerRequest = Remotes:WaitForChild("PowerRequest") :: RemoteEvent
 local DataEvent = Remotes:WaitForChild("DataEvent") :: RemoteEvent
 local MatchEvent = Remotes:WaitForChild("MatchEvent") :: RemoteEvent
+local CombatEvent = Remotes:WaitForChild("CombatEvent") :: RemoteEvent
 
 local Attribute = Protocol.Attribute
 local Action = Protocol.PowerAction
@@ -79,12 +80,18 @@ export type Runtime = {
 	handles: { () -> () },
 	module: any,
 	appearanceCleanup: (() -> ())?,
-	published: { [string]: number },
+	published: { [string]: any },
+	-- Phase meter (0 to Selection.Phase.MeterMax), earned in combat, emptied on evolving
+	meter: number,
+	-- Server time a transformation ends (0 when none is under way)
+	transformUntil: number,
+	-- True once the fighter evolved away from the phase they were equipped at
+	evolved: boolean,
 }
 
 local modules: { [string]: any } = {}
 -- Players in a match: their power, degree and loadout as they were when it started
-local locked: { [Player]: { power: string, degree: number, loadout: { string } } } = {}
+local locked: { [Player]: { power: string, degree: number, loadout: { string }, phase: number? } } = {}
 local keyCounter = 0
 -- Owners with showcase mode on, and when each player last saw the lobby notice
 local showcase: { [Player]: boolean } = {}
@@ -326,12 +333,26 @@ function PowerService:lock(player: Player)
 	end
 	local runtime = fighter and fighter.power
 	if runtime then
-		locked[player] = { power = runtime.id, degree = runtime.degree, loadout = table.clone(runtime.loadout) }
+		-- Every match starts in Phase 1, whatever degree was picked before it
+		if runtime.degree ~= 1 and fighter and self.characters:isAlive(fighter) then
+			self:equip(fighter, runtime.id, 1, self:_fitLoadout(fighter, runtime.id, 1, runtime.loadout), { trial = runtime.trial })
+			runtime = fighter.power
+		end
+		locked[player] = { power = runtime.id, degree = 1, loadout = table.clone(runtime.loadout), phase = runtime.degree }
 	end
 end
 
 function PowerService:unlock(player: Player)
 	locked[player] = nil
+	-- The match is over: back to the saved selection (Phase 1 unless they saved a higher degree)
+	local fighter = self.characters:getByPlayer(player)
+	local runtime = fighter and fighter.power
+	if fighter and runtime and self.characters:isAlive(fighter) then
+		local _, savedDegree = self:_resolveSelection(player, false)
+		if runtime.evolved or runtime.degree ~= savedDegree then
+			self:_equipForPlayer(fighter)
+		end
+	end
 end
 
 function PowerService:isLocked(player: Player): boolean
@@ -413,6 +434,9 @@ function PowerService:_watchContext(fighter)
 	local runtime = fighter.power
 	if runtime and runtime.training and verdict.context ~= Context.Training and verdict.context ~= Context.Showcase then
 		self:_endTrial(fighter.player :: Player, true)
+	elseif runtime and runtime.evolved and not runtime.training and verdict.context == Context.Lobby and not locked[fighter.player :: Player] then
+		-- Left the training hall evolved: back to the saved selection
+		self:_equipForPlayer(fighter)
 	end
 end
 
@@ -594,9 +618,9 @@ function PowerService:_decide(player: Player, view, powerId: string, degree: num
 	local price = Selection.priceFor(powerId, degree, def.premium ~= nil)
 	local equipped = view.selected.power == powerId and view.selected.degree == degree
 	local unlocked = view.owner or Powers.degreeUnlocked(powerId, degree, powerData(view.profile, powerId))
-	-- Owner: free. Already equipped: re-confirming is free. A premium power that isn't owned is
-	-- a trial, not a purchase, so nothing is charged for trying it.
-	local charge = if equipped or view.owner or trialOnly then 0 else price
+	-- The pre-match confirm chooses fighter and loadout and never charges. `price` is the
+	-- phase fee: what evolving into this degree costs mid-fight (see Selection.Prices).
+	local charge = 0
 	local verdict = {
 		ok = true,
 		code = Code.Ok,
@@ -636,6 +660,8 @@ function PowerService:_entry(player: Player, view, powerId: string, degree: numb
 		degree = degree,
 		name = degreeDef.name,
 		price = verdict.price,
+		fee = if self:_isOwner(player) then 0 else verdict.price,
+		feeAffordable = self:_isOwner(player) or view.money >= verdict.price,
 		charge = verdict.charge,
 		unlocked = verdict.unlocked,
 		unlockLevel = if degreeDef.unlock then degreeDef.unlock.mastery else nil,
@@ -1054,6 +1080,7 @@ function PowerService:_onRequest(player: Player, action: string, first: any, sec
 		or action == Action.Trial
 		or action == Action.EndTrial
 		or action == Action.SetShowcase
+		or action == Action.Evolve
 	if not profile or not data then
 		if selectionAction then
 			self:_reply(player, newResult(action, false, Code.Loading, "Your data is still loading. Try again in a moment."))
@@ -1074,6 +1101,8 @@ function PowerService:_onRequest(player: Player, action: string, first: any, sec
 			self:confirmSelection(player, first, second, third, { action = "Confirm" })
 		elseif action == Action.Trial then
 			self:trial(player, first, second, third)
+		elseif action == Action.Evolve then
+			self:evolve(player, first)
 		elseif action == Action.EndTrial then
 			if not self:_endTrial(player, true) then
 				self:_reply(player, newResult("EndTrial", true, Code.Ok, "No trial is running."))
@@ -1183,6 +1212,224 @@ function PowerService:_onRequest(player: Player, action: string, first: any, sec
 	end
 end
 
+-- Phases (evolving) -------------------------------------------------------------------------
+
+-- Does this fighter's current moment allow the Phase meter to fill? Real fights only.
+function PowerService:_fillMeter(fighter, amount: number)
+	local runtime = fighter.power
+	if not runtime or fighter.trainingDummy or amount <= 0 then
+		return
+	end
+	if runtime.transformUntil > now() or not self.characters:isAlive(fighter) then
+		return
+	end
+	runtime.meter = math.min(Selection.Phase.MeterMax, runtime.meter + amount)
+end
+
+-- Keeps a fighter's current loadout through a phase change when it is still valid at the
+-- new degree, then fills any slots the new degree adds from the loadout saved (or default)
+-- for it, so the new abilities are on the bar. Falls back to that loadout when the old one
+-- no longer fits.
+function PowerService:_fitLoadout(fighter, powerId: string, degree: number, current: { string }): { string }
+	local player = fighter.player
+	local runtime = fighter.power
+	local everything = runtime ~= nil and runtime.training == true
+	local slots = Powers.degree(powerId, degree).slots
+	local target: { string }
+	local kept: { string }
+	if player then
+		slots = self:slotsFor(player, powerId, degree)
+		target = self:_savedLoadout(player, powerId, degree, everything)
+		local ok, _, cleaned = self:validateLoadout(player, powerId, degree, current, everything)
+		kept = if ok and cleaned then cleaned else {}
+	else
+		target = Powers.defaultLoadout(powerId, degree)
+		local available = {}
+		for _, id in Powers.available(powerId, degree) do
+			available[id] = true
+		end
+		kept = {}
+		for _, id in current do
+			if available[id] then
+				table.insert(kept, id)
+			end
+		end
+	end
+	if #kept ~= #current then
+		return target
+	end
+	for _, id in target do
+		if #kept >= slots then
+			break
+		end
+		if not table.find(kept, id) then
+			table.insert(kept, id)
+		end
+	end
+	return kept
+end
+
+-- The phase this fighter could evolve into next, and its fee in Money: nil when they are in
+-- the top phase or have not unlocked the next one. Owners and Training evolve for free.
+function PowerService:_nextPhase(fighter): (number?, number)
+	local runtime = fighter.power
+	if not runtime then
+		return nil, 0
+	end
+	local nextDegree = runtime.degree + 1
+	if nextDegree > Powers.degreeCount(runtime.id) then
+		return nil, 0
+	end
+	local player = fighter.player
+	local free = runtime.training
+	if player then
+		free = free or self:_isOwner(player)
+		if not free and not Powers.degreeUnlocked(runtime.id, nextDegree, powerData(self:_profile(player), runtime.id)) then
+			return nil, 0
+		end
+	end
+	return nextDegree, if free then 0 else Selection.priceFor(runtime.id, nextDegree, runtime.def.premium ~= nil)
+end
+
+-- The transformation itself, shared by players and CPUs. Swaps the kit to the new degree's
+-- abilities and stats; cooldowns, ultimate charge and resource carry over. Opens a short
+-- window of hyper-armour and tells every client.
+function PowerService:_transform(fighter, newDegree: number)
+	local runtime = fighter.power
+	local model = fighter.model
+	local from = runtime.degree
+	local time = now()
+	local window = Selection.Phase.TransformTime
+	runtime.degree = newDegree
+	runtime.evolved = true
+	runtime.ultimate = Powers.ultimateOf(runtime.id, newDegree)
+	runtime.loadout = self:_fitLoadout(fighter, runtime.id, newDegree, runtime.loadout)
+	runtime.meter = 0
+	runtime.transformUntil = time + window
+	model:SetAttribute(Attribute.Degree, newDegree)
+	model:SetAttribute(Attribute.PhaseNumber, newDegree)
+	model:SetAttribute(Attribute.Loadout, table.concat(runtime.loadout, ","))
+	model:SetAttribute(Attribute.TransformUntil, runtime.transformUntil)
+	self.characters:setCombatProfile(fighter, Powers.combatProfile(runtime.id, newDegree, if runtime.form ~= "" then runtime.form else nil))
+	self:_applyAppearance(fighter)
+	local player = fighter.player
+	local held = if player then locked[player] else nil
+	if held then
+		held.phase = newDegree
+	end
+	-- Hyper-armour: the next few hits in the window do not flinch the fighter
+	local state = fighter.state
+	state.armorHits = math.max(state.armorHits, Selection.Phase.ArmorHits)
+	state.armorUntil = math.max(state.armorUntil, runtime.transformUntil)
+	local module = runtime.module
+	if module and module.onPhase then
+		self:_safe(module.onPhase, fighter, runtime, from, newDegree, AbilityKit.forFighter(fighter))
+	end
+	self:_publish(fighter, true)
+	CombatEvent:FireAllClients(Protocol.CombatEvent.Transform, {
+		fighter = model,
+		power = runtime.id,
+		from = from,
+		to = newDegree,
+		duration = window,
+	})
+	task.delay(window + 0.05, function()
+		if fighter.power == runtime and runtime.transformUntil <= now() and model.Parent then
+			model:SetAttribute(Attribute.TransformUntil, nil)
+		end
+	end)
+end
+
+-- CPUs evolve for free when their meter is full, up to a ceiling set by their difficulty
+function PowerService:_cpuEvolve(fighter)
+	local runtime = fighter.power
+	if not runtime or runtime.meter < Selection.Phase.MeterMax or runtime.transformUntil > now() then
+		return
+	end
+	local ceilings = Selection.Phase.CpuMaxPhase
+	local difficulty = fighter.model:GetAttribute("CpuDifficulty")
+	local ceiling = (typeof(difficulty) == "string" and ceilings[difficulty]) or ceilings.Default
+	ceiling = math.min(math.max(ceiling, runtime.degree), Powers.degreeCount(runtime.id))
+	if runtime.degree >= ceiling or not self.services.MatchService:isCombatAllowed(fighter) then
+		return
+	end
+	self:_transform(fighter, runtime.degree + 1)
+end
+
+-- The Evolve request: the next phase, mid-fight. Checks everything first, so a refusal
+-- takes nothing; then charges the fee once and transforms.
+function PowerService:evolve(player: Player, junk: any)
+	local function refuse(code: string, message: string)
+		self:_reply(player, newResult("Evolve", false, code, message))
+		toast(player, message, "error")
+	end
+	if junk ~= nil then
+		self.antiExploit:flag(player, "junk evolve request")
+		return refuse(Code.BadRequest, "That request isn't valid.")
+	end
+	local fighter = self.characters:getByPlayer(player)
+	local runtime = fighter and fighter.power
+	if not fighter or not runtime or not self.characters:isAlive(fighter) then
+		return refuse(Code.NotFighting, "You can evolve during a match or in Training.")
+	end
+	local verdict = self:combatContext(fighter)
+	local inTraining = verdict.context == Context.Training
+	if not (verdict.allowed and (verdict.context == Context.Match or inTraining)) then
+		return refuse(Code.NotFighting, "You can evolve during a match or in Training.")
+	end
+	if runtime.transformUntil > now() then
+		return refuse(Code.Transforming, "You are already transforming.")
+	end
+	local target = runtime.degree + 1
+	if target > Powers.degreeCount(runtime.id) then
+		return refuse(Code.MaxPhase, "You are already in your highest phase.")
+	end
+	local def = runtime.def
+	local owner = self:_isOwner(player)
+	local free = owner or inTraining
+	local degreeName = def.degrees[target].name
+	if not (runtime.training or owner) and not Powers.degreeUnlocked(runtime.id, target, powerData(self:_profile(player), runtime.id)) then
+		local mastery = def.degrees[target].unlock and def.degrees[target].unlock.mastery
+		return refuse(Code.DegreeLocked, `{degreeName} is locked. Reach mastery level {mastery or "?"} or unlock it.`)
+	end
+	if def.premium and not self:owns(player, runtime.id) then
+		local match = self.services.MatchService:getMatchOf(fighter)
+		if not (inTraining or (match and not RANKED_MODES[match.modeName])) then
+			return refuse(Code.NotOwned, premiumRefusal(def))
+		end
+	end
+	if not inTraining and runtime.meter < Selection.Phase.MeterMax then
+		return refuse(Code.MeterNotFull, "Your Phase meter is not full yet. Fight to fill it.")
+	end
+	local fee = if free then 0 else Selection.priceFor(runtime.id, target, def.premium ~= nil)
+	if fee > 0 and self:_money(player) < fee then
+		return refuse(Code.CantAfford, `{degreeName} costs {formatMoney(fee)} to evolve. You have {formatMoney(self:_money(player))}.`)
+	end
+	if fee > 0 and not self.services.CurrencyService:spend(player, { money = fee }, `phase:{runtime.id}/{target}`) then
+		return refuse(Code.CantAfford, `{degreeName} costs {formatMoney(fee)} to evolve. You have {formatMoney(self:_money(player))}.`)
+	end
+	local from = runtime.degree
+	local ok, err = pcall(self._transform, self, fighter, target)
+	if not ok then
+		warn("[Powers] evolve failed: " .. tostring(err))
+		if fee > 0 then
+			self.services.CurrencyService:add(player, { money = fee }, "phase refund")
+		end
+		return refuse(Code.BadRequest, "The transformation failed. Nothing was charged.")
+	end
+	local message = `Evolved into {degreeName}.`
+	if fee > 0 then
+		message ..= ` Paid {formatMoney(fee)}.`
+	end
+	self:_reply(player, newResult("Evolve", true, Code.Ok, message, {
+		power = runtime.id,
+		degree = target,
+		from = from,
+		charged = fee,
+		price = fee,
+	}))
+end
+
 -- Saves a loadout for a power and degree. Loadouts have no price; the number of abilities
 -- must fit the player's slots (the degree's own, plus the extra slot when they have it).
 function PowerService:setLoadout(player: Player, powerId: string, degree: any, list: any)
@@ -1263,7 +1510,13 @@ function PowerService:_equipForPlayer(fighter)
 	local held = locked[player]
 	if held then
 		local trial = not self:owns(player, held.power)
-		self:equip(fighter, held.power, held.degree, held.loadout, { trial = trial })
+		-- A new life keeps the phase evolved into earlier in the match
+		local phase = held.phase or held.degree
+		local loadout = if phase == held.degree then held.loadout else self:_fitLoadout(fighter, held.power, phase, held.loadout)
+		self:equip(fighter, held.power, phase, loadout, { trial = trial })
+		if phase ~= held.degree and fighter.power then
+			fighter.power.evolved = true
+		end
 		return
 	end
 	local powerId, degree, loadout, trial = self:_resolveSelection(player, true)
@@ -1303,6 +1556,9 @@ function PowerService:equip(fighter, powerId: string, degree: number, loadout: {
 		module = modules[powerId],
 		appearanceCleanup = nil,
 		published = {},
+		meter = 0,
+		transformUntil = 0,
+		evolved = false,
 	}
 	fighter.power = runtime
 
@@ -1319,6 +1575,9 @@ function PowerService:equip(fighter, powerId: string, degree: number, loadout: {
 	model:SetAttribute(Attribute.Loadout, table.concat(runtime.loadout, ","))
 	model:SetAttribute(Attribute.ResourceMax, runtime.resourceMax)
 	model:SetAttribute(Attribute.Phase, 0)
+	model:SetAttribute(Attribute.PhaseNumber, degree)
+	model:SetAttribute(Attribute.PhaseMeter, 0)
+	model:SetAttribute(Attribute.TransformUntil, nil)
 	model:SetAttribute(Attribute.Style, if self:ownsCosmetic(fighter, def) then def.cosmetic.pass else nil)
 	self.characters:setCombatProfile(fighter, Powers.combatProfile(powerId, degree))
 	self:_publish(fighter, true)
@@ -1402,6 +1661,8 @@ function PowerService:resetFighter(fighter)
 	runtime.resource = if resourceDef then resourceDef.start else 0
 	runtime.ult = 0
 	runtime.data = {}
+	runtime.meter = 0
+	runtime.transformUntil = 0
 	model:SetAttribute(Attribute.Phase, 0)
 	self:_publish(fighter, true)
 	local module = runtime.module
@@ -1522,6 +1783,21 @@ function PowerService:_publish(fighter, force: boolean)
 		published.ult = ult
 		fighter.model:SetAttribute(Attribute.Ultimate, ult)
 	end
+	local meter = math.floor(runtime.meter)
+	if force or published.meter ~= meter then
+		published.meter = meter
+		fighter.model:SetAttribute(Attribute.PhaseMeter, meter)
+	end
+	-- The next phase this player could evolve into, and what it costs (players only)
+	if fighter.player then
+		local nextDegree, fee = self:_nextPhase(fighter)
+		local key = if nextDegree then `{nextDegree}:{fee}` else ""
+		if force or published.nextKey ~= key then
+			published.nextKey = key
+			fighter.model:SetAttribute(Attribute.PhaseFee, if nextDegree then fee else nil)
+			fighter.model:SetAttribute(Attribute.PhaseNext, if nextDegree then runtime.def.degrees[nextDegree].name else nil)
+		end
+	end
 end
 
 function PowerService:_tick(dt: number)
@@ -1537,11 +1813,18 @@ function PowerService:_tick(dt: number)
 			if match and matchService:isCombatAllowed(fighter) and runtime.ultimate then
 				runtime.ult = math.min(ULTIMATE.Max, runtime.ult + ULTIMATE.PassivePerSecond * dt)
 			end
+			if fighter.npc and not fighter.trainingDummy then
+				self:_cpuEvolve(fighter)
+			end
 			local module = runtime.module
 			if module and module.tick then
 				self:_safe(module.tick, fighter, runtime, dt, AbilityKit.forFighter(fighter))
 			end
 			self:_publish(fighter, false)
+			-- Keeps SNCombatContext current and ends a trial or an evolution when the hall is left
+			if fighter.player then
+				self:_watchContext(fighter)
+			end
 		end
 	end
 end
@@ -1563,6 +1846,15 @@ function PowerService:onHitResolved(attacker, target, outcome, opts)
 	if dealt > 0 then
 		self:addUltimate(attacker, dealt * ULTIMATE.PerDamageDealt * training)
 		self:addUltimate(target, dealt * ULTIMATE.PerDamageTaken)
+	end
+	if landed and opts.kind ~= "Status" then
+		local phase = Selection.Phase
+		if dealt > 0 then
+			self:_fillMeter(attacker, phase.HitDealt)
+			self:_fillMeter(target, phase.HitTaken)
+		elseif outcome.result == "Blocked" or outcome.result == "GuardBreak" then
+			self:_fillMeter(attacker, phase.BlockedDealt)
+		end
 	end
 	local attackerRuntime = attacker.power
 	if attackerRuntime and landed and opts.kind ~= "Status" then

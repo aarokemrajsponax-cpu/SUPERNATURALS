@@ -12,9 +12,11 @@
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Shell = require(script.Parent.Parent.UI.Shell)
 
@@ -39,6 +41,8 @@ InputController.Bindings = {
 	{ name = "SNSweep", label = "Sweep", keys = { KeyCode.C }, pads = {}, keyText = "C", padText = "L1+Y", touch = { -102, -160, 46 } },
 	{ name = "SNSprint", label = "Sprint", touchLabel = "Run", keys = { KeyCode.LeftShift }, pads = { KeyCode.ButtonL3 }, keyText = "Shift", padText = "L3", touch = { -46, -160, 46 } },
 	{ name = "SNLock", label = "Lock", keys = { KeyCode.Z, InputType.MouseButton3 }, pads = { KeyCode.ButtonR3 }, keyText = "Z", padText = "R3", touch = { 10, -160, 46 } },
+	-- Evolve into the next phase once the Phase meter is full (the server decides; Start is the only free pad button)
+	{ name = "SNEvolve", label = "Evolve", keys = { KeyCode.T }, pads = { KeyCode.ButtonStart }, keyText = "T", padText = "Start", touch = { -214, -86, 56 } },
 	{ name = "SNTaunt", label = "Taunt", keys = { KeyCode.V }, pads = { KeyCode.ButtonSelect }, keyText = "V", padText = "View", hint = false },
 }
 -- Older code reads binding.inputs
@@ -153,6 +157,12 @@ function InputController:Start()
 		SNTaunt = function(state)
 			if began(state) then
 				combat:taunt()
+			end
+		end,
+		SNEvolve = function(state)
+			if began(state) then
+				local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("PowerRequest") :: RemoteEvent
+				remote:FireServer(Protocol.PowerAction.Evolve)
 			end
 		end,
 	}

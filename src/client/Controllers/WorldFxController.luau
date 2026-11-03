@@ -27,7 +27,17 @@ local CRYSTAL_TURN_SPEED = 0.3
 -- How much the runes fade at the low point of their breath
 local RUNE_DEPTH = 0.3
 
-local WINDOW_NAMES = { Play = "Play", Shop = "Shop", Watch = "Watch" }
+-- Window ids to try, in order; the first one registered opens (Learn falls back to Play)
+local WINDOW_NAMES = {
+	Play = { "Play" },
+	Shop = { "Shop", "Market" },
+	Market = { "Market", "Shop" },
+	Watch = { "Watch" },
+	Learn = { "Learn", "Play" },
+	Homes = { "Homes" },
+	Powers = { "Powers" },
+	Archive = { "Archive" },
+}
 
 function WorldFxController:Start()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt)
@@ -37,10 +47,17 @@ function WorldFxController:Start()
 		end
 		local kind, argument = string.match(action, "^(%w+):(%w+)$")
 		if kind == "Window" then
-			local id = WINDOW_NAMES[argument]
-			if id and Shell.hasWindow(id) then
-				Shell.open(id)
-			elseif id then
+			local opened = false
+			for _, id in WINDOW_NAMES[argument] or {} do
+				if Shell.hasWindow(id) then
+					Shell.open(id)
+					opened = true
+					break
+				end
+			end
+			if not opened and argument == "Homes" then
+				BaseRequest:FireServer(Protocol.BaseAction.Home)
+			elseif not opened then
 				Shell.toast("That opens soon.", "info")
 			end
 		elseif kind == "Travel" then

@@ -183,6 +183,16 @@ function MatchService:onFinished(callback: (Match, any) -> ())
 	table.insert(finishedListeners, callback)
 end
 
+-- Is this player waiting in any queue? (PowerService refuses selection changes while queued)
+function MatchService:isQueued(player: Player): boolean
+	for _, queue in queues do
+		if table.find(queue, player) then
+			return true
+		end
+	end
+	return false
+end
+
 function MatchService:getMatch(matchId: string): Match?
 	return matches[matchId]
 end

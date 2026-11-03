@@ -83,8 +83,15 @@ check("the Nexus lobby builds: plaza, gates with prompts, statues, spawn", funct
 	end
 	assert(statues == 8, "eight statues, one per power")
 	local parts = count(folder, "BasePart")
-	assert(parts < 1600, `lobby part budget ({parts})`)
-	print(`     nexus: {parts} parts`)
+	local statueParts = 0
+	for _, child in folder:GetChildren() do
+		if string.sub(child.Name, 1, 7) == "Statue_" then
+			statueParts += count(child, "BasePart")
+		end
+	end
+	print(`     nexus: {parts} parts ({statueParts} in statues)`)
+	assert(parts - statueParts < 1100, `hub part budget without statues ({parts - statueParts})`)
+	assert(parts < 2400, `lobby part budget ({parts})`)
 	folder:Destroy()
 end)
 

@@ -21,6 +21,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Combat = require(ReplicatedStorage.Shared.Config.Combat)
+local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Poser = require(script.Parent.Parent.Effects.Poser)
 local Vfx = require(script.Parent.Parent.Effects.Vfx)
@@ -159,6 +160,8 @@ function EffectsController:Start()
 			self:_onGrab(data)
 		elseif kind == Event.Motion then
 			self:_onMotion(data)
+		elseif kind == Event.Transform then
+			self:_onTransform(data)
 		end
 	end)
 
@@ -187,6 +190,29 @@ function EffectsController:Start()
 end
 
 -- Camera feedback when the local player is part of it
+-- A fighter evolved (CombatEvent.Transform): a burst in the power's colour. A later batch
+-- gives each fighter its own cinematic transformation; this is the shared placeholder.
+function EffectsController:_onTransform(data)
+	local model = data.fighter
+	local root = if typeof(model) == "Instance" and model:IsA("Model") then rootOf(model) else nil
+	if not root then
+		return
+	end
+	local def = if typeof(data.power) == "string" then Powers.get(data.power) else nil
+	local color = if def and def.colors then def.colors.primary else Color3.new(1, 1, 1)
+	local duration = if typeof(data.duration) == "number" then math.clamp(data.duration, 0.2, 2) else 0.8
+	local position = root.Position
+	Vfx.flash(model, color, duration)
+	Vfx.glow(root, color, 16, 3, duration)
+	Vfx.groundRing(position - Vector3.new(0, 2.5, 0), color, 2, 18, duration)
+	Vfx.shockwave(position, color, 2, 14, duration)
+	Vfx.sparks(position, color, 30, 40)
+	self:callout(model, if typeof(data.to) == "number" and def and def.degrees[data.to] then def.degrees[data.to].name else "Evolved", color)
+	if model == Players.LocalPlayer.Character then
+		Vfx.screenFlash(color, 0.25, duration)
+	end
+end
+
 function EffectsController:_feel(involved: boolean, direction: any, strength: number, heavy: boolean)
 	if not involved or not self.camera then
 		return
