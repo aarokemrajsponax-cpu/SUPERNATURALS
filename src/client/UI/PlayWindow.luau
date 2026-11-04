@@ -126,10 +126,11 @@ local function buildModeCard(parent: Instance, props: { [string]: any }): (TextB
 	})
 	local bar = make("Frame", {
 		Name = "SelectedBar",
-		Size = UDim2.new(0, 3, 1, 0),
+		Size = UDim2.new(0, 4, 1, 0),
 		BackgroundColor3 = Colors.Cyan,
 		BorderSizePixel = 0,
 		Visible = false,
+		ZIndex = 3,
 		Parent = button,
 	})
 	local tile = Components.iconTile(props.Icon, 48, props.Accent)
@@ -146,12 +147,14 @@ local function buildModeCard(parent: Instance, props: { [string]: any }): (TextB
 	Components.list(column, 2)
 	Components.text({ Name = "Title", Text = props.Title, Style = "Heading", Weight = "Bold", Wrap = true, LayoutOrder = 1, Parent = column })
 	Components.text({ Name = "Tag", Text = props.Tag, Style = "Micro", Color = props.Accent, Wrap = true, LayoutOrder = 2, Parent = column })
-	local body = Components.text({ Name = "Body", Text = props.Body, Style = "Body", Weight = "Medium", Color = Colors.TextDim, Wrap = true, LayoutOrder = 3, Parent = column })
+	local body = Components.text({ Name = "Body", Text = props.Body, Style = "Body", Color = Colors.Text, Wrap = true, LayoutOrder = 3, Parent = column })
 	-- Keep a few pixels between the tag and the copy
 	body.Size = UDim2.fromScale(1, 0)
 	make("UIPadding", { PaddingTop = UDim.new(0, 4), Parent = body })
 	local function paint(state, instant)
-		button.BackgroundColor3 = if selectedNow then Colors.Selected elseif state.hovered or state.focused then Colors.PanelHover else Colors.PanelLight
+		-- A soft two-stop gradient in the mode's accent; brighter when chosen or hovered
+		local mode = if selectedNow then "Selected" elseif state.hovered or state.focused then "Hover" else "Rest"
+		Components.gradientFor(button, props.Accent, props.Accent:Lerp(Colors.Ink, 0.55), mode)
 		bar.Visible = selectedNow
 	end
 	local state, refresh = Components.interactive(button, paint)
@@ -274,7 +277,7 @@ function PlayWindow.register(): Controller
 			-- Step two: the fighter and the loadout for Phase 1 (confirmed with the queue; never charged)
 			local view0 = Profile.get()
 			local saved0 = view0 and view0.selected
-			local fighter = if typeof(saved0) == "table" and typeof(saved0.power) == "string" and Powers.get(saved0.power) then saved0.power else Powers.Default
+			local fighter = if typeof(saved0) == "table" and typeof(saved0.power) == "string" and Powers.get(saved0.power) and (Powers.isReleased(saved0.power) or PowersWindow.helpers.isOwner()) then saved0.power else Powers.Default
 			local draft: { string } = PowersWindow.helpers.savedLoadout(fighter, 1)
 			local renderFighter: () -> () = function() end
 			local renderActionHook: () -> () = function() end
@@ -286,11 +289,11 @@ function PlayWindow.register(): Controller
 				BackgroundTransparency = 1,
 				Parent = body,
 			})
-			Components.text({ Text = "Step 1: choose a mode", Style = "Heading", Weight = "Bold", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 24), Parent = left })
+			Components.text({ Text = "Step 1: choose a mode", Style = "Heading", Weight = "Bold", Color = Colors.TextDim, Size = UDim2.new(1, 0, 0, 32), Parent = left })
 			local list = Components.scroll({
 				Name = "Cards",
-				Position = UDim2.fromOffset(0, 32),
-				Size = UDim2.new(1, 0, 1, -32 - Theme.Size.Control - Space.M),
+				Position = UDim2.fromOffset(0, 38),
+				Size = UDim2.new(1, 0, 1, -38 - Theme.Size.Control - Space.M),
 				Padding = 2,
 				Parent = left,
 			})
@@ -382,8 +385,8 @@ function PlayWindow.register(): Controller
 					Components.corner(Theme.SmallCorner),
 					Components.padding(Space.S, Space.M, Space.S, Space.M),
 				})
-				local label = Components.text({ Style = "Micro", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 16), Parent = tile })
-				local value = Components.text({ Style = "Label", Position = UDim2.fromOffset(0, 20), Size = UDim2.new(1, 0, 0, 40), Wrap = true, Parent = tile })
+				local label = Components.text({ Style = "Micro", Color = Colors.TextMuted, Size = UDim2.new(1, 0, 0, 22), Parent = tile })
+				local value = Components.text({ Style = "Label", Position = UDim2.fromOffset(0, 22), Size = UDim2.new(1, 0, 0, 40), Wrap = true, Parent = tile })
 				value.AutomaticSize = Enum.AutomaticSize.None
 				value.Size = UDim2.new(1, 0, 0, 40)
 				ruleTiles[index] = { label = label, value = value }
@@ -437,7 +440,7 @@ function PlayWindow.register(): Controller
 				Components.text({ Text = "STEP 2: YOUR FIGHTER", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 1, Wrap = true, Parent = fighterBox })
 				local grid = make("Frame", { Name = "FighterGrid", LayoutOrder = 2, Size = UDim2.fromScale(1, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = fighterBox })
 				Components.grid(grid, UDim2.new(0.5, -Space.S / 2, 0, 44), Space.S)
-				for order, powerId in Powers.Order do
+				for order, powerId in helpers.fighters() do
 					local other = Powers.get(powerId)
 					if other then
 						local chosen = powerId == fighter
@@ -456,14 +459,17 @@ function PlayWindow.register(): Controller
 							Components.stroke(if chosen then other.colors.primary else Colors.Stroke, 1, if chosen then 0.1 else 0.8),
 							Components.padding(0, Space.S, 0, Space.S),
 						})
-						local glyph = Icons.make(Icons.sigil(powerId), 22, other.colors.primary)
+						-- The fighter's own two colours as a soft gradient (brighter when chosen)
+						Components.gradientFor(button, other.colors.primary, other.colors.secondary, if chosen then "Selected" else "Rest")
+						button.BackgroundTransparency = 0
+						local glyph = Icons.make(Icons.sigil(powerId), 22, other.colors.primary:Lerp(Colors.Text, 0.35))
 						glyph.AnchorPoint = Vector2.new(0, 0.5)
 						glyph.Position = UDim2.fromScale(0, 0.5)
 						glyph.Parent = button
 						Components.text({
 							Text = other.name,
 							Style = "label",
-							Color = if chosen then Colors.Text else Colors.TextDim,
+							Color = Colors.Text,
 							Position = UDim2.fromOffset(30, 0),
 							Size = UDim2.new(1, -30 - (if other.premium and not helpers.owns(other) then 22 else 0), 1, 0),
 							Parent = button,
@@ -600,7 +606,7 @@ function PlayWindow.register(): Controller
 				Parent = info,
 			})
 			Components.list(options, Space.S)
-			Components.text({ Name = "ArenaHeader", Text = "ARENA", Style = "Micro", Color = Colors.TextMuted, LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 18), Parent = options })
+			Components.text({ Name = "ArenaHeader", Text = "ARENA", Style = "Micro", Color = Colors.TextMuted, LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 22), Parent = options })
 			local picker = make("Frame", {
 				Name = "ArenaPicker",
 				LayoutOrder = 2,
@@ -663,7 +669,8 @@ function PlayWindow.register(): Controller
 				})
 				local _, refresh = Components.interactive(chip, function(state)
 					local chosen = arenaChoice == id
-					chip.BackgroundColor3 = if chosen or state.hovered then Colors.PanelHover else Colors.PanelLight
+					Components.gradientFor(chip, color, color:Lerp(Colors.Ink, 0.55), if chosen then "Selected" elseif state.hovered then "Hover" else "Rest")
+					chip.BackgroundTransparency = 0
 					stroke.Color = if chosen then color else Colors.Stroke
 					stroke.Transparency = if chosen then 0.1 else 0.85
 				end)
@@ -722,7 +729,7 @@ function PlayWindow.register(): Controller
 				renderAction()
 			end
 
-			Components.text({ Name = "HeaderRanked", Text = "COMPETITIVE", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 0, Size = UDim2.new(1, 0, 0, 18), Parent = list })
+			Components.text({ Name = "HeaderRanked", Text = "COMPETITIVE", Style = "overline", Color = Colors.TextMuted, LayoutOrder = 0, Size = UDim2.new(1, 0, 0, 22), Parent = list })
 			Components.text({ Name = "HeaderFree", Text = "FREE AND SEPARATE", Style = "overline", Color = Colors.Success, LayoutOrder = 90, Size = UDim2.new(1, 0, 0, 18), Parent = list })
 			for order, id in choices() do
 				local look = LOOK[id] or { icon = "dot", accent = Colors.Cyan, tag = "", subtitle = "" }
@@ -782,7 +789,7 @@ function PlayWindow.register(): Controller
 			return {
 				onOpen = function(args)
 					-- Shell.open("Play", { mode = "Practice" }) jumps to a choice
-					if typeof(args) == "table" and typeof(args.fighter) == "string" and Powers.get(args.fighter) then
+					if typeof(args) == "table" and typeof(args.fighter) == "string" and Powers.get(args.fighter) and (Powers.isReleased(args.fighter) or PowersWindow.helpers.isOwner()) then
 						fighter = args.fighter
 						draft = PowersWindow.helpers.savedLoadout(fighter, 1)
 					end

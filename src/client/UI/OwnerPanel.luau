@@ -403,7 +403,7 @@ local function buildServer(page: Frame, send: Send)
 		ClearTextOnFocus = false,
 		Text = "",
 		Font = Theme.Fonts.Body,
-		TextSize = 16,
+		TextSize = 18,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = row,
 	}, { Components.corner(Theme.SmallCorner), Components.stroke(GOLD, 1.5, 0.4), Components.padding(10) })

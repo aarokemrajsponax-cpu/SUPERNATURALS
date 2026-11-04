@@ -1,126 +1,194 @@
--- Jeffery's first-time tutorial, contextual hints and facial expressions. Shared by the server
--- (TutorialService decides what counts) and the client (dialogue and hint text).
--- Lines are short on purpose. No emoji, no em dashes.
+-- Jeffery's first-time tour, the optional "tell me more" talk, the welcome gift moment, contextual
+-- hints and facial expressions. Shared by the server (TutorialService decides what counts) and the
+-- client (dialogue and hint text). Lines are short on purpose and written for players who know
+-- nothing. No emoji, no em dashes. Everything not in the tour lives in How to Play (LearnWindow).
+--
 -- Progress is remembered in profile.tutorial.done under these keys:
 --   tut_step_<id>   a step was completed        tut_complete  the whole path was finished
 --   tut_exited      the player left the path     tut_veteran   skipped automatically (3+ matches)
---   tut_reward      the welcome reward was paid  hint_<id>     a hint was shown
+--   tut_reward      the welcome gift was paid    hint_<id>     a hint was shown
+--
+-- How a step stays in sync (server and client agree on this):
+--   1. The server sends the step. The client shows Jeffery's lines and, when the lines end,
+--      sends TutorialLine(stepId). Only then does the server start watching for the step's event
+--      ("armed"); anything the player did while Jeffery was talking does not count.
+--   2. Movement-style steps start from the position, state and camera at that moment.
+--   3. Guide arrows on the floor (step.guide) appear only once the step is armed.
+--   4. If the client never reports (it crashed), the server arms the step by itself after
+--      Tutorial.ArmTimeout seconds so nobody is stuck.
 
 local Tutorial = {}
 
 Tutorial.VeteranMatches = 3
-Tutorial.Reward = { money = 250, title = "Recruit", titleId = "title_recruit" }
+Tutorial.Reward = { money = 250, title = "Recruit", titleId = "title_recruit", foundingId = "title_founding", foundingTitle = "Founding Recruit" }
+
+-- Seconds after a step is sent before the server arms it without the client's report
+Tutorial.ArmTimeout = 25
+-- The client sends TutorialReady (it is running and Jeffery is in the world) before the tour starts;
+-- without it the tour starts anyway after this many seconds
+Tutorial.ClientWait = 15
+-- Seconds after a line finishes typing before an action step's panel closes by itself
+Tutorial.AutoCloseSeconds = 4
 
 -- Distances the server checks
 Tutorial.MoveDistance = 10
 Tutorial.JumpSpeed = 12
+-- Degrees the camera must turn for the "look" step (checked on the client, which owns the camera)
+Tutorial.LookDegrees = 35
 
 -- Step events (the server only advances a step on its own event):
---   ack       the player pressed CONTINUE on a note-only step (welcome, camera)
---   move, jump, sprint, training (entered the hall), attack (landed a hit), block, dodge,
---   ability (used a non-basic ability), evolve (transformed), showcase (opened fighter selection),
---   win (won a match)
+--   ack       the player pressed CONTINUE on a note-only step (welcome)
+--   look      the client saw the camera turn (camera)
+--   move, jump, sprint, training (entered the Training Studio), attack (landed a hit), block,
+--   dodge, ability (used a non-basic ability), evolve (transformed), showcase (opened fighter
+--   selection), win (won a match). jump, sprint, evolve, showcase and win are supported by the
+--   server but are not part of the short tour; How to Play teaches them.
 Tutorial.Steps = {
 	{
 		id = "welcome", event = "ack", face = "happy", title = "Welcome",
 		lines = {
-			"Hello, new recruit. I am Jeffery, your officially unofficial facility assistant.",
-			"This is the training facility. Eight fighters, one hall, and a lot of people pressing buttons.",
-			"The doors around the hall lead to fights, training, the shop and fighter selection. My own door is Jeffery's Base.",
+			"Hi! I am Jeffery, the robot guide of this facility.",
+			"SUPERNATURALS is a superpower fighting game. You pick a fighter with its own power, train, then battle other players.",
+			"I will show you the basics. It takes about two minutes, and you can stop any time.",
 		},
 		goal = "Press Continue",
 	},
 	{
-		id = "move", event = "move", face = "thinking", title = "Move",
-		lines = { "Before you launch yourself into a wall, let us cover movement." },
+		id = "move", event = "move", face = "thinking", title = "Walk",
+		lines = {
+			"First, walking. The keys for your device are on the card at the left.",
+			"Walk a few steps. I will wait right here.",
+		},
 		goal = "Walk a few steps",
 		keys = { "move" },
+		autoClose = true,
 	},
 	{
-		id = "jump", event = "jump", face = "excited", title = "Jump",
-		lines = { "Good. Now jump. Gravity is a rule here, but a flexible one." },
-		goal = "Jump once",
-		keys = { "jump" },
-	},
-	{
-		id = "sprint", event = "sprint", face = "excited", title = "Sprint",
-		lines = { "Hold sprint and run. It uses stamina, so do not run everywhere." },
-		goal = "Sprint for a moment",
-		keys = { "SNSprint" },
-	},
-	{
-		id = "camera", event = "ack", face = "thinking", title = "Camera",
-		lines = { "Turn the camera and look around. I will wait. I am very patient." },
-		goal = "Look around, then press Continue",
+		id = "camera", event = "look", face = "thinking", title = "Camera",
+		lines = {
+			"Now the camera. On a PC, hold the right mouse button and move the mouse. On a phone, drag the screen. On a gamepad, use the right stick.",
+			"Turn around and look at the room.",
+		},
+		goal = "Turn the camera and look around",
 		keys = { "camera" },
+		autoClose = true,
 	},
 	{
-		id = "training", event = "training", face = "happy", title = "Training",
-		lines = { "Now the fun part. Go through the Training Studio door and I will meet you there." },
-		goal = "Enter the Training Studio",
+		id = "training", event = "training", face = "happy", title = "Training Studio",
+		lines = {
+			"Time to practice. Follow the glowing arrows on the floor to the TRAINING STUDIO door and walk in.",
+		},
+		goal = "Walk into the Training Studio",
 		guide = "Training",
+		autoClose = true,
 	},
 	{
 		id = "attack", event = "attack", face = "excited", title = "Attack",
-		lines = { "Here, fighting is allowed. Hit a dummy. It has no feelings, I checked." },
+		lines = {
+			"This is the Training Studio. Fighting is allowed here and nothing you do is saved.",
+			"A quick tap is a light attack. Holding the heavy button hits harder but slower. Hit a dummy now.",
+		},
 		goal = "Land a hit on a dummy",
-		keys = { "SNLight" },
+		keys = { "SNLight", "SNHeavy" },
+		autoClose = true,
 	},
 	{
 		id = "block", event = "block", face = "warning", title = "Block",
-		lines = { "Blocking stops most of the damage. Hold it and look dignified." },
+		lines = { "Blocking takes most of the damage. Hold the block button for a moment." },
 		goal = "Hold block",
 		keys = { "SNBlock" },
+		autoClose = true,
 	},
 	{
 		id = "dodge", event = "dodge", face = "excited", title = "Dodge",
-		lines = { "Dodging is better than blocking when it works. Try one." },
+		lines = { "A dodge is a quick roll that slips past hits. It costs stamina. Try one." },
 		goal = "Dodge once",
 		keys = { "SNDodge" },
+		autoClose = true,
 	},
 	{
-		id = "ability", event = "ability", face = "excited", title = "Ability",
-		lines = { "Your power has abilities on the bar at the bottom. Use one." },
+		id = "ability", event = "ability", face = "excited", title = "Abilities",
+		lines = {
+			"Your fighter has abilities 1 to 3 on the bar at the bottom. They use energy and then recharge.",
+			"The bar comes back when I stop talking. Use any one of them.",
+		},
 		goal = "Use an ability",
 		keys = { "ability" },
-	},
-	{
-		id = "evolve", event = "evolve", face = "proud", title = "Evolve",
-		lines = { "In training every phase is free to try. Evolve into the next one and see what changes." },
-		goal = "Evolve a phase",
-		keys = { "SNEvolve" },
-	},
-	{
-		id = "showcase", event = "showcase", face = "happy", title = "Fighter Showcase",
-		lines = { "Now meet the fighters. Open the Calibration Chamber door, or the Fighters button, to browse them." },
-		goal = "Open the Fighter Showcase",
-		guide = "Calibration",
-	},
-	{
-		id = "win", event = "win", face = "proud", title = "Practice fight",
-		lines = { "Final test. Open the Test Chambers door, pick a practice fight against the computer, and win." },
-		goal = "Win a practice fight",
-		guide = "Battle",
+		autoClose = true,
 	},
 }
 
+-- After the last step: Jeffery asks whether the player wants the long version. Choosing "more"
+-- plays Tutorial.More; either way the welcome gift moment follows.
 Tutorial.Outro = {
-	face = "victory",
+	face = "proud",
 	lines = {
-		"Congratulations, recruit. You are now officially less likely to press random buttons and hope for the best.",
-		"Your welcome reward is on the way. I will keep an eye on you. For safety. Mostly yours.",
-		"If a friend would enjoy this place, the Invite friends button in the Play window sends them a note. I promise not to read it.",
+		"That is all you need to start. Nice work!",
+		"Do you want a quick tour of everything else, or would you rather play?",
+	},
+	choices = {
+		{ id = "more", label = "Tell me more" },
+		{ id = "gift", label = "Show my gift" },
 	},
 }
 
-Tutorial.Exited = { face = "confused", lines = { "Tutorial paused. Open How to Play any time and I will pick it up again." } }
+-- The optional branch (client only, no progress is tied to it). Every topic is also in How to Play.
+Tutorial.More = {
+	{
+		face = "thinking",
+		lines = {
+			"Two more moves. Grab breaks through a block. Sweep knocks a standing fighter off their feet. Both are on the card in How to Play.",
+			"Your ultimate is the big move. It charges as you fight, and a bar shows when it is ready.",
+		},
+	},
+	{
+		face = "excited",
+		lines = {
+			"Phases are stronger forms. A meter fills while you fight. When it is full, press T on a keyboard, Start on a gamepad, or the Evolve button on a phone.",
+		},
+	},
+	{
+		face = "happy",
+		lines = {
+			"To change fighters, tap your player card or the FIGHTERS button. Pick a fighter, then a phase.",
+			"Train in the Training Studio. For real fights, walk through the TEST CHAMBERS door or press PLAY.",
+		},
+	},
+	{
+		face = "proud",
+		lines = {
+			"GIFTS is the gift calendar, with something new each day you visit. The LOCKER holds your titles, looks and achievements. The season pass is a 30 tier track of cosmetics you earn by playing.",
+		},
+	},
+	{
+		face = "happy",
+		lines = {
+			"You earn Money from matches and daily challenges. You earn Gems from your first win each day, fighter level ups and some challenges.",
+			"Open How to Play any time, or just ask me a question. I will be right here at my post.",
+		},
+	},
+}
+
+-- The welcome gift moment shown when the tour finishes. The gift is already paid by the server and
+-- never depends on liking or favouriting the game (Roblox cannot verify that).
+Tutorial.Gift = {
+	face = "victory",
+	title = "Welcome gift",
+	intro = "Thank you for finishing the tour. This is yours, no strings attached.",
+	like = "If you enjoy SUPERNATURALS, a like on the game page helps us grow.",
+	button = "Got it",
+}
+
+Tutorial.Exited = { face = "confused", lines = { "Tour stopped. Open How to Play or ask me a question any time." } }
+Tutorial.ReplayDone = { face = "happy", lines = { "That was the tour again. No gift this time, but you keep the first one. Ask me anything you like." } }
 
 -- Key caps for steps that are not a single binding (per device)
 Tutorial.ExtraKeys = {
 	move = { keyboard = "W A S D", gamepad = "Left stick", touch = "Left thumb stick" },
 	jump = { keyboard = "Space", gamepad = "A", touch = "Jump button" },
-	camera = { keyboard = "Mouse", gamepad = "Right stick", touch = "Drag the screen" },
-	ability = { keyboard = "1 2 3 4", gamepad = "D-pad", touch = "Ability buttons" },
+	camera = { keyboard = "Right mouse", gamepad = "Right stick", touch = "Drag the screen" },
+	ability = { keyboard = "1 2 3", gamepad = "R1 R2 L2", touch = "Ability buttons" },
+	ultimate = { keyboard = "R", gamepad = "D-pad down", touch = "Ultimate button" },
 }
 
 -- Contextual hints: once each, remembered by the server, never during active combat.

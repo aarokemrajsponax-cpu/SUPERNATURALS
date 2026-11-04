@@ -265,6 +265,8 @@ check("friends bonus is applied for a friend in the server and capped", function
 	local b = joined("FriendB", 8002)
 	assert(Community:hasFriendHere(a) and Community:hasFriendHere(b), "friend detected both ways")
 	assert(not Community:hasFriendHere(stranger), "a stranger is not a friend")
+	assert(a:GetAttribute("SNFriendBonus") == 20 and b:GetAttribute("SNFriendBonus") == 20, "the friends see the bonus chip flag (20)")
+	assert(stranger:GetAttribute("SNFriendBonus") == nil, "a stranger gets no chip flag")
 	local withFriend = pay(a, "pay-friend")
 	local strangerPay = pay(stranger, "pay-stranger")
 	assert(alone > 0 and withFriend > alone, `friend {withFriend} vs alone {alone}`)
@@ -279,7 +281,9 @@ check("friends bonus is applied for a friend in the server and capped", function
 	assert(capped / alone <= 1.5 + 0.1, "capped at +50 percent, got " .. capped / alone)
 	-- the cache is dropped when the friend leaves
 	leave(b)
+	task.wait(0.1)
 	assert(not Community:hasFriendHere(a), "friend gone")
+	assert(a:GetAttribute("SNFriendBonus") == nil, "the chip flag clears when the friend leaves")
 	leave(a)
 	leave(stranger)
 end)

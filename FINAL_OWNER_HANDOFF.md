@@ -9,20 +9,30 @@ Code map: receipts and passes `src/server/Services/PurchaseService.luau`; price 
 ## 0. AJKR's to-do list, shortest path (updated 3 November 2026, evening)
 
 Everything else is done in code. Where a step says "paste the id", you can instead send Claude
-the ids in chat and Claude will paste them, test and push.
+the ids in chat and Claude will paste them, test and push. **The full step-by-step guide,
+including Rojo, VS Code and Studio sync, is `LAUNCH_GUIDE.md`.** Store icons for every pass and
+product are in `marketing/store_icons/`.
 
 **Before launch (about 45 minutes)**
 1. Studio, Game Settings, Security: turn on "Enable Studio Access to API Services", then publish.
-2. Creator Hub, Monetization, Developer Products: create these 10, turn **Managed Pricing** on for
+2. Creator Hub, Monetization, Developer Products: create these 12, turn **Managed Pricing** on for
    each (regional prices), and paste each id into `src/shared/Config/Monetization.luau`:
    Pouch of Gems (100 Gems, 49 R$), Chest of Gems (450 Gems, 199 R$), Vault of Gems (1,100 Gems,
    449 R$), Hoard of Gems (2,600 Gems, 999 R$), Treasury of Gems (7,000 Gems, 2,499 R$),
    Season Premium (499 R$), Season Tier Skip (49 R$), Corruption Trial (49 R$), Syntax Trial (49 R$),
-   Admin Powers Trial (49 R$). Prices are suggestions; descriptions are
-   the `benefit` text in Monetization.luau.
+   Admin Powers Trial (49 R$), **Lounge Wheel Spin ("LoungeSpin", 1 spin, 25 R$)** and
+   **Lounge Wheel Spins x5 ("LoungeSpin5", 5 spins, 99 R$)**. Prices are suggestions; descriptions
+   are the `benefit` text in Monetization.luau. The two wheel products are paid random items, so
+   the rule is fixed: **the odds of every prize are shown on the wheel and in the Wheel window
+   before any spin or purchase** (`src/shared/Config/Wheel.luau`, shown as percentages adding to
+   100), the result is drawn on the server, and the game never shows or sells paid spins to a
+   player Roblox marks as restricted for paid random items (`PolicyService`
+   `ArePaidRandomItemsRestricted`; an error counts as restricted). Paste the two ids into
+   `Products.LoungeSpin.id` and `Products.LoungeSpin5.id`. Until then the window says "Available
+   soon" and the free daily spin still works.
 3. Creator Hub, Monetization, Passes: create these 7 (Managed Pricing is already on for passes)
    and paste each id: Corruption (6,666 R$), Syntax (9,999 R$), Admin Powers (12,000 R$),
-   Extra Ability Slot, Celestial Dragon Style, VIP (299 R$), Founders Collection (799 R$).
+   Extra Ability Slot (349 R$), Celestial Dragon Style (249 R$), VIP (299 R$), Founders Collection (799 R$).
 4. Upload the icon and thumbnails from `marketing/` (README there says which goes where).
 5. Play once in a live server: finish Jeffery's tour, play a match, buy one product in Studio's
    free test purchase, rejoin and check everything saved. Press P to open the Control Center.
@@ -40,9 +50,8 @@ the ids in chat and Claude will paste them, test and push.
     say which to add; the 52 licensed tracks already play by area.
 
 **Decisions only you can make**
-- The new directive says seven fighters; the game has eight (the Animal Shapeshifter too). Keep it?
-- It says four battlegrounds; there are five designs. Keep five?
-- Extra Ability Slot pass: keep it in ranked Duels, or casual modes only (fairer)?
+- Answered 4 Nov: the Animal Shapeshifter is held for a later update; five battlegrounds stay;
+  the Extra Ability Slot works in every mode.
 - More AI key art needs Higgsfield credits (0.92 left, not enough for one image).
 
 ## 3.1 Developer Products inventory
@@ -79,6 +88,17 @@ Three developer products, one per premium fighter, handled by the same `ProcessR
 | TrialAdmin "Admin Powers Trial" | 0: OWNER ACTION REQUIRED, paste over `Products.TrialAdmin.id` | 24 hours of Admin Powers, all three degrees, in every mode. Stacks up to 7 days. | 49 R$ | Name "Admin Powers Trial". Description: the `benefit` text in `Monetization.luau`. |
 
 The same 24 hour trial tickets are also free gifts in the holiday calendars (three days of each calendar: Corruption, Syntax and Admin), so players can try every premium fighter without paying.
+
+### Lounge wheel spin products (new, Spectating Lounge)
+
+Two developer products add spin credits (`PurchaseService:_grantWheelProduct`, the same idempotent, save-before-grant `ProcessReceipt` pattern: the PurchaseId and the credits are saved together, a failed save is rolled back, the player is told "granted" only after the save). The prize is drawn later by `WheelService` when the player spins, on the server, from the table in `src/shared/Config/Wheel.luau`.
+
+| Product | Product ID | Gives | Recommended price | Creator Hub name and description |
+|---|---|---|---|---|
+| LoungeSpin "Lounge Wheel Spin" | 0: OWNER ACTION REQUIRED, paste over `Products.LoungeSpin.id` | 1 spin on the Lounge wheel. | 25 R$ | Name "Lounge Wheel Spin". Description: the `benefit` text in `Monetization.luau` (it says the prize is random and where the odds are listed). |
+| LoungeSpin5 "Lounge Wheel Spins x5" | 0: OWNER ACTION REQUIRED, paste over `Products.LoungeSpin5.id` | 5 spins on the Lounge wheel. | 99 R$ | Name "Lounge Wheel Spins x5". Description: the `benefit` text in `Monetization.luau`. |
+
+Rule: odds are always shown (percentages, adding to 100, on the physical wheel and in the Wheel window, above the buy buttons). Free spin once per UTC day for everyone. Never offered to players for whom `ArePaidRandomItemsRestricted` is true (or unknown). Prizes: Money, small Gem amounts, 24 hour trials of Corruption, Syntax and Admin Powers, three wheel-exclusive cosmetics; an owned cosmetic or unusable trial pays `DuplicateMoney` instead. To change odds or prizes edit `Wheel.luau` only (keep the total at 100).
 
 No other developer products exist in the code. Starter Pack is not built (no matching benefits exist in code).
 
@@ -166,7 +186,7 @@ Unresolved: (1) the live behaviour of ProcessReceipt, regional prices and pass c
 ## 3.6 Final owner action checklist
 
 REQUIRED BEFORE PUBLICATION
-1. Create the 10 Developer Products (5 Gem packs, SeasonPremium, SeasonTierSkip, TrialCorruption, TrialSyntax, TrialAdmin) and 7 Game Passes (3 powers, Extra Ability Slot, Celestial Dragon Style, VIP, Founders Collection) in 3.1 and 3.2; paste every id into `Monetization.luau`. Suggested prices for the new items are in the tables above.
+1. Create the 12 Developer Products (5 Gem packs, SeasonPremium, SeasonTierSkip, TrialCorruption, TrialSyntax, TrialAdmin, LoungeSpin, LoungeSpin5) and 7 Game Passes (3 powers, Extra Ability Slot, Celestial Dragon Style, VIP, Founders Collection) in 3.1 and 3.2; paste every id into `Monetization.luau`. Suggested prices for the new items are in the tables above.
 2. Check each pass has Managed Pricing on; enable Managed Pricing for each product only after Dynamic Price Check passes.
 3. Run both Dynamic Price Check modes (Price pinned and Location pinned) and fix anything that does not update.
 4. Make real test purchases of every item; verify rewards, rejoin persistence, a cancelled purchase and an already-owned pass.

@@ -362,6 +362,9 @@ function ProgressionService:_payPlayer(player: Player, match, entry, won: boolea
 		end
 	end)
 	profile = self.data:get(player)
+	if self.services.CommunityService then
+		task.spawn(self.services.CommunityService.onMatchFinished, self.services.CommunityService, player)
+	end
 	local after = Powers.masteryLevel((profile.powers[powerId] and profile.powers[powerId].xp) or 0)
 	if after > before then
 		levelGems = (after - before) * Rewards.Match.LevelUpGems

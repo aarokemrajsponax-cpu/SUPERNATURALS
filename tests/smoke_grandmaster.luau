@@ -108,6 +108,8 @@ t.check("the ability bar shows Focus and Perfect Form next to Chi", function()
 		character.Parent = world.workspace
 		world.localPlayer.Character = character
 	end
+	-- The combat interface shows only where fighting is allowed (DECISIONS 42)
+	character:SetAttribute("SNCombatContext", "Training")
 	character:SetAttribute("SNPower", "Grandmaster")
 	character:SetAttribute("SNDegree", 4)
 	character:SetAttribute("SNLoadout", "DragonsStep,TigerClaw,CranesReversal,SweepingDragon,HundredFists,DragonsAnswer")

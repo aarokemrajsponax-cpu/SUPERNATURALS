@@ -20,7 +20,7 @@
 --                and round the room, steel mullions
 --
 -- WHERE THINGS ARE ATTACHED (read this before extending the room)
---   Refreshments (a later system): Model "RefreshmentsCounter" holds the Part
+--   Refreshments (RefreshmentService): Model "RefreshmentsCounter" holds the Part
 --   "RefreshmentsAttachment" (invisible, anchored, in front of the counter). It carries the
 --   attributes Station = "Refreshments" and Facing. Parent a ProximityPrompt or the menu logic
 --   to it. The menu panel "RefreshmentsMenu" (SurfaceGui, label "Status") is a placeholder.
@@ -35,18 +35,34 @@
 -- its text actually changed. `view` is documented at refresh.
 -- Prompts the client reads (WorldFxController) carry the attribute Action ("Window:Market",
 -- "Window:Archive", "Travel:Lobby"). Watch and Pick prompts call the hooks instead.
--- Part budget: Lounge.PartBudget (about 480 in practice). Nothing here moves.
+-- Part budget: Lounge.PartBudget (about 780 in practice). Only the wheel disc moves (WheelService).
+--
+-- SOCIAL UPGRADE (4 Nov; owner: a lounge for players who want to socialise without leaving home):
+--   tiered seating   three raised rows each side of a clear centre aisle, facing the main screen
+--   booths           two, at the north end, benches either side of a low table with a pendant lamp
+--   small screens    four on stands by the seats, live match data (same view as the big screen)
+--   photo corner     east wall: backdrop, two soft boxes and a warm spot over a floor mark
+--   games table      Quick Draw, a reaction duel for two (LoungeService runs it; earned Money only)
+--   wheel            south wall, west of the door: the Lounge wheel (WheelService); prompt Lounge:Wheel
+--   invite kiosk     south wall, east of the door (prompt Lounge:Invite) and a friends board
+--   highlights       east wall above the shop kiosk: the recent results
+--   plants and art   planters at the tiers and booths, four framed pieces on the south wall
+--   sit prompts      every Seat also carries a "Sit" prompt (key G), one visible at a time
+-- Refreshments counter: its prompt carries Action "Lounge:Refreshments" (client LoungeController).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Archive = require(ReplicatedStorage.Shared.Content.Archive)
 local Common = require(script.Parent.Parent.Arenas.Common)
+local RefreshmentsConfig = require(ReplicatedStorage.Shared.Config.Refreshments)
+local PowersList = require(ReplicatedStorage.Shared.Powers)
+local WheelArt = require(ReplicatedStorage.Shared.WheelArt)
 
 local Lounge = {}
 
 Lounge.Center = Vector3.new(0, 0, 700)
-Lounge.PartBudget = 620
+Lounge.PartBudget = 900
 Lounge.WatchPads = 4
 
 -- Owner uploads: image asset ids for the four Founders' Archive frames (0 = not uploaded yet).
@@ -69,7 +85,7 @@ local GRAPHITE = rgb(35, 39, 46)
 local FLOOR = rgb(26, 29, 35)
 local SEAM = rgb(12, 13, 16)
 local STEEL = rgb(138, 146, 156)
-local WALNUT = rgb(72, 50, 38)
+local WALNUT = rgb(86, 58, 40)
 local COPPER = rgb(184, 115, 63)
 local BRONZE = rgb(156, 122, 78)
 local AMBER = rgb(232, 162, 74)
@@ -77,13 +93,16 @@ local EMBER = rgb(226, 124, 58)
 local WARM = rgb(255, 214, 166)
 local CYAN = rgb(63, 214, 232)
 local TEXT = rgb(232, 238, 244)
-local MUTED = rgb(150, 160, 172)
+local MUTED = rgb(196, 202, 210)
 local COGNAC = rgb(128, 82, 54)
 local SLATE_BLUE = rgb(62, 78, 108)
 local MARBLE = rgb(34, 36, 42)
+local TIER_FABRIC = rgb(176, 138, 104)
+local TIER_PIPING = rgb(96, 52, 38)
 local IVORY = rgb(222, 214, 198)
 
 local FONT = "rbxasset://fonts/families/BuilderSans.json"
+local FONT_MONO = "rbxasset://fonts/families/RobotoMono.json"
 
 -- Geometry (local studs). The interior is x in [-HX, HX], z in [-HZ, HZ]
 local HX, HZ, HEIGHT = 50, 38, 24
@@ -120,6 +139,10 @@ end
 
 -- Text helpers -------------------------------------------------------------------------------------
 
+-- World text is bold and scales to its box, never above a cap about a third over the design size.
+-- Words are Builder Sans Bold (ExtraBold for headings), numbers RobotoMono Bold.
+local NUMBER_LABELS = { Index = true, PercentA = true, PercentB = true, Count = true }
+
 local function newLabel(parent: Instance, name: string, text: string, x: number, y: number, w: number, h: number, size: number, color: Color3, bold: boolean?, align: Enum.TextXAlignment?): TextLabel
 	local item = Instance.new("TextLabel")
 	item.Name = name
@@ -127,12 +150,18 @@ local function newLabel(parent: Instance, name: string, text: string, x: number,
 	item.Position = UDim2.fromScale(x, y)
 	item.Size = UDim2.fromScale(w, h)
 	item.Text = text
-	item.TextSize = size
+	item.TextScaled = true
 	item.TextColor3 = color
 	item.TextXAlignment = align or Enum.TextXAlignment.Left
 	item.TextYAlignment = Enum.TextYAlignment.Center
-	item.TextTruncate = Enum.TextTruncate.AtEnd
-	item.FontFace = Font.new(FONT, if bold then Enum.FontWeight.Bold else Enum.FontWeight.Medium)
+	if NUMBER_LABELS[name] then
+		item.FontFace = Font.new(FONT_MONO, Enum.FontWeight.Bold)
+	else
+		item.FontFace = Font.new(FONT, if bold then Enum.FontWeight.ExtraBold else Enum.FontWeight.Bold)
+	end
+	local cap = Instance.new("UITextSizeConstraint")
+	cap.MaxTextSize = math.floor(size * 1.35)
+	cap.Parent = item
 	item.Parent = parent
 	return item
 end
@@ -212,12 +241,21 @@ export type Hooks = {
 	watch: (player: Player, index: number) -> (),
 	-- A player pressed Pick on the prediction board: side 1 (fighter A) or 2 (fighter B)
 	predict: (player: Player, side: number) -> (),
+	-- A player pressed a Quick Draw buzzer: slot 1 (north stool) or 2 (south stool)
+	game: ((player: Player, slot: number) -> ())?,
 }
 
 export type Built = {
 	model: Model,
 	spawn: CFrame,
 	refresh: (view: any) -> (),
+	-- The turning disc of the Lounge wheel and its resting CFrame (WheelService turns it)
+	wheelDisc: BasePart?,
+	wheelBase: CFrame,
+	-- Quick Draw: { status = { text, text }, action = { text, text }, object = { text, text }, enabled = { bool, bool }, lamp = "idle" | "wait" | "go" | "done" }
+	setGame: (state: any) -> (),
+	-- Moves the idle screens on to the next fighter of the roster
+	cycle: () -> (),
 }
 
 function Lounge.build(parent: Instance, hooks: Hooks): Built
@@ -239,7 +277,10 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 		return item
 	end
 	local function strip(parentGroup: Instance, name: string, size: Vector3, where: Vector3 | CFrame, color: Color3): BasePart
-		return block(parentGroup, name, size, where, color, M.Neon, GHOST)
+		-- Accent lines are kept few, warm and dim: the room should read as a place to sit, not a console
+		local item = block(parentGroup, name, size, where, color:Lerp(rgb(40, 22, 10), 0.5), M.Neon, GHOST)
+		item.Transparency = 0.25
+		return item
 	end
 	local function prompt(owner: Instance, actionText: string, objectText: string, distance: number, action: string?): ProximityPrompt
 		local item = Instance.new("ProximityPrompt")
@@ -323,8 +364,6 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	local coves = group("Coves", shell)
 	strip(coves, "CoveN", Vector3.new(HX * 2 - 6, 0.2, 0.2), at(0, HEIGHT - 2.5, -HZ + 2.7), AMBER)
 	strip(coves, "CoveS", Vector3.new(HX * 2 - 6, 0.2, 0.2), at(0, HEIGHT - 2.5, HZ - 2.7), AMBER)
-	strip(coves, "CoveW", Vector3.new(0.2, 0.2, HZ * 2 - 6), at(-HX + 2.7, HEIGHT - 2.5, 0), AMBER)
-	strip(coves, "CoveE", Vector3.new(0.2, 0.2, HZ * 2 - 6), at(HX - 2.7, HEIGHT - 2.5, 0), AMBER)
 
 	-- Ceiling: four slabs round a glazed opening, glass, steel mullions, an amber rim cove
 	local OX, OZ0, OZ1 = 24, -26, 14
@@ -341,11 +380,6 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	for index = 1, 3 do
 		block(shell, "MullionX", Vector3.new(OX * 2, 0.7, 0.5), at(0, ceilingY, OZ0 + index * (OZ1 - OZ0) / 4), STEEL, M.Metal, GHOST)
 	end
-	strip(coves, "RimN", Vector3.new(OX * 2, 0.2, 0.2), at(0, HEIGHT - 0.2, OZ0 + 0.3), AMBER)
-	strip(coves, "RimS", Vector3.new(OX * 2, 0.2, 0.2), at(0, HEIGHT - 0.2, OZ1 - 0.3), AMBER)
-	strip(coves, "RimW", Vector3.new(0.2, 0.2, OZ1 - OZ0), at(-OX + 0.3, HEIGHT - 0.2, glassZ), AMBER)
-	strip(coves, "RimE", Vector3.new(0.2, 0.2, OZ1 - OZ0), at(OX - 0.3, HEIGHT - 0.2, glassZ), AMBER)
-
 	-- Warm light from the coves; a few small sources, no per-object glow
 	local lights = group("Lights", shell)
 	for index, spot in { { -36, -30 }, { 36, -30 }, { -36, 28 }, { 36, 28 }, { 0, -34 }, { 0, 32 }, { -40, 0 }, { 40, 0 } } do
@@ -359,7 +393,8 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	local seatCount = 0
 
 	local function glow(owner: Instance, size: Vector3, frame: CFrame)
-		strip(owner, "Underglow", size, frame, EMBER)
+		-- No under-furniture glow any more (less sci-fi); the argument list is kept for the callers
+		local _ = owner, size, frame
 	end
 
 	-- A sofa with `seats` seats, front towards -Z of `where`
@@ -468,7 +503,6 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	armchair("Chair_NorthEastB", face(44, -33.4, 44, -28.5), COGNAC)
 	lamp("Lamp_NorthEast", 47.5, -25)
 	planter("Planter_NorthEast", 48, -35)
-	lamp("Lamp_SouthDoorW", -12, 33)
 	lamp("Lamp_SouthDoorE", 12, 33)
 
 	-- Low bookshelf wall unit on the south-west wall: shelving with a few objects
@@ -493,9 +527,9 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 		local frame = CFrame.lookAt(at(x, y, wallFace), at(x, y, wallFace) + inward)
 		local item = group(name, viewing)
 		block(item, "Housing", Vector3.new(width + 3.2, height + 3, 1.2), frame, CHARCOAL, M.SmoothPlastic)
-		block(item, "BezelTop", Vector3.new(width + 3.2, 0.3, 0.3), frame * CFrame.new(0, (height + 3) / 2, 0.6), BRONZE, M.Metal, GHOST)
-		block(item, "BezelBottom", Vector3.new(width + 3.2, 0.3, 0.3), frame * CFrame.new(0, -(height + 3) / 2, 0.6), BRONZE, M.Metal, GHOST)
-		local glass = block(item, "Face", Vector3.new(width, height, 0.3), frame * CFrame.new(0, 0, 0.7), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
+		block(item, "BezelTop", Vector3.new(width + 3.2, 0.3, 0.3), frame * CFrame.new(0, (height + 3) / 2, -0.6), BRONZE, M.Metal, GHOST)
+		block(item, "BezelBottom", Vector3.new(width + 3.2, 0.3, 0.3), frame * CFrame.new(0, -(height + 3) / 2, -0.6), BRONZE, M.Metal, GHOST)
+		local glass = block(item, "Face", Vector3.new(width, height, 0.3), frame * CFrame.new(0, 0, -0.7), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
 		local gui = Instance.new("SurfaceGui")
 		gui.Name = name .. "Gui"
 		gui.Face = Enum.NormalId.Front
@@ -509,12 +543,12 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 		root.BackgroundColor3 = rgb(9, 14, 22)
 		root.BorderSizePixel = 0
 		root.Parent = gui
-		Common.surfaceLight(glass, Enum.NormalId.Front, CYAN, 22, 0.35, 120)
+		Common.surfaceLight(glass, Enum.NormalId.Front, WARM, 22, 0.3, 120)
 		return root
 	end
 
 	-- Amber pilasters between the screens (the bent light of the reference, kept straight)
-	for _, x in { -21.6, 21.6, -45.5, 45.5 } do
+	for _, x in { -21.6, 21.6 } do
 		strip(viewing, "Pilaster", Vector3.new(0.25, 17, 0.4), at(x, 10, wallFace + 0.1), AMBER)
 	end
 	block(viewing, "WallBase", Vector3.new(HX * 2, 1.2, 1.4), at(0, 0.6, -HZ + 0.8), CHARCOAL, M.SmoothPlastic)
@@ -539,11 +573,11 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	idleFrame.BackgroundTransparency = 1
 	idleFrame.Size = UDim2.fromScale(1, 1)
 	idleFrame.Parent = main
-	screens.idleTitle = newLabel(idleFrame, "Title", "NO MATCH IN PROGRESS", 0.03, 0.08, 0.94, 0.2, 38, CYAN, true)
-	screens.idleLines = newLabel(idleFrame, "Lines", "", 0.03, 0.32, 0.94, 0.6, 26, TEXT, false)
+	screens.idleTitle = newLabel(idleFrame, "Title", "NO MATCH IN PROGRESS", 0.03, 0.05, 0.94, 0.2, 60, CYAN, true)
+	screens.idleName = newLabel(idleFrame, "Fighter", "", 0.03, 0.27, 0.94, 0.34, 120, TEXT, true, Enum.TextXAlignment.Center)
+	screens.idleTag = newLabel(idleFrame, "Tagline", "", 0.03, 0.62, 0.94, 0.14, 48, TEXT, false, Enum.TextXAlignment.Center)
+	screens.idleLines = newLabel(idleFrame, "Lines", "", 0.03, 0.79, 0.94, 0.18, 30, MUTED, false, Enum.TextXAlignment.Center)
 	screens.idleLines.TextWrapped = true
-	screens.idleLines.TextYAlignment = Enum.TextYAlignment.Top
-	screens.idleLines.TextTruncate = Enum.TextTruncate.None
 	screens.liveFrame, screens.idleFrame = liveFrame, idleFrame
 
 	-- Match list (left): four rows with Watch pads below
@@ -660,20 +694,29 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 		end
 	end
 	strip(counter, "ShelfLight", Vector3.new(0.2, 0.15, 24), at(48.9, 9.5, -7), AMBER)
-	local menuFace = block(counter, "RefreshmentsMenu", Vector3.new(14, 4, 0.3), CFrame.lookAt(at(49, 13, -7), at(49, 13, -7) + Vector3.new(-1, 0, 0)), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
+	local menuFace = block(counter, "RefreshmentsMenu", Vector3.new(14, 7, 0.3), CFrame.lookAt(at(49, 13.5, -7), at(49, 13.5, -7) + Vector3.new(-1, 0, 0)), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
 	local menuGui = Instance.new("SurfaceGui")
 	menuGui.Name = "MenuGui"
 	menuGui.Face = Enum.NormalId.Front
 	menuGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	menuGui.PixelsPerStud = 32
+	menuGui.PixelsPerStud = 40
 	menuGui.LightInfluence = 0
 	menuGui.Parent = menuFace
-	newLabel(menuGui, "Title", "REFRESHMENTS", 0.04, 0.08, 0.92, 0.38, 40, CYAN, true)
-	newLabel(menuGui, "Status", "Counter opens soon", 0.04, 0.52, 0.92, 0.34, 28, TEXT, false)
+	newLabel(menuGui, "Title", "REFRESHMENTS", 0.04, 0.04, 0.92, 0.2, 40, CYAN, true)
+	local menuLines = {}
+	for _, item in RefreshmentsConfig.Items do
+		table.insert(menuLines, `{item.name}  {item.price} Money`)
+	end
+	local menuText = newLabel(menuGui, "Status", table.concat(menuLines, "\n"), 0.04, 0.24, 0.92, 0.56, 26, TEXT, false)
+	menuText.TextWrapped = true
+	menuText.TextYAlignment = Enum.TextYAlignment.Top
+	menuText.TextTruncate = Enum.TextTruncate.None
+	newLabel(menuGui, "Note", "Bought with Money you earned. Effects fade on their own.", 0.04, 0.8, 0.92, 0.14, 20, MUTED, false)
 	local attach = block(counter, "RefreshmentsAttachment", Vector3.new(1, 1, 1), CFrame.lookAt(at(41, 1.5, -7), at(41, 1.5, -7) + Vector3.new(-1, 0, 0)), CHARCOAL, M.SmoothPlastic, GHOST)
 	attach.Transparency = 1
 	attach:SetAttribute("Station", "Refreshments")
 	attach:SetAttribute("Facing", "West")
+	prompt(attach, "Order", "Refreshments", 10, "Lounge:Refreshments")
 
 	-- Shop kiosk by the south-east corner
 	local kiosk = group("ShopKiosk")
@@ -688,7 +731,7 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	kioskGui.PixelsPerStud = 60
 	kioskGui.LightInfluence = 0
 	kioskGui.Parent = kioskFace
-	newLabel(kioskGui, "Title", "MASTER SHOP", 0.06, 0.1, 0.88, 0.3, 24, CYAN, true)
+	newLabel(kioskGui, "Title", "MASTER SHOP", 0.06, 0.1, 0.88, 0.3, 24, AMBER, true)
 	newLabel(kioskGui, "Body", "Powers, cosmetics and passes", 0.06, 0.45, 0.88, 0.4, 18, TEXT, false).TextWrapped = true
 	block(kiosk, "Canopy", Vector3.new(3.8, 0.3, 3.8), kioskFrame * CFrame.new(0, 5.8, 0), BRONZE, M.Metal)
 	strip(kiosk, "CanopyGlow", Vector3.new(3.4, 0.15, 3.4), kioskFrame * CFrame.new(0, 5.6, 0), AMBER)
@@ -763,7 +806,7 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 		plate.TextWrapped = true
 		plate.TextTruncate = Enum.TextTruncate.None
 		plate.Visible = id == 0 and studio
-		local plaque = block(item, "Plaque", Vector3.new(4.4, 0.8, 0.2), look * CFrame.new(0, -4.5, 0.1), BRONZE, M.Metal)
+		local plaque = block(item, "Plaque", Vector3.new(5.4, 1.3, 0.2), look * CFrame.new(0, -4.8, 0.1), BRONZE, M.Metal)
 		Common.sign(plaque, Enum.NormalId.Front, entry.caption, rgb(24, 18, 12), 40, 1)
 	end
 
@@ -799,15 +842,522 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 		local spot = block(item, "Spot", Vector3.new(1.2, 0.4, 1.2), at(x, HEIGHT - 3.2, entry.z), CHARCOAL, M.Metal, GHOST)
 		Common.spotLight(spot, Enum.NormalId.Bottom, WARM, 26, 2.2, 38, false)
 	end
-	-- Lectern: the book opens the Archive window
+	-- Lectern: the reading corner. A walnut lectern on a rug under a warm spot, the open book on a
+	-- bronze slope, a brass reading lamp, two planters and a floor plate with the name. The book's
+	-- prompt opens the Archive window. The reader stands on the room side (+X), facing the panels.
 	do
-		local look = CFrame.lookAt(at(-39.5, 0, 0), at(-39.5, 0, 0) + Vector3.new(1, 0, 0))
+		local base = at(-38.5, 0, 0)
+		local f = CFrame.lookAt(base, base + Vector3.new(-1, 0, 0))
 		local lectern = group("Lectern", archive)
-		block(lectern, "Column", Vector3.new(1.6, 3.2, 2.6), look * CFrame.new(0, 1.6, 0), WALNUT, M.WoodPlanks)
-		block(lectern, "Desk", Vector3.new(2.4, 0.3, 3.2), look * CFrame.new(0.1, 3.4, 0) * CFrame.Angles(0, 0, math.rad(12)), BRONZE, M.Metal)
-		local book = block(lectern, "Book", Vector3.new(1.8, 0.3, 2.6), look * CFrame.new(0.15, 3.75, 0) * CFrame.Angles(0, 0, math.rad(12)), rgb(70, 36, 30), M.Fabric)
-		block(lectern, "Pages", Vector3.new(1.6, 0.15, 2.4), look * CFrame.new(0.15, 3.95, 0) * CFrame.Angles(0, 0, math.rad(12)), IVORY, M.SmoothPlastic, GHOST)
+		local slope = CFrame.Angles(math.rad(22), 0, 0)
+		block(lectern, "Rug", Vector3.new(9, 0.06, 8), f * CFrame.new(0, 0.03, 1.5), rgb(112, 70, 52), M.Fabric, GHOST)
+		block(lectern, "Plinth", Vector3.new(4.6, 0.3, 4.2), f * CFrame.new(0, 0.2, 0), BRONZE, M.Metal)
+		block(lectern, "Column", Vector3.new(1.8, 3, 1.6), f * CFrame.new(0, 1.8, 0), WALNUT, M.WoodPlanks)
+		block(lectern, "Desk", Vector3.new(3.4, 0.3, 2.6), f * CFrame.new(0, 3.5, 0) * slope, BRONZE, M.Metal)
+		block(lectern, "DeskLip", Vector3.new(3.4, 0.25, 0.25), f * CFrame.new(0, 3.2, 1.2), BRONZE, M.Metal, GHOST)
+		local book = block(lectern, "Book", Vector3.new(2.8, 0.25, 2.1), f * CFrame.new(0, 3.72, 0) * slope, rgb(96, 36, 32), M.Fabric)
+		block(lectern, "PagesLeft", Vector3.new(1.25, 0.16, 1.8), f * CFrame.new(-0.66, 3.86, 0.02) * slope, IVORY, M.SmoothPlastic, GHOST)
+		block(lectern, "PagesRight", Vector3.new(1.25, 0.16, 1.8), f * CFrame.new(0.66, 3.86, 0.02) * slope, IVORY, M.SmoothPlastic, GHOST)
+		-- Brass reading lamp on the desk's far edge, and a warm spot from the ceiling
+		block(lectern, "LampStem", Vector3.new(0.14, 1.6, 0.14), f * CFrame.new(1.4, 4.4, -1.1), BRONZE, M.Metal, GHOST)
+		local shade = block(lectern, "LampShade", Vector3.new(0.9, 0.5, 0.9), f * CFrame.new(1.4, 5.3, -1.1), WARM, M.Neon, GHOST)
+		shade.Transparency = 0.2
+		Common.light(shade, WARM, 18, 0.9, false)
+		local fixture = block(lectern, "Spot", Vector3.new(1.4, 0.4, 1.4), CFrame.new(at(-38.5, HEIGHT - 3.2, 0)), CHARCOAL, M.Metal, GHOST)
+		Common.spotLight(fixture, Enum.NormalId.Bottom, WARM, 30, 2.6, 40, false)
+		-- Floor plate, readable as you walk up
+		local plate = block(lectern, "NamePlate", Vector3.new(7, 0.08, 1.6), f * CFrame.new(0, 0.1, 3.8) * CFrame.Angles(0, math.pi, 0), CHARCOAL, M.SmoothPlastic, GHOST)
+		local plateGui = Instance.new("SurfaceGui")
+		plateGui.Name = "NameGui"
+		plateGui.Face = Enum.NormalId.Top
+		plateGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		plateGui.PixelsPerStud = 50
+		plateGui.LightInfluence = 0
+		plateGui.Parent = plate
+		newLabel(plateGui, "Title", "THE MERIDIAN ARCHIVE", 0.04, 0.06, 0.92, 0.88, 40, WARM, true, Enum.TextXAlignment.Center)
+		-- Planters either side
+		for _, side in { -1, 1 } do
+			local spot = f * CFrame.new(side * 4.2, 0, 0.6)
+			block(lectern, "PlanterBox", Vector3.new(2.6, 1.8, 2.6), spot * CFrame.new(0, 0.9, 0), WALNUT, M.WoodPlanks, GHOST)
+			Common.ball(lectern, "Leaves", spot.Position + Vector3.new(0, 3, 0), 3, rgb(70, 118, 68), M.Fabric, GHOST)
+			Common.ball(lectern, "Leaves", spot.Position + Vector3.new(0.5, 3.9, 0.3), 2, rgb(92, 140, 80), M.Fabric, GHOST)
+		end
 		prompt(book, "Read the Archive", "The Meridian Archive", 10, "Window:Archive")
+	end
+
+	-- Social upgrade (4 Nov): tiers, booths, small screens, photo corner, games table, wheel, kiosks ---------
+	local Wheel = require(ReplicatedStorage.Shared.Config.Wheel)
+	local social = group("Social")
+
+	-- Tiered seating facing the main screen: three raised rows each side of a clear centre aisle
+	do
+		local tiers = group("TieredSeating", social)
+		for _, side in { -1, 1 } do
+			local cx = side * 12.5
+			for tier = 1, 3 do
+				local h = tier * 0.6
+				local z = 13.8 + (tier - 1) * 4.2
+				local row = group("Tier" .. tier .. (if side < 0 then "W" else "E"), tiers)
+				block(row, "Platform", Vector3.new(12, h, 4.2), at(cx, h / 2, z), GRAPHITE, M.Slate)
+				block(row, "Edge", Vector3.new(11.8, 0.12, 0.14), at(cx, h + 0.02, z - 2.12), BRONZE, M.Metal, GHOST)
+				block(row, "Bench", Vector3.new(11.6, 1.0, 3), at(cx, h + 0.5, z - 0.1), WALNUT, M.WoodPlanks)
+				block(row, "Backrest", Vector3.new(11.6, 2.2, 0.4), at(cx, h + 2.1, z + 1.9), WALNUT, M.WoodPlanks)
+				-- A sofa row: a cushion, a back cushion and piping for each place, and an arm at each end
+				for index = 1, 4 do
+					local x = cx + (index - 2.5) * 3
+					seatCount += 1
+					block(row, "Seat", Vector3.new(2.7, 0.7, 2.6), at(x, h + 1.35, z - 0.1), TIER_FABRIC, M.Fabric, { ClassName = "Seat" })
+					block(row, "BackCushion", Vector3.new(2.6, 1.7, 0.7), CFrame.new(at(x, h + 2.25, z + 1.4)) * CFrame.Angles(math.rad(-8), 0, 0), TIER_FABRIC, M.Fabric, GHOST)
+					block(row, "Piping", Vector3.new(2.6, 0.08, 0.08), at(x, h + 1.72, z - 1.42), TIER_PIPING, M.Metal, GHOST)
+				end
+				for end_ = -1, 1, 2 do
+					block(row, "Arm", Vector3.new(0.7, 1.9, 3.2), at(cx + end_ * 5.95, h + 1.6, z), TIER_FABRIC, M.Fabric)
+				end
+			end
+		end
+	end
+
+	-- Booths: two benches facing each other across a low table, a pendant lamp above
+	local function booth(name: string, x: number, z: number)
+		local item = group(name, social)
+		rug(name .. "Rug", x, z, 9)
+		for _, side in { -1, 1 } do
+			local bx = x + side * 3.4
+			local toward = CFrame.lookAt(at(bx, 0, z), at(x, 0, z))
+			block(item, "BenchBase", Vector3.new(5.6, 1.2, 3.4), toward * CFrame.new(0, 0.85, 0), CHARCOAL, M.SmoothPlastic)
+			block(item, "BenchBack", Vector3.new(5.6, 4.2, 0.9), toward * CFrame.new(0, 3, 1.35), COGNAC, M.Fabric)
+			for index = 1, 2 do
+				seatCount += 1
+				block(item, "Seat", Vector3.new(2.4, 0.7, 2.5), toward * CFrame.new((index - 1.5) * 2.7, 1.8, -0.2) * CFrame.Angles(0, 0, 0), COGNAC, M.Fabric, { ClassName = "Seat" })
+			end
+		end
+		Common.cylinder(item, "TableStem", CFrame.new(at(x, 0.9, z)), 1.8, 0.7, GRAPHITE, M.Metal)
+		Common.cylinder(item, "TableTop", CFrame.new(at(x, 2, z)), 0.3, 3.6, MARBLE, M.Marble, { Reflectance = 0.2 })
+		Common.cylinder(item, "TableEdge", CFrame.new(at(x, 1.85, z)), 0.1, 3.7, COPPER, M.Metal, GHOST)
+		block(item, "PendantCord", Vector3.new(0.1, 8, 0.1), at(x, 17.5, z), STEEL, M.Metal, GHOST)
+		local shade = Common.cylinder(item, "PendantShade", CFrame.new(at(x, 13.2, z)), 1.2, 2.2, AMBER, M.Neon, { Transparency = 0.2, CanCollide = false, CastShadow = false })
+		lightOn(shade, WARM, 22, 0.8)
+	end
+	booth("Booth_West", -24, -24)
+	booth("Booth_East", 24, -24)
+
+	-- Small match screens near the seats: the same live data as the big screen
+	local miniScreens = {}
+	local function miniScreen(name: string, x: number, z: number)
+		local item = group(name, social)
+		local frame = CFrame.lookAt(at(x, 0, z), at(x, 0, z) + Vector3.new(0, 0, 1))
+		block(item, "Foot", Vector3.new(2.6, 0.4, 2), frame * CFrame.new(0, 0.2, 0), GRAPHITE, M.Metal)
+		block(item, "Pole", Vector3.new(0.5, 6.4, 0.5), frame * CFrame.new(0, 3.4, 0.2), STEEL, M.Metal)
+		block(item, "Housing", Vector3.new(9.4, 5.4, 0.7), frame * CFrame.new(0, 8.6, 0), CHARCOAL, M.SmoothPlastic)
+		block(item, "Bezel", Vector3.new(9.4, 0.2, 0.2), frame * CFrame.new(0, 11.4, -0.3), BRONZE, M.Metal, GHOST)
+		local face = block(item, "Face", Vector3.new(8.8, 4.8, 0.2), frame * CFrame.new(0, 8.6, -0.4), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "MiniGui"
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 0
+		gui.Parent = face
+		local root = Instance.new("Frame")
+		root.Name = "Root"
+		root.Size = UDim2.fromScale(1, 1)
+		root.BackgroundColor3 = rgb(9, 14, 22)
+		root.BorderSizePixel = 0
+		root.Parent = gui
+		local detail = newLabel(root, "Detail", "", 0.05, 0.54, 0.9, 0.42, 34, MUTED, true)
+		detail.TextWrapped = true
+		detail.TextYAlignment = Enum.TextYAlignment.Top
+		table.insert(miniScreens, {
+			title = newLabel(root, "Title", "", 0.05, 0.06, 0.9, 0.46, 60, TEXT, true),
+			detail = detail,
+		})
+	end
+	miniScreen("MiniScreen_CentreW", -23, -14)
+	miniScreen("MiniScreen_CentreE", 23, -14)
+	miniScreen("MiniScreen_SideW", -30, -3)
+	miniScreen("MiniScreen_SideE", 30, -3)
+
+	-- Photo corner on the east wall: a backdrop, two soft boxes and a warm spot, and a mark to stand on
+	do
+		local photo = group("PhotoCorner", social)
+		local PX, PZ = 44, 15.5
+		block(photo, "Backdrop", Vector3.new(0.4, 10, 11), at(49.5, 5.2, PZ), NAVY_SOFT, M.Fabric)
+		block(photo, "BackdropFrame", Vector3.new(0.5, 10.6, 11.6), at(49.6, 5.2, PZ), BRONZE, M.Metal, GHOST)
+		Common.cylinder(photo, "Mark", CFrame.new(at(PX, 0.08, PZ)), 0.1, 3.2, COPPER, M.Metal, GHOST)
+		Common.cylinder(photo, "MarkInner", CFrame.new(at(PX, 0.12, PZ)), 0.1, 2.4, CHARCOAL, M.SmoothPlastic, GHOST)
+		for _, dz in { -6, 6 } do
+			local base = at(PX - 2.5, 0, PZ + dz)
+			block(photo, "SoftboxStand", Vector3.new(0.3, 6.2, 0.3), base + Vector3.new(0, 3.1, 0), STEEL, M.Metal)
+			block(photo, "SoftboxFoot", Vector3.new(2.4, 0.3, 2.4), base + Vector3.new(0, 0.15, 0), GRAPHITE, M.Metal)
+			local box = block(photo, "Softbox", Vector3.new(0.4, 2.8, 1.8), CFrame.lookAt(base + Vector3.new(0, 6.6, 0), at(PX, 5, PZ)), WARM, M.Neon, { CastShadow = false })
+			box.Transparency = 0.4
+			Common.spotLight(box, Enum.NormalId.Front, WARM, 26, 1.4, 70, false)
+		end
+		local fixture = block(photo, "Spot", Vector3.new(1.4, 0.4, 1.4), CFrame.new(at(PX, HEIGHT - 3.2, PZ)), CHARCOAL, M.Metal, GHOST)
+		Common.spotLight(fixture, Enum.NormalId.Bottom, WARM, 30, 2.2, 35, false)
+		local plate = block(photo, "Plate", Vector3.new(5.6, 0.08, 1.4), CFrame.new(at(PX - 4.6, 0.1, PZ)) * CFrame.Angles(0, math.rad(90), 0), CHARCOAL, M.SmoothPlastic, GHOST)
+		Common.sign(plate, Enum.NormalId.Top, "PHOTO CORNER", WARM, 40, 0)
+		planter("Planter_PhotoN", 46, 9.5)
+		planter("Planter_PhotoS", 46, 21.5)
+	end
+
+	-- Games table: Quick Draw, a reaction duel for two (rules and rewards in Config/Lounge)
+	local gameDisplay = { status = {}, buzzers = {} }
+	local gameLamp: BasePart? = nil
+	do
+		local table_ = group("GamesTable", social)
+		local GX, GZ = -31, 24
+		rug("Rug_Games", GX, GZ, 9)
+		Common.cylinder(table_, "Base", CFrame.new(at(GX, 0.2, GZ)), 0.4, 3, GRAPHITE, M.Metal)
+		block(table_, "Stem", Vector3.new(1, 2.2, 1), at(GX, 1.4, GZ), GRAPHITE, M.Metal)
+		block(table_, "Top", Vector3.new(6.4, 0.4, 3.4), at(GX, 2.6, GZ), MARBLE, M.Marble, { Reflectance = 0.2 })
+		block(table_, "TopTrim", Vector3.new(6.5, 0.12, 3.5), at(GX, 2.35, GZ), COPPER, M.Metal, GHOST)
+		for slot = 1, 2 do
+			local dz = if slot == 1 then -3.6 else 3.6
+			local toward = CFrame.lookAt(at(GX, 0, GZ + dz), at(GX, 0, GZ))
+			block(table_, "StoolPost", Vector3.new(0.5, 1.5, 0.5), toward * CFrame.new(0, 0.9, 0), STEEL, M.Metal)
+			seatCount += 1
+			block(table_, "Seat", Vector3.new(2.2, 0.7, 2.2), toward * CFrame.new(0, 1.9, 0), COGNAC, M.Fabric, { ClassName = "Seat" })
+			local buzzer = block(table_, "Buzzer" .. slot, Vector3.new(1.6, 0.3, 1.6), at(GX, 2.95, GZ + (if slot == 1 then -0.9 else 0.9)), BRONZE, M.Metal)
+			buzzer:SetAttribute("Slot", slot)
+			gameDisplay.buzzers[slot] = buzzer
+			local strip_ = block(table_, "Status" .. slot, Vector3.new(4.6, 0.08, 0.9), at(GX + 0.0, 2.84, GZ + (if slot == 1 then -1.45 else 1.45)) , rgb(8, 12, 18), M.SmoothPlastic, GHOST)
+			local gui = Instance.new("SurfaceGui")
+			gui.Name = "StatusGui"
+			gui.Face = Enum.NormalId.Top
+			gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			gui.PixelsPerStud = 40
+			gui.LightInfluence = 0
+			gui.Parent = strip_
+			local label = newLabel(gui, "Status", "Quick Draw: sit down to play", 0.03, 0.05, 0.94, 0.9, 22, TEXT, true, Enum.TextXAlignment.Center)
+			-- The strip nearest the north stool is read from the north, so turn it to face that stool
+			if slot == 1 then
+				gui.Face = Enum.NormalId.Top
+				strip_.CFrame = strip_.CFrame * CFrame.Angles(0, math.pi, 0)
+			end
+			gameDisplay.status[slot] = label
+		end
+		block(table_, "LampStem", Vector3.new(0.2, 1.4, 0.2), at(GX, 3.7, GZ), STEEL, M.Metal, GHOST)
+		local lamp_ = Common.ball(table_, "SignalLamp", at(GX, 4.7, GZ), 1.4, rgb(90, 96, 104), M.Neon, { CanCollide = false })
+		gameLamp = lamp_
+		lightOn(lamp_, WARM, 12, 0.4)
+		local sign_ = block(table_, "Sign", Vector3.new(4.6, 1, 0.12), at(GX - 4.6, 2.4, GZ), CHARCOAL, M.SmoothPlastic, GHOST)
+		Common.sign(sign_, Enum.NormalId.Front, "QUICK DRAW", AMBER, 40, 0)
+		for slot = 1, 2 do
+			local buzzer = gameDisplay.buzzers[slot]
+			local item = prompt(buzzer, "Play", "Quick Draw", 9, nil)
+			item.Triggered:Connect(function(player: Player)
+				if hooks.game then
+					hooks.game(player, slot)
+				end
+			end)
+			gameDisplay.buzzers[slot] = item
+		end
+	end
+
+	-- The Lounge wheel against the south wall west of the door: one round disc that turns, a pointer
+	-- that does not, a plinth sign with the rule, and a pad with the prompt that opens the Wheel window
+	local wheelDisc: BasePart? = nil
+	local wheelBase: CFrame = CFrame.new()
+	do
+		local wheel = group("LoungeWheel", social)
+		local WX, WZ, WY, RADIUS = -22, HZ - 3, 8.2, 4.6
+		local facing = CFrame.fromMatrix(at(WX, WY, WZ - 0.9), Vector3.new(0, 0, -1), Vector3.new(0, 1, 0))
+		wheelBase = facing
+		block(wheel, "Plinth", Vector3.new(9, 2.4, 4), at(WX, 1.2, WZ), GRAPHITE, M.Slate)
+		block(wheel, "PlinthTrim", Vector3.new(9.2, 0.15, 4.2), at(WX, 2.45, WZ), BRONZE, M.Metal, GHOST)
+		for _, side in { -1, 1 } do
+			block(wheel, "Post", Vector3.new(0.9, 13.5, 0.9), at(WX + side * 5.6, 6.9, WZ + 0.5), CHARCOAL, M.SmoothPlastic)
+			block(wheel, "PostCap", Vector3.new(1.2, 0.3, 1.2), at(WX + side * 5.6, 13.8, WZ + 0.5), BRONZE, M.Metal, GHOST)
+		end
+		block(wheel, "Beam", Vector3.new(12.2, 0.9, 0.9), at(WX, 13.3, WZ + 0.5), CHARCOAL, M.SmoothPlastic)
+		block(wheel, "Backing", Vector3.new(11.4, 11.4, 0.4), at(WX, WY, WZ + 1.4), rgb(10, 16, 26), M.SmoothPlastic)
+		local sign_ = block(wheel, "TitleSign", Vector3.new(8, 1.4, 0.2), at(WX, 15.1, WZ + 0.1), CHARCOAL, M.SmoothPlastic, GHOST)
+		Common.sign(sign_, Enum.NormalId.Front, "LOUNGE WHEEL", AMBER, 40, 0)
+		local disc = Common.block(wheel, "Disc", Vector3.new(0.6, RADIUS * 2, RADIUS * 2), facing, CHARCOAL, M.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+		wheelDisc = disc
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "WheelGui"
+		gui.Face = Enum.NormalId.Right
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 50
+		gui.LightInfluence = 0
+		gui.Parent = disc
+		local face = Instance.new("Frame")
+		face.Name = "Face"
+		face.Size = UDim2.fromScale(1, 1)
+		face.BackgroundColor3 = rgb(10, 14, 22)
+		face.BorderSizePixel = 0
+		face.Parent = gui
+		WheelArt.mount(face, { font = Font.new(FONT, Enum.FontWeight.ExtraBold), maxText = 90 })
+		Common.cylinder(wheel, "Hub", CFrame.new(at(WX, WY, WZ - 1.3)) * CFrame.Angles(math.rad(90), 0, 0), 0.5, 1.2, BRONZE, M.Metal)
+		-- Fixed pointer at the top, pointing down into the segment
+		local pointer = block(wheel, "Pointer", Vector3.new(1.1, 1.1, 0.4), CFrame.new(at(WX, WY + RADIUS + 0.2, WZ - 1.3)) * CFrame.Angles(0, 0, math.rad(45)), AMBER, M.Neon, GHOST)
+		pointer.Name = "Pointer"
+		-- A ring of bulbs round the rim
+		for bulb = 1, 16 do
+			local angle = math.rad((bulb - 0.5) * 360 / 16)
+			local bx, by = math.sin(angle) * (RADIUS + 0.55), math.cos(angle) * (RADIUS + 0.55)
+			Common.ball(wheel, "Bulb", at(WX + bx, WY + by, WZ - 1.3), 0.45, WARM, M.Neon, GHOST)
+		end
+		local keep = block(wheel, "RuleSign", Vector3.new(8, 1, 0.12), at(WX, 1.75, WZ - 2.02), CHARCOAL, M.SmoothPlastic, GHOST)
+		Common.sign(keep, Enum.NormalId.Front, "FREE SPIN EVERY DAY", WARM, 36, 0)
+		local odds = block(wheel, "OddsSign", Vector3.new(8, 0.8, 0.12), at(WX, 0.75, WZ - 2.02), CHARCOAL, M.SmoothPlastic, GHOST)
+		Common.sign(odds, Enum.NormalId.Front, "ODDS ARE ON THE WHEEL", MUTED, 36, 0)
+		local padBlock = block(wheel, "Pad", Vector3.new(4, 0.2, 1.6), at(WX, 0.12, WZ - 3.4), BRONZE, M.Metal)
+		prompt(padBlock, "Spin the wheel", "Lounge Wheel", 10, "Lounge:Wheel")
+		local glowPart = block(wheel, "Glow", Vector3.new(1, 0.4, 1), at(WX, WY + 3, WZ - 3), AMBER, M.SmoothPlastic, GHOST)
+		glowPart.Transparency = 1
+		lightOn(glowPart, WARM, 26, 0.7)
+	end
+
+	-- The odds board beside the wheel: every prize with its chance, large, totalling 100%
+	do
+		local board = group("WheelLegend", social)
+		local bf = CFrame.lookAt(at(-10.4, 0, HZ - 0.6), at(-10.4, 0, HZ - 0.6) + Vector3.new(0, 0, -1))
+		block(board, "Housing", Vector3.new(10.4, 12.4, 0.8), bf * CFrame.new(0, 8.6, 0), CHARCOAL, M.SmoothPlastic)
+		block(board, "Bezel", Vector3.new(10.4, 0.25, 0.25), bf * CFrame.new(0, 14.9, -0.5), BRONZE, M.Metal, GHOST)
+		block(board, "BezelLow", Vector3.new(10.4, 0.25, 0.25), bf * CFrame.new(0, 2.3, -0.5), BRONZE, M.Metal, GHOST)
+		local bface = block(board, "Face", Vector3.new(9.8, 11.8, 0.2), bf * CFrame.new(0, 8.6, -0.5), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
+		local bgui = Instance.new("SurfaceGui")
+		bgui.Name = "LegendGui"
+		bgui.Face = Enum.NormalId.Front
+		bgui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		bgui.PixelsPerStud = 56
+		bgui.LightInfluence = 0
+		bgui.Parent = bface
+		newLabel(bgui, "Title", "WHEEL PRIZES AND CHANCES", 0.05, 0.02, 0.9, 0.07, 40, AMBER, true)
+		for index, prize in Wheel.Prizes do
+			local y = 0.1 + (index - 1) * 0.0635
+			local c = Wheel.KindColors[prize.kind]
+			local tint = rgb(c[1], c[2], c[3])
+			local swatch = Instance.new("Frame")
+			swatch.Name = "Swatch" .. index
+			swatch.Position = UDim2.fromScale(0.05, y + 0.008)
+			swatch.Size = UDim2.fromScale(0.03, 0.046)
+			swatch.BackgroundColor3 = tint
+			swatch.BorderSizePixel = 0
+			swatch.Parent = bgui
+			newLabel(bgui, "Prize" .. index, prize.board or prize.label, 0.11, y, 0.6, 0.0585, 34, TEXT, true)
+			newLabel(bgui, "Chance" .. index, `{prize.percent}%`, 0.7, y, 0.25, 0.0585, 34, tint, true, Enum.TextXAlignment.Right)
+		end
+		newLabel(bgui, "Total", `Total {Wheel.total()}%`, 0.05, 0.875, 0.9, 0.05, 30, MUTED, true)
+		newLabel(bgui, "Rule", "Free spin every day. Duplicates pay Money.", 0.05, 0.93, 0.9, 0.05, 24, MUTED, false)
+	end
+
+	-- Invite friends kiosk and the friends board, on the other side of the door
+	do
+		local invite = group("InviteKiosk", social)
+		local frame = CFrame.lookAt(at(22, 0, HZ - 3), at(22, 0, HZ - 3) + Vector3.new(0, 0, -1))
+		block(invite, "Base", Vector3.new(3.4, 0.6, 3.4), frame * CFrame.new(0, 0.3, 0), GRAPHITE, M.Metal)
+		block(invite, "Column", Vector3.new(2.6, 5, 2.6), frame * CFrame.new(0, 3.1, 0), CHARCOAL, M.SmoothPlastic)
+		local face = block(invite, "Face", Vector3.new(2.2, 3.2, 0.2), frame * CFrame.new(0, 3.5, -1.35), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "KioskGui"
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 60
+		gui.LightInfluence = 0
+		gui.Parent = face
+		newLabel(gui, "Title", "INVITE FRIENDS", 0.06, 0.1, 0.88, 0.3, 24, CYAN, true)
+		newLabel(gui, "Body", "Ask a friend to join you here", 0.06, 0.45, 0.88, 0.4, 18, TEXT, false).TextWrapped = true
+		block(invite, "Canopy", Vector3.new(3.8, 0.3, 3.8), frame * CFrame.new(0, 5.8, 0), BRONZE, M.Metal)
+		strip(invite, "CanopyGlow", Vector3.new(3.4, 0.15, 3.4), frame * CFrame.new(0, 5.6, 0), CYAN)
+		local pad = block(invite, "Pad", Vector3.new(2.2, 0.2, 1.4), frame * CFrame.new(0, 0.7, -2.3), BRONZE, M.Metal)
+		prompt(pad, "Invite friends", "Invite kiosk", 10, "Lounge:Invite")
+
+		local board = group("FriendsBoard", social)
+		local bf = CFrame.lookAt(at(22, 0, HZ - 0.6), at(22, 0, HZ - 0.6) + Vector3.new(0, 0, -1))
+		block(board, "Housing", Vector3.new(13, 5.6, 0.8), bf * CFrame.new(0, 8.5, 0), CHARCOAL, M.SmoothPlastic)
+		block(board, "Bezel", Vector3.new(13, 0.2, 0.2), bf * CFrame.new(0, 11.4, -0.5), BRONZE, M.Metal, GHOST)
+		local bface = block(board, "Face", Vector3.new(12.2, 4.8, 0.2), bf * CFrame.new(0, 8.5, -0.5), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
+		local bgui = Instance.new("SurfaceGui")
+		bgui.Name = "FriendsGui"
+		bgui.Face = Enum.NormalId.Front
+		bgui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		bgui.PixelsPerStud = 40
+		bgui.LightInfluence = 0
+		bgui.Parent = bface
+		newLabel(bgui, "Title", "FRIENDS HERE", 0.04, 0.08, 0.92, 0.22, 34, CYAN, true)
+		local who = newLabel(bgui, "FriendsLabel", "Friends who are in the lounge show up here for you.", 0.04, 0.36, 0.92, 0.56, 28, TEXT, false)
+		who.TextWrapped = true
+		who.TextYAlignment = Enum.TextYAlignment.Top
+		who.TextTruncate = Enum.TextTruncate.None
+	end
+
+	-- Recent highlights board on the east wall above the shop kiosk
+	local highlightLines: TextLabel
+	do
+		local board = group("HighlightsBoard", social)
+		local bf = CFrame.lookAt(at(HX - 0.6, 0, 29), at(HX - 0.6, 0, 29) + Vector3.new(-1, 0, 0))
+		block(board, "Housing", Vector3.new(11, 6.4, 0.8), bf * CFrame.new(0, 12, 0), CHARCOAL, M.SmoothPlastic)
+		block(board, "Bezel", Vector3.new(11, 0.2, 0.2), bf * CFrame.new(0, 15.2, -0.5), BRONZE, M.Metal, GHOST)
+		local bface = block(board, "Face", Vector3.new(10.2, 5.6, 0.2), bf * CFrame.new(0, 12, -0.5), rgb(8, 12, 18), M.SmoothPlastic, { CastShadow = false })
+		local bgui = Instance.new("SurfaceGui")
+		bgui.Name = "HighlightsGui"
+		bgui.Face = Enum.NormalId.Front
+		bgui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		bgui.PixelsPerStud = 40
+		bgui.LightInfluence = 0
+		bgui.Parent = bface
+		newLabel(bgui, "Title", "RECENT HIGHLIGHTS", 0.05, 0.06, 0.9, 0.18, 32, AMBER, true)
+		highlightLines = newLabel(bgui, "Lines", "Highlights appear after the first match finishes.", 0.05, 0.28, 0.9, 0.66, 24, TEXT, false)
+		highlightLines.TextWrapped = true
+		highlightLines.TextYAlignment = Enum.TextYAlignment.Top
+		highlightLines.TextTruncate = Enum.TextTruncate.None
+	end
+
+	-- Plants and art
+	planter("Planter_TierW", -21.5, 15)
+	planter("Planter_TierE", 21.5, 15)
+		planter("Planter_BoothW", -33, -30)
+	planter("Planter_BoothE", 33, -30)
+	do
+		local art = group("Artwork", social)
+		local pieces = {
+			{ x = -43, name = "Kestrel Valley", top = rgb(40, 60, 100), bottom = rgb(240, 170, 110), sun = rgb(255, 214, 150), hills = { rgb(86, 104, 96), rgb(58, 80, 76), rgb(34, 52, 54) } },
+			{ x = -34, name = "First Light", top = rgb(16, 40, 70), bottom = rgb(232, 162, 74), sun = rgb(255, 232, 176), hills = { rgb(52, 74, 104), rgb(34, 52, 82), rgb(20, 32, 56) } },
+			{ x = 34, name = "The Long Quiet", top = rgb(26, 22, 56), bottom = rgb(196, 96, 82), sun = rgb(244, 160, 116), hills = { rgb(78, 52, 86), rgb(52, 36, 68), rgb(30, 22, 46) } },
+			{ x = 43, name = "Open Sky", top = rgb(86, 148, 204), bottom = rgb(244, 232, 200), sun = rgb(255, 252, 236), hills = { rgb(110, 150, 104), rgb(76, 118, 86), rgb(46, 84, 66) } },
+		}
+		local function circle(parent: Instance, name: string, cx: number, cy: number, size: number, color: Color3)
+			local item = Instance.new("Frame")
+			item.Name = name
+			item.AnchorPoint = Vector2.new(0.5, 0.5)
+			item.Position = UDim2.fromScale(cx, cy)
+			item.Size = UDim2.fromOffset(size, size)
+			item.BackgroundColor3 = color
+			item.BorderSizePixel = 0
+			item.Parent = parent
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0.5, 0)
+			corner.Parent = item
+		end
+		for index, piece in pieces do
+			local frame = CFrame.lookAt(at(piece.x, 10, HZ - 0.5), at(piece.x, 10, HZ - 0.5) + Vector3.new(0, 0, -1))
+			block(art, "Frame" .. index, Vector3.new(5.4, 7.4, 0.3), frame, BRONZE, M.Metal)
+			local canvas = block(art, "Canvas" .. index, Vector3.new(4.8, 6.8, 0.2), frame * CFrame.new(0, 0, -0.15), rgb(20, 24, 32), M.SmoothPlastic, { CastShadow = false })
+			local gui = Instance.new("SurfaceGui")
+			gui.Name = "ArtGui"
+			gui.Face = Enum.NormalId.Front
+			gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			gui.PixelsPerStud = 50
+			gui.LightInfluence = 0.3
+			gui.Parent = canvas
+			local sky = Instance.new("Frame")
+			sky.Name = "Sky"
+			sky.Size = UDim2.fromScale(1, 1)
+			sky.BackgroundColor3 = rgb(255, 255, 255)
+			sky.BorderSizePixel = 0
+			sky.ClipsDescendants = true
+			sky.Parent = gui
+			local gradient = Instance.new("UIGradient")
+			gradient.Rotation = 90
+			gradient.Color = ColorSequence.new(piece.top, piece.bottom)
+			gradient.Parent = sky
+			-- The sun sits low, the hills layer in front of it, nearest darkest
+			circle(sky, "Sun", 0.5, 0.52, 96, piece.sun)
+			circle(sky, "HillBack", 0.12, 0.86, 330, piece.hills[1])
+			circle(sky, "HillBackRight", 0.92, 0.9, 360, piece.hills[1])
+			circle(sky, "HillMid", 0.7, 0.98, 380, piece.hills[2])
+			circle(sky, "HillFront", 0.28, 1.06, 400, piece.hills[3])
+			-- A small brass plaque names the piece
+			local plaque = block(art, "Plaque" .. index, Vector3.new(3.8, 0.7, 0.15), frame * CFrame.new(0, -4.35, 0), BRONZE, M.Metal)
+			local sign = Common.sign(plaque, Enum.NormalId.Front, piece.name, rgb(40, 24, 12), 40, 0.3)
+			sign.Name = "PlaqueText"
+		end
+	end
+
+	-- Warm practical light and a wood ceiling, so the far end and the ceiling never fall into black ------------
+	do
+		local warm = group("WarmLight", social)
+		-- Walnut slats under the ceiling slabs (the glazed opening stays clear)
+		local slats = group("CeilingSlats", warm)
+		local y = HEIGHT - 0.25
+		for z = -34.6, -26.8, 1.6 do
+			block(slats, "Slat", Vector3.new(HX * 2 - 6, 0.3, 0.8), at(0, y, z), WALNUT, M.WoodPlanks, GHOST)
+		end
+		for z = 15, 34.6, 1.6 do
+			block(slats, "Slat", Vector3.new(HX * 2 - 6, 0.3, 0.8), at(0, y, z), WALNUT, M.WoodPlanks, GHOST)
+		end
+		for _, side in { -1, 1 } do
+			for x = 26.6, 46.4, 2.2 do
+				block(slats, "Slat", Vector3.new(0.8, 0.3, 40), at(side * x, y, -6), WALNUT, M.WoodPlanks, GHOST)
+			end
+		end
+		-- Wall sconces: a brass bracket and a warm shade that really gives light
+		local function sconce(x: number, z: number, wall: Vector3, height: number)
+			local item = group("Sconce", warm)
+			local base = at(x, height, z)
+			block(item, "Bracket", Vector3.new(0.5, 0.9, 0.5), CFrame.new(base), BRONZE, M.Metal, GHOST)
+			local shade = Common.cylinder(item, "Shade", CFrame.new(base + wall * 0.6 + Vector3.new(0, 0.5, 0)), 1.4, 1, WARM, M.Neon, { Transparency = 0.25, CanCollide = false, CastShadow = false })
+			lightOn(shade, WARM, 17, 0.9)
+		end
+		for _, z in { -24, -8, 8, 24 } do
+			sconce(-HX + 0.5, z, Vector3.new(1, 0, 0), 9)
+		end
+		for _, z in { -27, 7.6, 31 } do
+			sconce(HX - 0.5, z, Vector3.new(-1, 0, 0), 9)
+		end
+		for _, x in { -39, 39 } do
+			sconce(x, HZ - 0.5, Vector3.new(0, 0, -1), 9)
+		end
+		for _, x in { -43, 43 } do
+			sconce(x, -HZ + 0.5, Vector3.new(0, 0, 1), 9)
+		end
+		-- Pendant clusters over the tiers and at the far end
+		local function pendant(x: number, z: number, drop: number)
+			block(warm, "PendantCord", Vector3.new(0.1, 24 - drop, 0.1), at(x, (24 + drop) / 2, z), STEEL, M.Metal, GHOST)
+			local shade = Common.cylinder(warm, "PendantShade", CFrame.new(at(x, drop - 0.6, z)), 1, 1.4, AMBER, M.Neon, { Transparency = 0.2, CanCollide = false, CastShadow = false })
+			lightOn(shade, WARM, 20, 0.7)
+		end
+		for _, side in { -1, 1 } do
+			pendant(side * 9.5, 16, 14)
+			pendant(side * 12.5, 20.5, 13)
+			pendant(side * 15.5, 25, 14)
+			pendant(side * 12, -30, 14)
+			pendant(side * 15, -28, 13)
+			pendant(side * 9, -28, 15)
+		end
+		-- A soft warm wash on the far wall, unseen sources
+		for _, x in { -36, -12, 12, 36 } do
+			local source = block(warm, "Wash", Vector3.new(1, 0.4, 1), at(x, 17, -31), AMBER, M.SmoothPlastic, GHOST)
+			source.Transparency = 1
+			lightOn(source, WARM, 34, 0.7)
+		end
+		-- More floor lamps
+		lamp("Lamp_NorthW", -16, -30)
+		lamp("Lamp_NorthE", 16, -30)
+		lamp("Lamp_SideW", -36, -10)
+		lamp("Lamp_SideE", 36, -10)
+		lamp("Lamp_TierW", -22, 11.5)
+		lamp("Lamp_TierE", 22, 11.5)
+	end
+
+	-- Sit prompts on every seat (the seat also works by walking into it); one shows at a time
+	for _, item in model:GetDescendants() do
+		if item:IsA("Seat") then
+			local sit = Instance.new("ProximityPrompt")
+			sit.ActionText = "Sit"
+			sit.ObjectText = ""
+			sit.HoldDuration = 0
+			sit.MaxActivationDistance = 6
+			sit.RequiresLineOfSight = false
+			sit.KeyboardKeyCode = Enum.KeyCode.G
+			sit.GamepadKeyCode = Enum.KeyCode.DPadDown
+			sit.Exclusivity = Enum.ProximityPromptExclusivity.OnePerButton
+			sit:SetAttribute("Sit", true)
+			sit.Parent = item
+			sit.Triggered:Connect(function(player: Player)
+				local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+				if humanoid and item.Occupant == nil and humanoid.Sit == false then
+					item:Sit(humanoid)
+				end
+			end)
+			item:GetPropertyChangedSignal("Occupant"):Connect(function()
+				sit.Enabled = item.Occupant == nil
+			end)
+		end
 	end
 
 	-- Entrance: a sealed glass door with a return prompt ---------------------------------------------------------
@@ -818,8 +1368,8 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	block(door, "FrameRight", Vector3.new(0.5, 11, 0.7), doorFrame * CFrame.new(4.2, 5.5, 0), BRONZE, M.Metal)
 	block(door, "FrameTop", Vector3.new(8.9, 0.5, 0.7), doorFrame * CFrame.new(0, 11, 0), BRONZE, M.Metal)
 	local doorPad = block(door, "Pad", Vector3.new(4, 0.2, 1.6), doorFrame * CFrame.new(0, 0.12, -1.6), BRONZE, M.Metal)
-	local sign = block(door, "Sign", Vector3.new(6, 1.4, 0.2), doorFrame * CFrame.new(0, 12.2, -0.1), CHARCOAL, M.SmoothPlastic)
-	Common.sign(sign, Enum.NormalId.Front, "HUB", CYAN, 40, 0)
+	local sign = block(door, "Sign", Vector3.new(8, 2.2, 0.2), doorFrame * CFrame.new(0, 12.6, -0.1), CHARCOAL, M.SmoothPlastic)
+	Common.sign(sign, Enum.NormalId.Front, "HUB", WARM, 40, 0)
 	prompt(doorPad, "Return to hub", "Hub", 10, "Travel:Lobby")
 
 	-- Finish ---------------------------------------------------------------------------------------------------------
@@ -833,7 +1383,16 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	--   queues = { [modeName] = count },        -- players waiting for a match
 	--   board = { kind = "idle" | "open" | "closed" | "result", matchLine, aName, bName, pctA, pctB, status },
 	-- }
-	local function refresh(view: any)
+	local roster = {}
+	for _, id in PowersList.Order do
+		local def = PowersList.get(id)
+		if def and PowersList.isReleased(id) then
+			table.insert(roster, { name = def.name, tagline = def.tagline, color = def.colors.accent })
+		end
+	end
+	local rosterIndex = 0
+	local refresh
+	function refresh(view: any)
 		lastView = view
 		local matches = view.matches or {}
 		local first = matches[1]
@@ -850,31 +1409,17 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 			local more = if #matches > 1 then `   {#matches - 1} more live` else ""
 			setText(screens.mainFooter, `{time}    {plural(first.watchers, "spectator", "spectators")}{more}`)
 		else
-			setText(screens.idleTitle, "NO MATCH IN PROGRESS")
-			local lines = {}
-			if view.recent and #view.recent > 0 then
-				table.insert(lines, "Recent results")
-				for _, entry in view.recent do
-					table.insert(lines, entry.text)
+			-- Idle: a slow cycle of the fighter roster in their colours, the latest result, one line on how a match appears
+			local entry = roster[(rosterIndex % math.max(1, #roster)) + 1]
+			if entry then
+				setText(screens.idleName, entry.name)
+				if screens.idleName.TextColor3 ~= entry.color then
+					screens.idleName.TextColor3 = entry.color
 				end
-			else
-				table.insert(lines, "Upcoming and training")
-				local waiting = {}
-				for modeName, count in view.queues or {} do
-					table.insert(waiting, `{plural(count, "player is", "players are")} queued for {modeName}`)
-				end
-				table.sort(waiting)
-				if #waiting > 0 then
-					for _, line in waiting do
-						table.insert(lines, line)
-					end
-				else
-					table.insert(lines, "Nobody is queued right now")
-				end
-				table.insert(lines, "Practise on dummies in the Training Studio")
-				table.insert(lines, "Start a match from the Play window")
+				setText(screens.idleTag, entry.tagline)
 			end
-			setText(screens.idleLines, table.concat(lines, "\n"))
+			local latest = if view.recent and view.recent[1] then `Latest: {clip(view.recent[1].text, 64)}\n` else ""
+			setText(screens.idleLines, latest .. "A match shows here the moment one starts. Start one from Play.")
 		end
 
 		-- List and Watch pads
@@ -904,6 +1449,34 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 			end
 			table.insert(lines, "Matches appear here when they start.")
 			setText(screens.listIdle, table.concat(lines, "\n"))
+		end
+		-- Small screens by the seats and the highlights board
+		for _, mini in miniScreens do
+			if first then
+				local a, b = first.fighters[1], first.fighters[2]
+				setText(mini.title, clip(`{if a then a.name else ""} vs {if b then b.name else ""}`, 26))
+				if mini.title.TextColor3 ~= TEXT then
+					mini.title.TextColor3 = TEXT
+				end
+				local time = if first.elapsed then clock(first.elapsed) else "starting"
+				setText(mini.detail, `{first.mode}  {time}  {plural(first.watchers, "watching", "watching")}`)
+			else
+				local entry = roster[(rosterIndex % math.max(1, #roster)) + 1]
+				setText(mini.title, if entry then entry.name else "No match live")
+				if entry and mini.title.TextColor3 ~= entry.color then
+					mini.title.TextColor3 = entry.color
+				end
+				setText(mini.detail, "No match yet. It shows here when one starts.")
+			end
+		end
+		if view.recent and #view.recent > 0 then
+			local lines = {}
+			for _, entry in view.recent do
+				table.insert(lines, clip(entry.text, 56))
+			end
+			setText(highlightLines, table.concat(lines, "\n\n"))
+		else
+			setText(highlightLines, "Highlights appear after the first match finishes.")
 		end
 		setText(screens.listMore, if #matches > Lounge.WatchPads then `{#matches - Lounge.WatchPads} more in the Watch window` else "")
 
@@ -939,12 +1512,45 @@ function Lounge.build(parent: Instance, hooks: Hooks): Built
 	end
 	refresh({ matches = {}, recent = {}, queues = {}, board = { kind = "idle", status = "No match to predict yet." } })
 
+	-- Turns the idle screens to the next fighter (LoungeService calls this every few seconds)
+	local function cycle()
+		rosterIndex += 1
+		if lastView then
+			refresh(lastView)
+		end
+	end
+
+	local LAMPS = { idle = rgb(90, 96, 104), wait = rgb(226, 124, 58), go = rgb(90, 220, 120), done = CYAN }
+	local function setGame(state: any)
+		for slot = 1, 2 do
+			setText(gameDisplay.status[slot], state.status[slot] or "")
+			local item = gameDisplay.buzzers[slot]
+			if item.ActionText ~= state.action[slot] then
+				item.ActionText = state.action[slot]
+			end
+			if item.ObjectText ~= state.object[slot] then
+				item.ObjectText = state.object[slot]
+			end
+			if item.Enabled ~= state.enabled[slot] then
+				item.Enabled = state.enabled[slot]
+			end
+		end
+		local lamp = gameLamp
+		if lamp and lamp.Color ~= LAMPS[state.lamp] then
+			lamp.Color = LAMPS[state.lamp] or LAMPS.idle
+		end
+	end
+
 	model:SetAttribute("Seats", seatCount)
 	model.Parent = parent
 	return {
 		model = model,
 		spawn = spawnFrame,
 		refresh = refresh,
+		wheelDisc = wheelDisc,
+		wheelBase = wheelBase,
+		setGame = setGame,
+		cycle = cycle,
 	}
 end
 

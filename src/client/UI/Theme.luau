@@ -2,10 +2,13 @@
 -- ("next-generation facility software", v3): deep navy glass panels with a 1 px
 -- cool-grey hairline and 6 px corners, soft cool-white text, warm amber for the
 -- one primary action, electric cyan for selection, focus and live information,
--- red only for danger. Michroma for short display titles in tracked capitals,
--- Builder Sans for everything you read, RobotoMono for numbers, an 8 px grid.
+-- red only for danger. Type (owner request, 4 November 2026: bolder, a little bigger,
+-- like polished game text): Builder Sans SemiBold/Bold for everything you read,
+-- ExtraBold/Heavy for headings, RobotoMono Bold for numbers. Michroma is kept only for
+-- very large hero titles (results headline, countdown). An 8 px grid.
 -- Sizes are design pixels at 1280x720; the Shell's single UIScale fits them to
--- the screen, so 14 here is 14 real pixels at 720p and never smaller.
+-- the screen, so 18 here is 18 real pixels at 720p. Floors: body 17 to 18, small labels
+-- 15 to 16, buttons 17 to 19 bold, titles clearly larger.
 --
 -- Older code still reads the legacy names (Colors.Cyan, Colors.Gold, Colors.Bronze,
 -- TextSize.Micro, Fonts.Title, PillCorner...). They stay, mapped onto the v3
@@ -46,10 +49,10 @@ Theme.Colors = {
 	-- Selection, focus and live information (cyan, used sparingly)
 	Cyan = CYAN,
 	CyanDeep = rgb(34, 154, 176),
-	-- Text: primary, secondary, tertiary (contrast on a panel: about 14:1, 8:1, 5:1)
+	-- Text: primary, secondary, tertiary (contrast on a panel: about 14:1, 10:1, 7:1)
 	Text = rgb(232, 238, 244),
-	TextDim = rgb(172, 183, 198),
-	TextMuted = rgb(128, 142, 160),
+	TextDim = rgb(196, 206, 220),
+	TextMuted = rgb(158, 170, 188),
 	-- Dark text on the amber primary button
 	TextOnLight = rgb(14, 20, 30),
 	-- Status
@@ -84,7 +87,7 @@ Theme.Colors = {
 }
 
 local SANS = "rbxasset://fonts/families/BuilderSans.json"
--- Michroma has one weight (Regular); it is wide, so it is for short titles only
+-- Michroma has one weight (Regular); it is thin and wide, so it is for hero titles only
 local DISPLAY = "rbxasset://fonts/families/Michroma.json"
 local MONO = "rbxasset://fonts/families/RobotoMono.json"
 
@@ -92,18 +95,20 @@ local function face(family: string, weight: Enum.FontWeight): Font
 	return Font.new(family, weight, Enum.FontStyle.Normal)
 end
 
--- Builder Sans in every weight the interface uses, plus the display and mono faces.
--- Nothing lighter than Regular: thin weights break up on dark panels.
+-- Builder Sans in every weight the interface uses, plus the hero and mono faces.
+-- Nothing a player reads quickly is lighter than SemiBold: Regular and Medium are kept as
+-- names (older code asks for them) but are drawn SemiBold, so thin text cannot come back.
+local SEMIBOLD = face(SANS, Enum.FontWeight.SemiBold)
 Theme.Faces = {
 	Heavy = face(SANS, Enum.FontWeight.Heavy),
 	ExtraBold = face(SANS, Enum.FontWeight.ExtraBold),
 	Bold = face(SANS, Enum.FontWeight.Bold),
-	SemiBold = face(SANS, Enum.FontWeight.SemiBold),
-	Medium = face(SANS, Enum.FontWeight.Medium),
-	Regular = face(SANS, Enum.FontWeight.Regular),
+	SemiBold = SEMIBOLD,
+	Medium = SEMIBOLD,
+	Regular = SEMIBOLD,
 	Display = face(DISPLAY, Enum.FontWeight.Regular),
 	DisplayBold = face(DISPLAY, Enum.FontWeight.Regular),
-	Mono = face(MONO, Enum.FontWeight.Medium),
+	Mono = face(MONO, Enum.FontWeight.Bold),
 	MonoBold = face(MONO, Enum.FontWeight.Bold),
 }
 
@@ -117,12 +122,12 @@ Theme.Fonts = {
 }
 
 Theme.FaceForFont = {
-	GothamBlack = Theme.Faces.Bold,
-	GothamBold = Theme.Faces.SemiBold,
-	GothamMedium = Theme.Faces.Medium,
-	Gotham = Theme.Faces.Regular,
-	Michroma = Theme.Faces.Display,
-	Bodoni = Theme.Faces.Display,
+	GothamBlack = Theme.Faces.ExtraBold,
+	GothamBold = Theme.Faces.Bold,
+	GothamMedium = Theme.Faces.SemiBold,
+	Gotham = Theme.Faces.SemiBold,
+	Michroma = Theme.Faces.ExtraBold,
+	Bodoni = Theme.Faces.ExtraBold,
 	RobotoMono = Theme.Faces.Mono,
 	Code = Theme.Faces.Mono,
 }
@@ -132,33 +137,33 @@ Theme.FaceForFont = {
 export type TypeRole = { face: Font, size: number, lineHeight: number, caps: boolean, color: string }
 
 local ROLES: { [string]: TypeRole } = {
-	-- Results headline
-	hero = { face = Theme.Faces.Display, size = 40, lineHeight = 1.1, caps = true, color = "Text" },
+	-- Results headline (very large, so the wide Michroma still reads)
+	hero = { face = Theme.Faces.Display, size = 48, lineHeight = 1.1, caps = true, color = "Text" },
 	-- The match countdown (a single digit)
-	countdown = { face = Theme.Faces.Display, size = 112, lineHeight = 1, caps = false, color = "Text" },
+	countdown = { face = Theme.Faces.Display, size = 120, lineHeight = 1, caps = false, color = "Text" },
 	-- Fighter names on a stage, big headings
-	display = { face = Theme.Faces.Display, size = 26, lineHeight = 1.15, caps = true, color = "Text" },
-	-- Window and dialog titles (short, tracked capitals)
-	title = { face = Theme.Faces.Display, size = 18, lineHeight = 1.15, caps = true, color = "Text" },
+	display = { face = Theme.Faces.Heavy, size = 34, lineHeight = 1.1, caps = true, color = "Text" },
+	-- Window and dialog titles (short capitals)
+	title = { face = Theme.Faces.ExtraBold, size = 26, lineHeight = 1.1, caps = true, color = "Text" },
 	-- Section titles inside a screen
-	heading = { face = Theme.Faces.SemiBold, size = 22, lineHeight = 1.15, caps = false, color = "Text" },
-	subheading = { face = Theme.Faces.SemiBold, size = 18, lineHeight = 1.2, caps = false, color = "Text" },
+	heading = { face = Theme.Faces.ExtraBold, size = 24, lineHeight = 1.15, caps = false, color = "Text" },
+	subheading = { face = Theme.Faces.Bold, size = 20, lineHeight = 1.2, caps = false, color = "Text" },
 	-- Names in lists and rows
-	strong = { face = Theme.Faces.SemiBold, size = 16, lineHeight = 1.2, caps = false, color = "Text" },
+	strong = { face = Theme.Faces.Bold, size = 18, lineHeight = 1.2, caps = false, color = "Text" },
 	-- Descriptions (keep lines to 60 to 80 characters)
-	body = { face = Theme.Faces.Regular, size = 16, lineHeight = 1.35, caps = false, color = "TextDim" },
-	small = { face = Theme.Faces.Regular, size = 15, lineHeight = 1.3, caps = false, color = "TextDim" },
-	-- The absolute minimum, never smaller
-	caption = { face = Theme.Faces.Medium, size = 14, lineHeight = 1.25, caps = false, color = "TextMuted" },
-	label = { face = Theme.Faces.SemiBold, size = 14, lineHeight = 1.2, caps = false, color = "Text" },
+	body = { face = Theme.Faces.SemiBold, size = 18, lineHeight = 1.35, caps = false, color = "TextDim" },
+	small = { face = Theme.Faces.SemiBold, size = 16, lineHeight = 1.3, caps = false, color = "TextDim" },
+	-- The absolute minimum for a small label, never smaller
+	caption = { face = Theme.Faces.SemiBold, size = 15, lineHeight = 1.25, caps = false, color = "TextMuted" },
+	label = { face = Theme.Faces.Bold, size = 16, lineHeight = 1.2, caps = false, color = "Text" },
 	-- Small capitals above a section ("DOSSIER", "LOADOUT")
-	overline = { face = Theme.Faces.SemiBold, size = 14, lineHeight = 1.1, caps = true, color = "TextMuted" },
+	overline = { face = Theme.Faces.Bold, size = 15, lineHeight = 1.1, caps = true, color = "TextMuted" },
 	-- Button labels (capitals only when 12 characters or fewer)
-	button = { face = Theme.Faces.Bold, size = 15, lineHeight = 1.1, caps = false, color = "Text" },
+	button = { face = Theme.Faces.Bold, size = 18, lineHeight = 1.1, caps = false, color = "Text" },
 	-- Readouts (counts, prices, cooldowns)
-	number = { face = Theme.Faces.Mono, size = 16, lineHeight = 1.1, caps = false, color = "Text" },
+	number = { face = Theme.Faces.MonoBold, size = 18, lineHeight = 1.1, caps = false, color = "Text" },
 	-- Timers and technical values
-	mono = { face = Theme.Faces.Mono, size = 15, lineHeight = 1.1, caps = false, color = "TextDim" },
+	mono = { face = Theme.Faces.MonoBold, size = 16, lineHeight = 1.1, caps = false, color = "TextDim" },
 }
 Theme.Roles = ROLES
 
@@ -169,9 +174,9 @@ function Theme.type(role: string): TypeRole
 	return ROLES[role] or ROLES.body
 end
 
--- Roblox has no letter spacing, so short display titles in capitals get a hair
--- space (U+200A) between letters. Every tracked title goes through here so the
--- tracking is the same everywhere. Word gaps keep a normal space.
+-- Roblox has no letter spacing, so the very large Michroma hero titles in capitals get a
+-- hair space (U+200A) between letters. Bold Builder Sans titles are NOT tracked (use
+-- Theme.caps). Word gaps keep a normal space.
 local HAIR = utf8.char(0x200A)
 Theme.HairSpace = HAIR
 
@@ -191,37 +196,62 @@ function Theme.track(text: string): string
 	return table.concat(out)
 end
 
+-- Capitals without tracking: for short titles in bold Builder Sans
+function Theme.caps(text: string): string
+	return string.upper(text)
+end
+
 -- Removes the tracking again (for comparing or measuring)
 function Theme.untrack(text: string): string
 	return (string.gsub(text, HAIR, ""))
 end
 
--- Text sizes by legacy name. Every visible text is at least 14 px at 720p.
+-- Text sizes by legacy name. Small labels are at least 15 px, body 18 px at 720p.
 Theme.TextSize = {
-	Micro = 14,
-	Caption = 14,
-	Small = 15,
-	Button = 15,
-	Body = 16,
-	Label = 14,
-	Reading = 16,
-	Heading = 20,
-	Title = 24,
-	Display = 28,
-	Hero = 40,
-	Countdown = 112,
+	Micro = 15,
+	Caption = 15,
+	Small = 16,
+	Button = 18,
+	Body = 18,
+	Label = 16,
+	Reading = 18,
+	Heading = 24,
+	Title = 28,
+	Display = 34,
+	Hero = 48,
+	Countdown = 120,
 }
 
 -- Legacy text styles for Components.text (Style = "Micro" ... "Display").
 -- New code passes a role name instead (Style = "body", "overline", ...).
 Theme.TextStyles = {
-	Micro = { size = 14, face = "SemiBold", color = "TextMuted" },
-	Caption = { size = 14, face = "Medium", color = "TextDim" },
-	Body = { size = 16, face = "Regular", color = "Text" },
-	Label = { size = 16, face = "SemiBold", color = "Text" },
-	Heading = { size = 20, face = "SemiBold", color = "Text" },
-	Title = { size = 24, face = "Bold", color = "Text" },
-	Display = { size = 28, face = "Display", color = "Text" },
+	Micro = { size = 15, face = "Bold", color = "TextMuted" },
+	Caption = { size = 15, face = "SemiBold", color = "TextDim" },
+	Body = { size = 18, face = "SemiBold", color = "Text" },
+	Label = { size = 17, face = "Bold", color = "Text" },
+	Heading = { size = 24, face = "ExtraBold", color = "Text" },
+	Title = { size = 28, face = "ExtraBold", color = "Text" },
+	Display = { size = 34, face = "Heavy", color = "Text" },
+}
+
+-- Text over the 3D world: a dark outline always, plus a dark copy offset 1 to 2 px for the
+-- important lines (Components.dropShadow reads these)
+Theme.TextShadow = {
+	Offset = 2,
+	Transparency = 0.45,
+	StrokeThickness = 1.5,
+	StrokeTransparency = 0.3,
+}
+
+-- Soft two-stop gradients for selection screens (Components.gradient, owner request 4 Nov
+-- 2026). How much of the card's own colours is mixed into the dark panel in each state;
+-- 1 would be the pure colour. Panels behind reading text stay solid.
+Theme.Gradient = {
+	Rest = 0.16,
+	Hover = 0.24,
+	Selected = 0.32,
+	Locked = 0.08,
+	Rotation = 25,
 }
 
 -- Spacing: an 8 px grid. Panels pad 24, gutters are 16, sections 32 apart.
@@ -265,6 +295,9 @@ Theme.Size = {
 Theme.Scale = {
 	Min = 0.62,
 	Max = 1.25,
+	-- Phones (compact viewports) never scale below this, so 18 px text stays about 14 px
+	-- on screen and a 667x375 phone gets an 834x469 design canvas
+	CompactMin = 0.8,
 }
 
 -- Panel opacity and the hairline's transparency (steel at about 30%). Windows are solid:

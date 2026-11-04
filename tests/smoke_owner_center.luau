@@ -251,7 +251,7 @@ t.check("the owner opens the Control Center with P", function()
 	assert(t.findNamed(window, "StatusStrip"), "the status strip exists")
 	assert(t.findNamed(window, "Segment_here") and t.findNamed(window, "Segment_all") and t.findNamed(window, "Segment_test") and t.findNamed(window, "Segment_jobs"), "the scope selector has four options")
 	local dock = t.findNamed(gui, "Dock")
-	assert(not dock or not t.findNamed(dock, "Nav_OwnerCenter"), "it is not in the dock")
+	assert(dock and t.findNamed(dock, "Nav_OwnerCenter"), "the owner has an OWNER button in the dock (owner request, 4 Nov)")
 end)
 
 local OwnerCenter = t.client("UI.OwnerCenter")

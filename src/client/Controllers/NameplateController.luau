@@ -72,9 +72,9 @@ end
 
 local function stroke(label: TextLabel)
 	make("UIStroke", {
-		Thickness = 1.5,
+		Thickness = 2,
 		Color = Colors.Ink,
-		Transparency = 0.35,
+		Transparency = 0.2,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
 		Parent = label,
 	})
@@ -90,7 +90,7 @@ function NameplateController.build(target: Player, adornee: Instance?): Billboar
 	local hasTitle = title ~= ""
 	local gui = make("BillboardGui", {
 		Name = "SNNameplate",
-		Size = UDim2.fromOffset(220, if hasTitle then 52 else 34),
+		Size = UDim2.fromOffset(280, if hasTitle then 64 else 40),
 		StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0),
 		MaxDistance = NameplateController.MaxDistance,
 		LightInfluence = 0,
@@ -112,41 +112,56 @@ function NameplateController.build(target: Player, adornee: Instance?): Billboar
 		}),
 	})
 
-	local nameLabel = make("TextLabel", {
-		Name = "Name",
+	-- Each line sits in its own holder so its dark drop-shadow copy can sit just behind it
+	local nameHolder = make("Frame", {
+		Name = "NameHolder",
 		LayoutOrder = 1,
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 30),
 		BackgroundTransparency = 1,
-		FontFace = Theme.Faces.Bold,
-		Text = target.DisplayName,
-		TextColor3 = Colors.Text,
-		TextSize = 17,
-		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = column,
 	})
+	local nameLabel = make("TextLabel", {
+		Name = "Name",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		FontFace = Theme.Faces.ExtraBold,
+		Text = target.DisplayName,
+		TextColor3 = Colors.Text,
+		TextSize = 22,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = nameHolder,
+	})
 	stroke(nameLabel)
+	Components.dropShadow(nameLabel, 2, 0.4)
 
 	if hasTitle then
-		local titleLabel = make("TextLabel", {
-			Name = "Title",
+		local titleHolder = make("Frame", {
+			Name = "TitleHolder",
 			LayoutOrder = 2,
-			Size = UDim2.new(1, 0, 0, 18),
+			Size = UDim2.new(1, 0, 0, 24),
 			BackgroundTransparency = 1,
-			FontFace = Theme.Faces.Medium,
-			Text = title,
-			TextColor3 = Colors.TextDim,
-			TextSize = 14,
-			TextTruncate = Enum.TextTruncate.AtEnd,
 			Parent = column,
 		})
+		local titleLabel = make("TextLabel", {
+			Name = "Title",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			FontFace = Theme.Faces.Bold,
+			Text = title,
+			TextColor3 = Colors.Text,
+			TextSize = 16,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = titleHolder,
+		})
 		stroke(titleLabel)
+		Components.dropShadow(titleLabel, 1, 0.45)
 	end
 
 	local colors = NameplateController.stripColors(plate)
 	local strip = make("Frame", {
 		Name = "Strip",
 		LayoutOrder = 3,
-		Size = UDim2.fromOffset(96, 2),
+		Size = UDim2.fromOffset(112, 3),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = column,
@@ -269,22 +284,22 @@ local function playMoment(entry: { headline: string, sub: string? }, done: () ->
 		Name = "Moment",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.fromScale(0.5, 0.17),
-		Size = UDim2.fromOffset(640, 88),
+		Size = UDim2.fromOffset(720, 100),
 		BackgroundTransparency = 1,
 		Parent = root,
 	})
 	local headline = Components.text({
-		Name = "Headline", Text = entry.headline, Style = "display", TextSize = 28, AlignX = "Center",
-		Size = UDim2.new(1, 0, 0, 40), TextTransparency = 1, Parent = holder,
+		Name = "Headline", Text = entry.headline, Style = "display", TextSize = 34, AlignX = "Center",
+		Size = UDim2.new(1, 0, 0, 46), TextTransparency = 1, Parent = holder,
 	})
 	make("UIStroke", { Thickness = 1.5, Color = Colors.Ink, Transparency = 0.35, Parent = headline })
 	local dash = make("Frame", {
-		Name = "Dash", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 46), Size = UDim2.fromOffset(44, 2),
+		Name = "Dash", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 54), Size = UDim2.fromOffset(52, 3),
 		BackgroundColor3 = Colors.Accent, BackgroundTransparency = 1, BorderSizePixel = 0, Parent = holder,
 	})
 	local sub = if entry.sub and entry.sub ~= "" then Components.text({
-		Name = "Sub", Text = entry.sub, Style = "body", Color = Colors.TextDim, AlignX = "Center",
-		Position = UDim2.fromOffset(0, 54), Size = UDim2.new(1, 0, 0, 24), TextTransparency = 1, Parent = holder,
+		Name = "Sub", Text = entry.sub, Style = "body", Color = Colors.Text, AlignX = "Center",
+		Position = UDim2.fromOffset(0, 64), Size = UDim2.new(1, 0, 0, 28), TextTransparency = 1, Parent = holder,
 	}) else nil
 	if sub then
 		make("UIStroke", { Thickness = 1.5, Color = Colors.Ink, Transparency = 0.35, Parent = sub })

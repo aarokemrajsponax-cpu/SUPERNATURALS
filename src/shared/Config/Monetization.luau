@@ -71,6 +71,16 @@ Monetization.Passes = {
 		cosmetics = { "founders_aura", "founders_ko", "founders_plate", "founders_title" },
 		benefit = "Four exclusive cosmetics, all listed: the Founders' Ring aura, the Founders' Flare knockout effect, the Founders' Brass nameplate and the Charter Patron title. Looks only.",
 	},
+	-- Base effects (BaseService, Config/Homes.Effects): cosmetic only, switched on by the owner in
+	-- their own base for everyone inside to see. Nothing random, no timers, no stats.
+	BaseEffectsPack = {
+		id = 0,
+		robux = nil,
+		recommended = 199,
+		name = "Base Effects Pack",
+		baseEffects = true,
+		benefit = "Five looks for your own base, all listed: an aurora across the ceiling, indoor snowfall by the window, an ember fireplace, a dance floor light show and drifting fireflies. You switch each on or off. Looks only, nothing to do with fighting.",
+	},
 }
 
 -- Order passes appear in the shop
@@ -157,6 +167,37 @@ Monetization.Products = {
 		trial = { power = "Admin", hours = 24 },
 		name = "Admin Powers Trial",
 		benefit = "24 hours of Admin Powers, all three degrees, in every mode including Duel and Free-for-All. Fixed reward. Stacks up to 7 days. Does not unlock the fighter for good. Never grants real admin rights.",
+	},
+	-- Lounge wheel spins (WheelService, Config/Wheel, DECISIONS 41). Each product adds fixed spin
+	-- credits; the draw happens when the player spins, on the server, with every prize and its
+	-- chance shown first. Never offered to a player Roblox marks as restricted for paid random items.
+	-- `recommended` is for the owner's Creator Hub list only.
+	LoungeSpin = {
+		id = 0,
+		robux = nil,
+		recommended = 25,
+		wheelSpins = 1,
+		name = "Lounge Wheel Spin",
+		benefit = "Adds 1 spin on the Lounge wheel. The prizes and their chances are listed on the wheel and in the Wheel window before you buy. The prize is random.",
+	},
+	LoungeSpin5 = {
+		id = 0,
+		robux = nil,
+		recommended = 99,
+		wheelSpins = 5,
+		name = "Lounge Wheel Spins x5",
+		benefit = "Adds 5 spins on the Lounge wheel. The prizes and their chances are listed on the wheel and in the Wheel window before you buy. Each prize is random.",
+	},
+	-- Fireworks Show (BaseService, DECISIONS 62): each purchase saves one show charge on the
+	-- profile, so a purchase made while away is never lost. A show lasts 45 seconds, is seen by
+	-- everyone in the buyer's base and is launched by its owner. Looks only; the same show every time.
+	FireworksShow = {
+		id = 0,
+		robux = nil,
+		recommended = 25,
+		fireworks = 1,
+		name = "Fireworks Show",
+		benefit = "Saves one 45 second fireworks show for your base. Everyone inside sees it when you launch it from your base panel. Looks only, and the show is the same every time.",
 	},
 }
 

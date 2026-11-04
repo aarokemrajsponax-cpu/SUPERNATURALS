@@ -1048,4 +1048,34 @@ function Ghost.appearance(kit)
 	end
 end
 
+-- Layered signature on top (core flash, glow, shaped burst, ground shockwave, light, shake)
+local Signature = require(script.Parent.Parent.Effects.Signature)
+Signature.decorate(Ghost, "Ghost", {
+	VeilWindup = { "cast", 1 },
+	Veil = { "cast", 1 },
+	VeilBreak = { "impact", 1 },
+	SpectralDash = { "trail", 1.2, 10 },
+	PhaseDodge = { "trail", 1, 6 },
+	InstantDrawWindup = { "windup", 1, 4 },
+	InstantDraw = { { "trail", 1.5, 10 }, { "impact", 2 } },
+	CounterStance = { "cast", 1 },
+	CounterStrike = { { "trail", 1.5 }, { "impact", 2 } },
+	CounterEvade = { "trail", 1 },
+	ShadowStepMark = { "windup", 1, 3 },
+	ShadowStep = { { "trail", 1.5 }, { "impact", 1 } },
+	ShadowSlash = { "impact", 2 },
+	SlashWaveWindup = { "windup", 1, 4 },
+	SlashWaveRelease = { "trail", 2, 14 },
+	FlurryWindup = { "windup", 1, 4 },
+	FlurrySweep = { "impact", 1 },
+	FollowWindup = { "windup", 1, 4 },
+	FollowDash = { "trail", 2 },
+	FollowStrike = { "impact", 2 },
+	GridMark = { "windup", 2, 8 },
+	GridStrike = { "impact", 2 },
+	SeveranceWindup = { "ultwindup", 3, 10 },
+	SeverancePass = { "trail", 2 },
+	SeveranceStrike = { "impact", 3 },
+})
+
 return Ghost

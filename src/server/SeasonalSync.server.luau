@@ -87,8 +87,9 @@ local function applyLighting(theme)
 		if settings then
 			-- A holiday's effect replaces the place's own one of the same kind (no double glow)
 			for _, child in Lighting:GetChildren() do
-				if child.ClassName == className and not child:GetAttribute("Seasonal") and (child :: any).Enabled then
-					;(child :: any).Enabled = false
+				local existing = child :: any
+				if child.ClassName == className and not child:GetAttribute("Seasonal") and existing.Enabled then
+					existing.Enabled = false
 					child:SetAttribute("PausedForSeason", true)
 				end
 			end

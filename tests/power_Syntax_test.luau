@@ -456,9 +456,30 @@ check("premium: unowned Syntax is a trial (Practice yes, Duel no); the pass and 
 	assert(services.PowerService:queueCheck(alice, "Duel"), "owned: duels allowed")
 end)
 
+-- Ranked Duels only take a fighter the player owns (a trial stays out), so both players unlock
+-- Syntax through the Gems path, the way a real player would, before they queue
+local function ownForDuel(...)
+	local players = { ... }
+	for _, player in players do
+		if not services.PowerService:owns(player, "Syntax") then
+			services.CurrencyService:add(player, { gems = SX.premium.gems }, "test")
+			request("PowerRequest", player, Protocol.PowerAction.UnlockPower, "Syntax")
+		end
+	end
+	game.waitFor(function()
+		for _, player in players do
+			if not services.PowerService:owns(player, "Syntax") then
+				return false
+			end
+		end
+		return true
+	end, 3, "both players to own Syntax")
+end
+
 -- Equipping ---------------------------------------------------------------------------------
 
 check("two players equip Syntax: fragile stats, Processing starts at 80, precision basics", function()
+	ownForDuel(alice, bob)
 	services.PowerService:equip(A(), "Syntax", 1, Powers.defaultLoadout("Syntax", 1))
 	services.PowerService:equip(B(), "Syntax", 1, Powers.defaultLoadout("Syntax", 1))
 	for _, fighter in { A(), B() } do

@@ -236,8 +236,9 @@ local function text(parent: Instance, name: string, value: string, font: string,
 	item.Position = UDim2.fromScale(x / SIGN.X, y / SIGN.Y)
 	item.Size = UDim2.fromScale(w / SIGN.X, h / SIGN.Y)
 	item.Text = value
-	item.FontFace = Font.new(font, Enum.FontWeight.Regular)
-	item.TextSize = size
+	-- World text is bold and a fifth larger than the layout's design size (Michroma only has Regular)
+	item.FontFace = Font.new(font, if font == FONT_DISPLAY then Enum.FontWeight.Regular else Enum.FontWeight.Bold)
+	item.TextSize = math.floor(size * 1.2 + 0.5)
 	item.TextColor3 = color
 	item.TextXAlignment = align
 	item.TextYAlignment = Enum.TextYAlignment.Center

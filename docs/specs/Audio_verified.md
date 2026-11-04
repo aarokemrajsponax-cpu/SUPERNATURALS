@@ -1,12 +1,12 @@
 # Audio ids from the master prompt (P.S. 7.0), checked 3 November 2026
 
 Every id was looked up in Roblox's public asset API (economy.roblox.com/v2/assets/<id>/details):
-all 115 are audio assets. Tier A: uploaded by Roblox's licensed music partners (APMOfficial,
-Monstercat) and public, so any experience may use them; these are in
-src/shared/Config/AudioLibrary.luau. Tier B: public uploads by other accounts; Roblox lets any
-experience play them, but who holds the music rights is not something the API can show, so
-they stay out of the game unless the owner listens and decides (the master prompt bans
-copyrighted or ripped music). Tier X: not public, cannot be used. Actual playback still needs
+all 115 are audio assets. Tier A: APMOfficial and Monstercat uploads. Tier B: uploads by
+DistrokidOfficial, DistroKid's official Roblox account for independent artists (corrected on
+4 November: an earlier note wrongly called these unknown uploaders). Both tiers are licensed
+music partners' public uploads, which the competition directive allows ("authorized for use
+through Roblox"); all 114 public tracks are in src/shared/Config/AudioLibrary.luau, the meme
+ones in the Funny category for meme events. Tier X: not public, cannot be used. Actual playback still needs
 one listen in Studio (the API cannot check that).
 
 | Tier | Category | Name (from Roblox) | Id | Creator |

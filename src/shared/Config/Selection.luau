@@ -104,13 +104,14 @@ Selection.ExtraSlot = {
 
 -- The lobby, training and the owner's showcase -----------------------------------------------------
 
--- Training is the timber hall (ArenaService builds it round Config/Match TrainingGround.Center).
--- Its plinth is 34 x 44 studs (TrainingHall HALF_X 17, HALF_Z 22); the zone adds margin so a
--- dash or a knockback near the edge doesn't end a practice move. Whoever stands in this box
--- is in training, whichever way they got there. Heights are relative to the centre.
+-- Training is the Training Studio (ArenaService builds it round Config/Match TrainingGround.Center,
+-- see Arenas/TrainingHall). The room is 168 x 238 studs inside (half 84 x 119); the zone adds
+-- margin so a dash or a knockback near a wall doesn't end a practice move. Whoever stands in this
+-- box is in training, whichever way they got there. Heights are relative to the centre. The box
+-- stays clear of the hub (its west wall is at x = -96, the zone's east edge at x = -146).
 Selection.TrainingZone = {
-	HalfX = 30,
-	HalfZ = 30,
+	HalfX = 92,
+	HalfZ = 127,
 	Below = 20,
 	Above = 60,
 }

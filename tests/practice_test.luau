@@ -23,6 +23,8 @@ local Data, Currency, Characters, Practice = services.DataService, services.Curr
 local Dummies, Arenas, Match, Combat = services.DummyService, services.ArenaService, services.MatchService, services.CombatService
 local Config = world.require(world.find("ReplicatedStorage.Shared.Config.Practice"))
 local MatchConfig = api.MatchConfig
+local Selection = world.require(world.find("ReplicatedStorage.Shared.Config.Selection"))
+local Hall = world.require(world.find("ServerScriptService.Server.Arenas.TrainingHall"))
 local Center = MatchConfig.TrainingGround.Center
 api.flatGround(0)
 
@@ -93,17 +95,33 @@ local alice = joined("Alice", 901)
 local bob = joined("Bob", 902)
 local cara = joined("Cara", 903)
 
-check("the studio has bays with readout screens, two sparring floors, a platform and a console", function()
+check("the studio has 8 or more bays with readouts, several big practice arenas, a platform and a console", function()
 	local studio = Arenas:trainingStudio()
 	assert(studio, "a layout")
-	assert(#studio.bays >= 4 and #studio.bays <= 6, "four to six bays, got " .. #studio.bays)
+	assert(#studio.bays >= 8, "eight or more bays, got " .. #studio.bays)
 	assert(#Arenas:trainingDummySpots() == #studio.bays, "one dummy spot per bay")
 	for _, bay in studio.bays do
 		assert(bay.labels.last and bay.labels.combo and bay.labels.dps, "readout labels")
-		assert(math.abs(bay.spot.Position.X - Center.X) < 28 and math.abs(bay.spot.Position.Z - Center.Z) < 28, "inside the room")
+		assert(math.abs(bay.spot.Position.X - Center.X) < Hall.HalfX and math.abs(bay.spot.Position.Z - Center.Z) < Hall.HalfZ, "inside the room")
 	end
-	assert(#studio.floors == 2, "two sparring floors")
+	assert(#studio.floors >= 2, "two or more practice arenas")
 	local hall = world.workspace.TrainingGround
+	-- Each arena is at least 70 x 70 studs of open floor, and the whole room fits the training zone
+	local sparFloors = {}
+	for _, item in hall:GetChildren() do
+		if item.Name == "SparFloor" then
+			table.insert(sparFloors, item)
+		end
+	end
+	assert(#sparFloors == #studio.floors, "one SparFloor part per arena")
+	for _, item in sparFloors do
+		assert(item.Size.X >= 70 and item.Size.Z >= 70, `arena floor {item.Size.X} x {item.Size.Z} is at least 70 x 70`)
+	end
+	for _, floor in studio.floors do
+		assert(floor.size >= Config.Arena.MinSize, "arena size " .. floor.size)
+		assert(Selection.inTrainingZone(floor.center + Vector3.new(floor.size / 2, 4, floor.size / 2)) and Selection.inTrainingZone(floor.center - Vector3.new(floor.size / 2, -4, floor.size / 2)), "arena inside the zone")
+	end
+	assert(Selection.TrainingZone.HalfX * Selection.TrainingZone.HalfZ >= 2 * 28 * 28 * 4, "the zone is at least twice the old 56 x 56 studio")
 	local platform = hall:FindFirstChild("JefferyPractice")
 	assert(platform, "Jeffery's practice platform")
 	local actions = 0
@@ -216,7 +234,7 @@ for _, entry in modeChecks do
 		assert(unit.model.JefferyLook:FindFirstChild("Head") and unit.model.JefferyLook:FindFirstChild("Nameplate"), "head and nameplate")
 		assert(unit.cpu.difficulty == difficulty and unit.cpu.power == power, `{unit.cpu.difficulty} {unit.cpu.power}`)
 		local floor = session.floor
-		assert((api.fighter(alice).root.Position - floor.center).Magnitude < 12, "the player is on the sparring floor")
+		assert((api.fighter(alice).root.Position - floor.center).Magnitude < floor.size / 2, "the player is on the practice arena")
 		if options then
 			assert(world.workspace.TrainingGround.SparFloor and floor.theme() == "DigitalGrid", "theme applied: " .. floor.theme())
 		end
@@ -478,7 +496,15 @@ check("two players practise at once without interfering; a third waits", functio
 		assert(not Match:canDamage(ua.fighter, dummy.fighter), "Jeffery leaves the bay dummies alone")
 	end
 	assert(not Match:canDamage(fa, fb), "players still cannot hurt each other")
-	-- a third player finds both floors busy
+	-- once every arena is taken the next player finds them all busy
+	local fillers = {}
+	for index = 3, #Arenas:trainingStudio().floors do
+		local filler = joined("Filler" .. index, 920 + index)
+		inStudio(filler)
+		start(filler, "Beginner")
+		assert(Practice:isPracticing(filler), "filler takes an arena")
+		table.insert(fillers, filler)
+	end
 	inStudio(cara)
 	local since = api.mark()
 	start(cara, "Beginner")
@@ -488,12 +514,15 @@ check("two players practise at once without interfering; a third waits", functio
 		busy = busy or (m.kind == "Refused" and m.reason == "Busy")
 	end
 	assert(busy, "told it is busy")
+	for _, filler in fillers do
+		send(filler, "PracticeStop")
+	end
 	-- Alice leaving does not disturb Bob
 	send(alice, "PracticeStop")
 	assert(Practice:isPracticing(bob) and ub.active and not ua.active, "Bob's round continues")
 	assert(jefferyCount() == 1, "one Jeffery left")
 	start(cara, "Beginner")
-	assert(Practice:isPracticing(cara), "Cara takes the free floor")
+	assert(Practice:isPracticing(cara), "Cara takes the free arena")
 	-- a player leaving the game ends their round
 	api.leave(bob)
 	task.wait(0.3)
@@ -513,7 +542,7 @@ check("the studio stays within the part budget and every part is anchored", func
 	end
 	local budget = world.require(world.find("ReplicatedStorage.Shared.Config.Match")).Arena and 0 or 0
 	local _ = budget
-	assert(parts <= 700, parts .. " parts")
+	assert(parts <= Hall.PartBudget, parts .. " parts")
 	print(`     studio: {parts} parts`)
 end)
 

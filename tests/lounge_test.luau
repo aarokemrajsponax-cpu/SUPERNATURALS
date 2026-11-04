@@ -100,6 +100,9 @@ game.check("archive nook, counter attachment, kiosk and door prompts", function(
 	end
 	assert(frames == 4, "four frames")
 	assert(promptOf("Book"):GetAttribute("Action") == "Window:Archive", "the lectern opens the Archive")
+	local lectern = archive:FindFirstChild("Lectern")
+	assert(lectern and lectern:FindFirstChild("NamePlate") and lectern:FindFirstChild("Spot"), "the lectern has its name plate and a warm spot")
+	assert(promptOf("Book").Parent.Parent == lectern, "the Archive book is on the lectern, in the lounge")
 	assert(promptOf("Pad").Parent.Parent.Name == "ShopKiosk" or true)
 	local kiosk = room:FindFirstChild("ShopKiosk")
 	assert(kiosk.Pad:FindFirstChildOfClass("ProximityPrompt"):GetAttribute("Action") == "Window:Market", "kiosk opens the market")
@@ -121,7 +124,9 @@ game.check("Travel:Lounge arrives inside the lounge and screens start idle", fun
 	assert((position - Lounge.Center).Magnitude < 60 and position.Y > 0, "Carol stands in the lounge")
 	assert(idle(), "idle view with no match")
 	assert(textOf(main, "Title") == "NO MATCH IN PROGRESS")
-	assert(string.find(textOf(main, "Lines"), "Upcoming and training", 1, true), "upcoming or training information")
+	assert(string.find(textOf(main, "Lines"), "Start one from Play", 1, true), "one line on how a match appears")
+	assert(#textOf(main, "Fighter") > 2 and #textOf(main, "Tagline") > 2, "the idle screen shows a fighter of the roster in large type")
+	assert(main:FindFirstChild("Fighter", true).TextSize >= 60 or main:FindFirstChild("Fighter", true).TextScaled, "large type")
 	assert(not promptOf("WatchPad1").Enabled and not promptOf("PickPad1").Enabled, "no prompts without a match")
 	assert(string.find(textOf(board, "Status"), "No match", 1, true), "board idle")
 	game.leave(carol)
@@ -239,6 +244,259 @@ game.check("a disconnecting participant leaves no stale data; exit restores spec
 	assert(game.lastSent("MatchEvent", "Spectating", carol) == nil, "spectator told to restore")
 	assert(not promptOf("WatchPad1").Enabled, "prompt off")
 	assert(MatchService:getMatchOf(game.fighter(carol)) == nil)
+end)
+
+game.check("the social upgrade: tiers, booths, small screens, photo corner, games table, wheel, kiosks, boards, plants and art", function()
+	for _, name in { "TieredSeating", "Booth_West", "Booth_East", "PhotoCorner", "GamesTable", "LoungeWheel", "InviteKiosk", "FriendsBoard", "HighlightsBoard", "Artwork", "RefreshmentsCounter", "ShopKiosk", "FoundersArchive" } do
+		assert(room:FindFirstChild(name, true), "the room has " .. name)
+	end
+	-- Tiers: three raised rows each side, seats facing the main screen (north), centre aisle clear
+	local tiers = room:FindFirstChild("TieredSeating", true)
+	local rows, seatsOnTiers, heights = 0, 0, {}
+	for _, row in tiers:GetChildren() do
+		if row:IsA("Model") then
+			rows += 1
+			heights[row:FindFirstChild("Platform").Size.Y] = true
+			for _, item in row:GetChildren() do
+				if item:IsA("Seat") then
+					seatsOnTiers += 1
+					assert(item.CFrame.LookVector.Z < -0.9, "tier seats face the main screen")
+					assert(math.abs(item.Position.X - Lounge.Center.X) > 5, "the centre aisle stays clear")
+				end
+			end
+		end
+	end
+	assert(rows == 6 and seatsOnTiers == 24, `{rows} rows, {seatsOnTiers} seats`)
+	assert(next(heights) ~= nil and (function() local n = 0 for _ in heights do n += 1 end return n end)() == 3, "three heights, rising away from the screen")
+	-- Booths: four seats each around a table
+	for _, name in { "Booth_West", "Booth_East" } do
+		local booth = room:FindFirstChild(name, true)
+		local seats = 0
+		for _, item in booth:GetChildren() do
+			if item:IsA("Seat") then
+				seats += 1
+			end
+		end
+		assert(seats == 4 and booth:FindFirstChild("TableTop"), name .. " has four seats and a table")
+	end
+	-- Four small screens that stay in step with the match data
+	local minis = 0
+	for _, item in room:GetDescendants() do
+		if item.Name == "MiniGui" then
+			minis += 1
+		end
+	end
+	assert(minis == 4, "four small screens: " .. minis)
+	-- The photo corner has light, a mark and a sign; the games table is a pair of seats with buzzers
+	local photo = room:FindFirstChild("PhotoCorner", true)
+	assert(photo:FindFirstChild("Backdrop") and photo:FindFirstChild("Mark") and photo:FindFirstChild("Softbox") and photo:FindFirstChild("Plate"), "photo corner")
+	local softboxLights = 0
+	for _, item in photo:GetDescendants() do
+		if item:IsA("SpotLight") then
+			softboxLights += 1
+		end
+	end
+	assert(softboxLights >= 3, "flattering light: two soft boxes and a warm spot")
+	assert(promptOf("Buzzer1") and promptOf("Buzzer2"), "two buzzers")
+	-- Prompts: wheel, refreshments, invite; the counter still has its documented attachment
+	assert(room:FindFirstChild("LoungeWheel", true).Pad:FindFirstChildOfClass("ProximityPrompt"):GetAttribute("Action") == "Lounge:Wheel")
+	assert(room:FindFirstChild("RefreshmentsAttachment", true):FindFirstChildOfClass("ProximityPrompt"):GetAttribute("Action") == "Lounge:Refreshments")
+	assert(room:FindFirstChild("InviteKiosk", true).Pad:FindFirstChildOfClass("ProximityPrompt"):GetAttribute("Action") == "Lounge:Invite")
+	assert(room:FindFirstChild("FriendsLabel", true):IsA("TextLabel"), "the friends board has its label")
+	assert(room:FindFirstChild("Lines", true) ~= nil and textOf(room:FindFirstChild("HighlightsBoard", true), "Title") == "RECENT HIGHLIGHTS")
+	-- Sit prompts: every Seat carries one, on its own key, one visible at a time
+	local sits, seatsTotal = 0, 0
+	for _, item in room:GetDescendants() do
+		if item:IsA("Seat") then
+			seatsTotal += 1
+			local sit = item:FindFirstChildOfClass("ProximityPrompt")
+			assert(sit and sit.ActionText == "Sit" and sit:GetAttribute("Sit") == true, "a Sit prompt on " .. item:GetFullName())
+			sits += 1
+		end
+	end
+	assert(sits == seatsTotal and seatsTotal >= 56, "sit prompts everywhere: " .. sits)
+	-- Plants and art
+	local planters, frames = 0, 0
+	for _, item in room:GetDescendants() do
+		if string.sub(item.Name, 1, 8) == "Planter_" then
+			planters += 1
+		elseif string.sub(item.Name, 1, 5) == "Frame" and item.Parent.Name == "Artwork" then
+			frames += 1
+		end
+	end
+	assert(planters >= 8 and frames == 4, `plants {planters}, art {frames}`)
+	-- The part budget still holds with all of it, and nothing is outside the room
+	local parts = 0
+	for _, item in room:GetDescendants() do
+		if item:IsA("BasePart") then
+			parts += 1
+			local p = item.Position
+			assert(math.abs(p.X - Lounge.Center.X) < 54 and math.abs(p.Z - Lounge.Center.Z) < 42 and p.Y < 30, `{item:GetFullName()} is outside the room`)
+		end
+	end
+	assert(parts <= Lounge.PartBudget and parts > 550, "parts " .. parts)
+	-- No asset ids were invented for any of it
+	for _, item in room:GetDescendants() do
+		if item:IsA("ImageLabel") or item:IsA("Decal") then
+			local image = item.Image or item.Texture
+			assert(image == "" or string.sub(image, 1, 4) ~= "rbxa", "no invented asset id")
+		end
+	end
+end)
+
+game.check("walkways stay clear: the entrance line, the aisles and the viewing wall have no seats or tables in the way", function()
+	local center = Lounge.Center
+	for _, item in room:GetDescendants() do
+		if item:IsA("BasePart") and item.CanCollide and item.Size.Y > 0.9 and not item:IsDescendantOf(room:FindFirstChild("Shell")) then
+			local p = item.Position - center
+			-- A 9 stud wide lane from the door up to the centre cluster (the new tiers, screens and kiosks keep out of it)
+			if p.Z > 11 and p.Z < 36 and math.abs(p.X) < 4.5 and item.Position.Y - center.Y < 8 then
+				error(`{item:GetFullName()} blocks the entrance lane at {p}`)
+			end
+		end
+	end
+end)
+
+game.check("wheel face: upright labels, no cut-off text, a legend board with every chance, nothing in front of it", function()
+	local Wheel = world.require(world.find("ReplicatedStorage.Shared.Config.Wheel"))
+	local disc = room:FindFirstChild("Disc", true)
+	local marks = 0
+	for _, item in disc:GetDescendants() do
+		if item:IsA("TextLabel") then
+			marks += 1
+			assert(#item.Text <= 4, "short wedge labels only: " .. item.Text)
+			local node = item
+			while node ~= disc do
+				if node:IsA("GuiObject") then
+					assert(node.Rotation == 0 or string.sub(node.Name, 1, 5) == "Wedge" or string.sub(node.Name, 1, 7) == "Divider", "no rotated text: " .. node:GetFullName())
+				end
+				node = node.Parent
+			end
+			assert(not string.find(item.Text, "%%"), "chances are not on the wedges")
+			local ancestor = item.Parent
+			while ancestor ~= disc do
+				assert(not (ancestor:IsA("GuiObject") and ancestor.Rotation ~= 0), "the label has a rotated ancestor: " .. ancestor:GetFullName())
+				ancestor = ancestor.Parent
+			end
+		end
+	end
+	assert(marks == 9, "nine text marks and three symbols: " .. marks)
+	local legend = room:FindFirstChild("WheelLegend", true)
+	local total = 0
+	for index, prize in Wheel.Prizes do
+		assert(textOf(legend, "Chance" .. index) == `{prize.percent}%`, "legend row " .. index)
+		assert(#textOf(legend, "Prize" .. index) > 3 and #textOf(legend, "Prize" .. index) <= 24, "short legend text")
+		total += prize.percent
+	end
+	assert(total == 100 and textOf(legend, "Total") == "Total 100%", "the legend totals 100%")
+	-- Nothing stands in front of the wheel or the legend (x -29 to -4, z 26 to 38)
+	for _, item in room:GetDescendants() do
+		if item:IsA("BasePart") and item.CanCollide and (string.find(item.Name, "Leaves") or string.find(item.Name, "Pot") or item.Name == "Shade" or item.Name == "Pole") then
+			local p = item.Position - Lounge.Center
+			assert(not (p.X > -29 and p.X < -4 and p.Z > 26 and p.Z < 36), `{item:GetFullName()} stands in front of the wheel at {p}`)
+		end
+	end
+end)
+
+game.check("art is intentional: gradient landscapes with a plaque, no placeholder bars", function()
+	local art = room:FindFirstChild("Artwork", true)
+	local pieces = 0
+	for _, item in art:GetChildren() do
+		if string.sub(item.Name, 1, 6) == "Canvas" then
+			pieces += 1
+			local sky = item:FindFirstChild("Sky", true)
+			assert(sky and sky:FindFirstChildOfClass("UIGradient"), "a sky gradient")
+			assert(sky:FindFirstChild("Sun") and sky:FindFirstChild("HillFront"), "a sun and hills")
+			assert(item.Parent:FindFirstChild("Plaque" .. string.sub(item.Name, 7)), "a brass plaque")
+		end
+		assert(not string.find(item.Name, "Shape"), "no leftover placeholder shapes")
+	end
+	assert(pieces == 4)
+end)
+
+game.check("warmer room: few dim accent lines, wood ceiling, sconces, pendants, floor lamps", function()
+	local neon = 0
+	for _, item in room:GetDescendants() do
+		if item:IsA("BasePart") and item.Material.Name == "Neon" and item.Size.Magnitude > 5 and item.Transparency < 0.2 and item.Color.G * 255 > 190 and item.Color.B * 255 < 120 then
+			neon += 1
+		end
+	end
+	assert(neon <= 2, "bright gold lines are rare: " .. neon)
+	assert(not room:FindFirstChild("RimN", true) and not room:FindFirstChild("AisleStripL", true), "ceiling rim lines and aisle glow lines are gone")
+	local slats, sconces, pendants, lamps = 0, 0, 0, 0
+	for _, item in room:GetDescendants() do
+		if item.Name == "Slat" then slats += 1 elseif item.Name == "Sconce" then sconces += 1 elseif item.Name == "PendantShade" then pendants += 1 elseif string.sub(item.Name, 1, 5) == "Lamp_" then lamps += 1 end
+	end
+	assert(slats >= 30 and sconces >= 10 and pendants >= 14 and lamps >= 8, `slats {slats} sconces {sconces} pendants {pendants} lamps {lamps}`)
+	-- Tier seating reads as sofas
+	local row = room:FindFirstChild("Tier1W", true)
+	assert(row:FindFirstChild("BackCushion") and row:FindFirstChild("Piping") and row:FindFirstChild("Arm"), "cushions, piping and arms")
+	assert(row:FindFirstChild("Seat").Material.Name == "Fabric" and row:FindFirstChild("Seat").Color.R > 0.55, "warm, lighter fabric")
+end)
+
+game.check("Quick Draw: two players, a green lamp, a false start loses, earned Money only, a small daily cap", function()
+	local LoungeConfig = world.require(world.find("ReplicatedStorage.Shared.Config.Lounge")).QuickDraw
+	LoungeConfig.ReadySeconds, LoungeConfig.MinWait, LoungeConfig.MaxWait, LoungeConfig.ResultSeconds, LoungeConfig.GoSeconds = 0.1, 0.25, 0.3, 0.3, 0.6
+	local alice, bob = game.join("Alice", 7301), game.join("Bob", 7302)
+	game.waitFor(function() return DataService:get(alice) ~= nil and DataService:get(bob) ~= nil end, 3, "profiles")
+	local function money(p) return DataService:get(p).currencies.money end
+	local gems = DataService:get(alice).currencies.gems
+	local a0, b0 = money(alice), money(bob)
+	local state = LoungeService:gameState()
+	-- Alone: nothing starts and nothing is paid
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	assert(state.phase == "lobby" and state.slots[1] == alice, "Alice sat down")
+	promptOf("Buzzer2").Triggered:Fire(alice)
+	assert(state.slots[2] == nil, "one player cannot take both seats")
+	promptOf("Buzzer1").Triggered:Fire(bob)
+	assert(state.slots[1] == alice, "a taken seat stays taken")
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	assert(state.phase == "idle" and money(alice) == a0, "leaving the table pays nothing")
+	-- Round 1: Alice buzzes before green
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	assert(state.phase == "ready", "both seated: get ready")
+	game.waitFor(function() return state.phase == "wait" end, 2, "the wait phase")
+	assert(textOf(room:FindFirstChild("GamesTable", true), "Status"):len() > 0)
+	promptOf("Buzzer2").Triggered:Fire(alice) -- not her seat: ignored
+	assert(state.phase == "wait", "a buzz from the wrong seat does nothing")
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	assert(state.phase == "result", "a false start ends the round")
+	assert(money(bob) == b0 + LoungeConfig.WinMoney and money(alice) == a0 + LoungeConfig.PlayMoney, "winner and player paid the small amounts")
+	assert(DataService:get(alice).currencies.gems == gems, "Money only, no Gems")
+	game.waitFor(function() return state.phase == "idle" end, 2, "the table to reset")
+	-- Round 2: green, Bob is first
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	game.waitFor(function() return state.phase == "go" end, 2, "the lamp to go green")
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	assert(state.phase == "result" and string.find(state.message[2], "You win", 1, true) and string.find(state.message[1], "Not this time", 1, true), "first buzz wins: " .. tostring(state.message[2]))
+	assert(money(bob) == b0 + 2 * LoungeConfig.WinMoney, "Bob paid again")
+	game.waitFor(function() return state.phase == "idle" end, 2, "the table to reset")
+	-- The daily cap holds
+	DataService:get(bob).lounge.gameEarned = LoungeConfig.DailyCap - 5
+	DataService:get(bob).lounge.gameDay = math.floor(os.time() / 86400)
+	local before = money(bob)
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	game.waitFor(function() return state.phase == "go" end, 2, "green")
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	assert(money(bob) == before + 5 and DataService:get(bob).lounge.gameEarned == LoungeConfig.DailyCap, "capped at the daily limit")
+	game.waitFor(function() return state.phase == "idle" end, 2, "reset")
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	game.waitFor(function() return state.phase == "go" end, 2, "green")
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	assert(money(bob) == before + 5, "nothing more today")
+	game.waitFor(function() return state.phase == "idle" end, 2, "reset")
+	-- A player who leaves mid-round ends it
+	promptOf("Buzzer1").Triggered:Fire(alice)
+	promptOf("Buzzer2").Triggered:Fire(bob)
+	game.leave(bob)
+	assert(state.phase == "result" or state.phase == "idle", "the round ended when a player left")
+	game.waitFor(function() return state.phase == "idle" end, 2, "reset")
+	game.leave(alice)
 end)
 
 game.check("the seasonal set dresses the lounge (Thanksgiving now) and clears with the season", function()

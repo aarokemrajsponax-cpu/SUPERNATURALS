@@ -7,7 +7,7 @@
 --   * damage is allowed only inside the pair (player and their own Jeffery), through
 --     MatchService.practiceRule; a round ends when either side is down to Practice.EndHealthShare,
 --     so nobody is knocked out;
---   * two players use separate floors and never touch each other's round.
+--   * players use separate arenas and never touch each other's round.
 -- Stats come only from server combat events. After the round the numbers go through
 -- Config/Practice feedback rules to pick Jeffery's lines (spoken on the client by DialoguePanel).
 
@@ -197,7 +197,7 @@ function PracticeService:start(player: Player, modeId: any, rawOptions: any): (b
 		end
 	end
 	if not floorIndex then
-		self:_refuse(player, "Busy", "Both sparring floors are in use. Try again in a moment.")
+		self:_refuse(player, "Busy", "Every practice arena is in use. Try again in a moment.")
 		return false, "Busy"
 	end
 	local floor = studio.floors[floorIndex]

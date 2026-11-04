@@ -23,7 +23,7 @@ Practice.Modes = {
 	Advanced = {
 		label = "Advanced",
 		summary = "Combinations, defensive timing and several fighting styles in one round.",
-		difficulty = "Hard", profile = "Advanced", duration = 120, styles = { "StrongDude", "Ghost", "Shapeshifter", "MachineMaster" },
+		difficulty = "Hard", profile = "Advanced", duration = 120, styles = { "StrongDude", "Ghost", "MachineMaster" },
 		abilities = true, hints = false,
 	},
 	Custom = {
@@ -44,6 +44,8 @@ Practice.StyleSeconds = 30 -- Advanced: Jeffery changes style this often
 Practice.EndHealthShare = 0.15 -- a round ends when either side is down to this share of health
 Practice.StartGap = 1.2 -- seconds of calm before Jeffery moves
 Practice.MaxPerFloor = 1
+-- The practice arenas in the Training Studio: how many, and the side of each square floor (studs)
+Practice.Arena = { Count = 4, Size = 72, MinSize = 70 }
 Practice.RequestCooldown = 0.5 -- per player, between start/stop requests
 Practice.Version = 1
 
@@ -74,7 +76,7 @@ Practice.Hints = {
 -- look of the matching battleground chamber (Config/Match Arenas ids).
 Practice.ThemeOrder = { "Studio", "ProvingGrounds", "RuinedFortress", "DigitalGrid", "CorruptedWastes", "SoulFoundry" }
 Practice.Themes = {
-	Studio = { name = "Studio", floor = Color3.fromRGB(46, 50, 58), material = Enum.Material.DiamondPlate, accent = Color3.fromRGB(63, 214, 232), light = Color3.fromRGB(232, 240, 250) },
+	Studio = { name = "Studio", floor = Color3.fromRGB(78, 82, 90), material = Enum.Material.DiamondPlate, accent = Color3.fromRGB(63, 214, 232), light = Color3.fromRGB(232, 240, 250) },
 	ProvingGrounds = { name = "Proving Grounds", floor = Color3.fromRGB(138, 134, 124), material = Enum.Material.Slate, accent = Color3.fromRGB(120, 222, 236), light = Color3.fromRGB(255, 244, 222) },
 	RuinedFortress = { name = "Ruined Fortress", floor = Color3.fromRGB(108, 100, 92), material = Enum.Material.Cobblestone, accent = Color3.fromRGB(255, 160, 80), light = Color3.fromRGB(255, 190, 120) },
 	DigitalGrid = { name = "Digital Grid", floor = Color3.fromRGB(30, 44, 58), material = Enum.Material.Glass, accent = Color3.fromRGB(70, 220, 230), light = Color3.fromRGB(150, 235, 245) },

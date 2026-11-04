@@ -118,6 +118,15 @@ function ShopWindow.items(): { { [string]: any } }
 			table.insert(list, { category = "Cosmetics", kind = "pass", key = key, name = pass.name, contents = contents, icon = "star", accent = Colors.Gold })
 		end
 	end
+	-- Base effects and the Fireworks Show (looks for your own base; BaseService)
+	local effects = Monetization.Passes.BaseEffectsPack
+	if effects then
+		table.insert(list, { category = "Cosmetics", kind = "pass", key = "BaseEffectsPack", name = effects.name, contents = effects.benefit, icon = "star", accent = Colors.Cyan })
+	end
+	local fireworks = Monetization.Products.FireworksShow
+	if fireworks then
+		table.insert(list, { category = "Cosmetics", kind = "product", key = "FireworksShow", name = fireworks.name, contents = fireworks.benefit, icon = "star", accent = Colors.Copper })
+	end
 	local season = SeasonPass.shown(os.time())
 	table.insert(list, {
 		category = "SeasonPass",
@@ -239,6 +248,9 @@ local function buildCard(parent: Instance, item, redraw: () -> ()): Frame
 		BackgroundTransparency = 0.08,
 		Parent = parent,
 	})
+	-- The category's accent as a soft two-stop gradient (opaque, so the text on it stays readable)
+	Components.gradientFor(card, accent, accent:Lerp(Colors.Ink, 0.55), if st.owned then "Hover" else "Rest")
+	card.BackgroundTransparency = 0
 	local art = make("Frame", {
 		Name = "Art",
 		Position = UDim2.fromOffset(Space.L, Space.L),
@@ -287,7 +299,7 @@ local function buildCard(parent: Instance, item, redraw: () -> ()): Frame
 		Parent = card,
 	})
 	if st.gems then
-		local price = Components.price(nil, { gems = st.gems }, { Height = 28, TextSize = 16 })
+		local price = Components.price(nil, { gems = st.gems }, { Height = 28, TextSize = 18 })
 		price.AnchorPoint = Vector2.new(0, 0.5)
 		price.Position = UDim2.fromScale(0, 0.5)
 		price.Parent = footer

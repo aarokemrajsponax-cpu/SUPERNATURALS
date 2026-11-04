@@ -18,7 +18,8 @@
 --   Training Studio  Travel:Training   Jeffery's Base   Window:Learn (falls back to Play)
 --   Spectating       Travel:Lounge     Master Shop      Window:Market
 --   Player Base St.  Base:Street      Calibration      Window:Powers (+ CFrameValue "PreviewCamera")
--- The Archive stand (Window:Archive) is a ninth entry, flagged `stand`, near the spawn.
+-- The Archive book stand is no longer in the hub: the book is read at the lectern in the
+-- Spectating Lounge's Founders' Archive (World/Lounge). The hub keeps the recovered files.
 -- Wings behind the portals are built later; the prompts already route to what exists.
 --
 -- Folder "Guides" (for onboarding): one Folder per destination id, holding invisible
@@ -58,18 +59,25 @@ local TILE = rgb(40, 43, 49)
 local TILE_DARK = rgb(27, 29, 33)
 local SEAM = rgb(12, 13, 16)
 local STEEL = rgb(138, 146, 156)
-local CERAMIC = rgb(158, 164, 172)
+local CERAMIC = rgb(178, 174, 166)
 local IVORY = rgb(222, 214, 198)
 local AMBER = rgb(232, 162, 74)
 local COPPER = rgb(184, 115, 63)
+local WALNUT = rgb(98, 66, 44)
+local OAK = rgb(166, 124, 82)
+local BRASS = rgb(176, 138, 82)
+local FABRIC = rgb(128, 116, 100)
+local LEAF = rgb(70, 118, 68)
+local LEAF_LIGHT = rgb(92, 140, 80)
 local CYAN = rgb(63, 214, 232)
 local WARM = rgb(255, 214, 166)
-local COOL = rgb(200, 224, 255)
+local COOL = rgb(238, 232, 222)
 local TEXT = rgb(232, 238, 244)
-local MUTED = rgb(150, 160, 172)
+local MUTED = rgb(206, 212, 220)
 
 local FONT_SANS = "rbxasset://fonts/families/BuilderSans.json"
 local FONT_DISPLAY = "rbxasset://fonts/families/Michroma.json"
+local FONT_MONO = "rbxasset://fonts/families/RobotoMono.json"
 
 local SMALL = { CastShadow = false }
 local GHOST = { CastShadow = false, CanCollide = false }
@@ -117,21 +125,7 @@ Hub.Gates = {
 	gate("Watch", "SPECTATING LOUNGE", "Watch live matches", 45, SOCIAL, "Travel:Lounge", "Enter the lounge"),
 	gate("Market", "MASTER SHOP", "Powers, cosmetics, passes", 135, EXPANSION, "Window:Market", "Open the shop"),
 	gate("Homes", "PLAYER BASE STREET", "Your base and friends' bases", -90, PERSONAL, "Base:Street", "Enter the street"),
-	gate("Calibration", "CALIBRATION CHAMBER", "Meet the eight fighters", -45, SPECIAL, "Window:Powers", "View fighters"),
-	-- The Archive book stand has no portal: it stands between the dais and the spawn
-	{
-		id = "Archive",
-		name = "THE ARCHIVE",
-		sector = "Lore book",
-		subtitle = "Lore book",
-		angle = 67.5,
-		color = SOCIAL,
-		action = "Window:Archive",
-		prompt = "Read",
-		position = polar(67.5, 24),
-		facing = -polar(67.5, 1),
-		stand = true,
-	},
+	gate("Calibration", "CALIBRATION CHAMBER", "Meet the fighters", -45, SPECIAL, "Window:Powers", "View fighters"),
 }
 
 -- Building blocks ------------------------------------------------------------------------------
@@ -224,7 +218,7 @@ local function label(gui: Instance, text: string, area: { number }, color: Color
 	item.Position = UDim2.fromScale(area[1], area[2])
 	item.Size = UDim2.fromScale(area[3], area[4])
 	item.Text = text
-	item.FontFace = Font.new(font, Enum.FontWeight.Regular)
+	item.FontFace = Font.new(font, if font == FONT_DISPLAY then Enum.FontWeight.Regular else Enum.FontWeight.Bold)
 	item.TextColor3 = color
 	item.TextScaled = true
 	item.TextWrapped = true
@@ -290,17 +284,16 @@ local function buildFloor(folder: Instance)
 	for _, r in { 66, 76 } do
 		ring(model, "Seam", r, r + 0.15, 0, 0.03, SEAM, M.SmoothPlastic, GHOST)
 	end
-	-- Inlays: brushed steel bands, one cyan hairline (the single cold accent), an amber ring round the dais
+	-- Inlays: brushed steel bands, an amber ring round the dais
 	ring(model, "SteelInlay", 57, 58, 0, 0.06, STEEL, M.Metal, SMALL)
 	ring(model, "SteelInlay", 17, 17.5, 0, 0.06, STEEL, M.Metal, SMALL)
 	ring(model, "AmberInlay", 18.2, 18.5, 0, 0.07, AMBER, M.Neon, GHOST)
-	ring(model, "CyanInlay", 56.2, 56.45, 0, 0.07, CYAN, M.Neon, GHOST)
 	-- Wayfinding inlays run from the dais to each portal, in the destination's colour
 	for _, entry in Hub.Gates do
-		if not entry.stand then
+		do
 			local f = frameAt(entry.angle, 0)
-			local strip = bx(model, "Wayfinding_" .. entry.id, f, -0.3, 0.3, 0, 0.08, 19, R - 7.5, entry.color, M.Neon, GHOST)
-			strip.Transparency = 0.15
+			local strip = bx(model, "Wayfinding_" .. entry.id, f, -0.22, 0.22, 0, 0.08, 19, R - 7.5, entry.color, M.Neon, GHOST)
+			strip.Transparency = 0.4
 			strip:SetAttribute("Pulse", 0)
 			bx(model, "WayfindingEdge", f, -0.75, 0.75, 0, 0.05, 19, R - 7.5, STEEL, M.Metal, GHOST)
 		end
@@ -322,7 +315,7 @@ local function buildWalls(folder: Instance)
 		local half = (R + WALL) * TAN + 0.5
 		local gate = nil
 		for _, entry in Hub.Gates do
-			if not entry.stand and entry.angle % 360 == side * 45 % 360 then
+			if entry.angle % 360 == side * 45 % 360 then
 				gate = entry
 			end
 		end
@@ -342,11 +335,16 @@ local function buildWalls(folder: Instance)
 			end
 		end
 		bx(model, "Skirting", f, -reach, reach, 0, 1.5, -0.7, 0, STEEL, M.Metal, SMALL)
+		-- Warm walnut wainscot with a brass cap over the lower cladding
+		for _, span in { { -reach, -8.4 }, { 8.4, reach } } do
+			bx(model, "WalnutWainscot", f, span[1], span[2], 1.5, 7, -0.9, -0.5, WALNUT, M.WoodPlanks, SMALL)
+			bx(model, "WainscotCap", f, span[1], span[2], 7, 7.25, -1, -0.45, BRASS, M.Metal, GHOST)
+		end
 		-- Light cove: a steel ledge with a thin warm strip under it, above the cladding
 		for _, span in { { -reach, -8 }, { 8, reach } } do
 			bx(model, "CoveLedge", f, span[1], span[2], 36.4, 37.4, -1.4, 0, STEEL, M.Metal, SMALL)
 			local strip = bx(model, "CoveLight", f, span[1], span[2], 36.1, 36.3, -0.6, -0.4, AMBER, M.Neon, GHOST)
-			strip.Transparency = 0.1
+			strip.Transparency = 0.3
 		end
 		-- Upper wall: a band of dark glazing with mullions under the ceiling
 		bx(model, "UpperBand", f, -reach, reach, 38, H - 1, -0.4, 0, GRAPHITE, M.Metal, SMALL)
@@ -364,7 +362,7 @@ local function buildWalls(folder: Instance)
 	for corner = 0, 7 do
 		local f = frameAt(corner * 45 + 22.5, R / math.cos(math.rad(22.5)))
 		bx(model, "CornerPost", f, -1.8, 1.8, 0, H, -2, 1.6, STEEL, M.Metal)
-		bx(model, "CornerCore", f, -0.4, 0.4, 0, H, -2.2, -2, AMBER, M.Neon, GHOST)
+		bx(model, "CornerCore", f, -0.3, 0.3, 0, H, -2.2, -2, AMBER, M.Neon, { CastShadow = false, CanCollide = false, Transparency = 0.45 })
 	end
 	model.Parent = folder
 end
@@ -572,9 +570,9 @@ local function signFace(gui: Instance, entry, color: Color3)
 	number.Position = UDim2.fromScale(0, 0)
 	number.Size = UDim2.fromScale(1, 1)
 	number.TextXAlignment = Enum.TextXAlignment.Center
-	signText(gui, "Title", entry.name, Font.new(FONT_DISPLAY), 38, TEXT, { 196, 28, 496, 104 }, true, Enum.TextYAlignment.Bottom)
-	swatch(gui, { 196 / SIGN_PX.X, 146 / SIGN_PX.Y, 56 / SIGN_PX.X, 4 / SIGN_PX.Y }, color)
-	signText(gui, "Subtitle", entry.subtitle, Font.new(FONT_SANS, Enum.FontWeight.Medium), 26, MUTED, { 196, 162, 496, 40 }, false, Enum.TextYAlignment.Top)
+	signText(gui, "Title", entry.name, Font.new(FONT_DISPLAY), 44, TEXT, { 196, 14, 510, 118 }, true, Enum.TextYAlignment.Bottom)
+	swatch(gui, { 196 / SIGN_PX.X, 142 / SIGN_PX.Y, 56 / SIGN_PX.X, 5 / SIGN_PX.Y }, color)
+	signText(gui, "Subtitle", entry.subtitle, Font.new(FONT_SANS, Enum.FontWeight.Bold), 34, MUTED, { 196, 156, 510, 52 }, false, Enum.TextYAlignment.Top)
 end
 
 -- Portals ------------------------------------------------------------------------------------------------
@@ -585,14 +583,14 @@ local function buildPortal(folder: Instance, entry)
 	local f = frameAt(entry.angle, R)
 	local color: Color3 = entry.color
 	-- Lit frame: neon strips up the jambs and along the lintel, a threshold strip on the floor
-	for _, x in { -7.5, 7.2 } do
-		local strip = bx(model, "FrameLight", f, x, x + 0.3, 0.2, 22.8, -1.7, -1.3, color, M.Neon, GHOST)
-		strip.Transparency = 0.1
+	for _, x in { -7.5, 7.3 } do
+		local strip = bx(model, "FrameLight", f, x, x + 0.2, 0.2, 22.8, -1.7, -1.4, color, M.Neon, GHOST)
+		strip.Transparency = 0.3
 	end
-	local top = bx(model, "FrameLight", f, -7.5, 7.5, 22.5, 22.8, -1.7, -1.3, color, M.Neon, GHOST)
-	top.Transparency = 0.1
+	local top = bx(model, "FrameLight", f, -7.5, 7.5, 22.6, 22.8, -1.7, -1.4, color, M.Neon, GHOST)
+	top.Transparency = 0.3
 	local threshold = bx(model, "Threshold", f, -7.5, 7.5, 0, 0.1, -1.6, 0.4, color, M.Neon, GHOST)
-	threshold.Transparency = 0.3
+	threshold.Transparency = 0.55
 	bx(model, "ThresholdPlate", f, -8.2, 8.2, 0, 0.07, -2.4, -1.6, STEEL, M.Metal, GHOST)
 
 	-- The doorway itself: tinted glass over a dark panel, so it reads as a lit screen
@@ -623,19 +621,35 @@ local function buildPortal(folder: Instance, entry)
 	model.Parent = folder
 end
 
--- Archive stand: a lectern with a lit book, reachable between the spawn and the dais
-local function buildArchive(folder: Instance, entry)
+-- Quiet nooks round the gallery: an oak bench on a fabric rug between two planters. The one at 67.5
+-- degrees holds a few books (and a recovered file). Warm and soft against the stone.
+local function planter(parent: Instance, f: CFrame, x: number)
+	bx(parent, "PlanterBox", f, x - 1.7, x + 1.7, 0, 2.2, -1.7, 1.7, WALNUT, M.WoodPlanks, SMALL)
+	bx(parent, "PlanterRim", f, x - 1.9, x + 1.9, 2.2, 2.4, -1.9, 1.9, BRASS, M.Metal, GHOST)
+	local big = make(parent, { Name = "Leaves", Shape = Enum.PartType.Ball, Size = Vector3.new(3.4, 3.4, 3.4), CFrame = f * CFrame.new(x, 4, 0), Color = LEAF, Material = M.Fabric, CanCollide = false, CastShadow = false })
+	local small = make(parent, { Name = "Leaves", Shape = Enum.PartType.Ball, Size = Vector3.new(2.3, 2.3, 2.3), CFrame = f * CFrame.new(x + 0.9, 5, -0.4), Color = LEAF_LIGHT, Material = M.Fabric, CanCollide = false, CastShadow = false })
+	return big, small
+end
+
+local function buildNooks(folder: Instance)
 	local model = Instance.new("Model")
-	model.Name = "ArchiveStand"
-	local f = frameAt(entry.angle, 24)
-	bx(model, "StandFoot", f, -1.6, 1.6, 0, 0.5, -1.6, 1.6, GRAPHITE, M.Metal)
-	bx(model, "StandPost", f, -0.5, 0.5, 0.5, 3.4, -0.5, 0.5, STEEL, M.Metal)
-	local top = bx(model, "StandTop", f * CFrame.new(0, 3.7, 0) * CFrame.Angles(math.rad(25), 0, 0), -2, 2, -0.2, 0.2, -1.4, 1.4, COPPER, M.Metal)
-	local book = bx(model, "Book", f * CFrame.new(0, 3.85, 0) * CFrame.Angles(math.rad(25), 0, 0), -1.5, 1.5, 0, 0.3, -1.1, 1.1, rgb(112, 74, 48), M.Fabric, SMALL)
-	local gui = surface(book, Enum.NormalId.Top, 50)
-	label(gui, "THE MERIDIAN ARCHIVE", { 0.1, 0.35, 0.8, 0.3 }, rgb(232, 210, 168), FONT_DISPLAY, 30, Enum.TextXAlignment.Center)
-	prompt(top, entry.prompt, "The Meridian Archive", entry.action, 10)
-	lamp(model, polar(entry.angle, 24, 7), WARM, 14, 0.8, false)
+	model.Name = "Nooks"
+	for _, angle in { 67.5, 112.5, 247.5, 292.5 } do
+		local f = frameAt(angle, 74)
+		bx(model, "Rug", f, -6.5, 6.5, 0, 0.06, -4, 4, FABRIC, M.Fabric, GHOST)
+		bx(model, "BenchSeat", f, -4, 4, 1.7, 2.2, -1.2, 1.2, OAK, M.WoodPlanks, SMALL)
+		bx(model, "BenchBack", f, -4, 4, 2.2, 3.8, 1.0, 1.3, OAK, M.WoodPlanks, SMALL)
+		for _, x in { -3.6, 3.6 } do
+			bx(model, "BenchLeg", f, x - 0.25, x + 0.25, 0, 1.7, -1.1, 1.1, STEEL, M.Metal, SMALL)
+		end
+		planter(model, f, -8)
+		planter(model, f, 8)
+		if angle == 67.5 then
+			bx(model, "Book", f, 1.2, 2.8, 2.2, 2.45, -0.6, 0.5, rgb(112, 74, 48), M.Fabric, GHOST)
+			bx(model, "Book", f, 1.3, 2.7, 2.45, 2.7, -0.5, 0.4, rgb(70, 36, 30), M.Fabric, GHOST)
+			bx(model, "Book", f, 3.0, 3.8, 2.2, 3.1, -0.4, 0.2, rgb(60, 82, 70), M.Fabric, GHOST)
+		end
+	end
 	model.Parent = folder
 end
 
@@ -652,18 +666,14 @@ local function buildGuides(folder: Instance)
 			list.Name = entry.id
 			list:SetAttribute("Label", entry.name)
 			local points = {}
-			if entry.stand then
-				table.insert(points, entry.position + entry.facing * -3)
-			else
-				-- Walk the gallery circle (clear of the statues) to the portal's angle, then straight in
-				local delta = ((entry.angle - SPAWN_ANGLE + 180) % 360) - 180
-				local steps = math.max(1, math.ceil(math.abs(delta) / 30))
-				for step = 1, steps do
-					table.insert(points, polar(SPAWN_ANGLE + delta * step / steps, 62, 0))
-				end
-				table.insert(points, polar(entry.angle, 72, 0))
-				table.insert(points, entry.position)
+			-- Walk the gallery circle (clear of the statues) to the portal's angle, then straight in
+			local delta = ((entry.angle - SPAWN_ANGLE + 180) % 360) - 180
+			local steps = math.max(1, math.ceil(math.abs(delta) / 30))
+			for step = 1, steps do
+				table.insert(points, polar(SPAWN_ANGLE + delta * step / steps, 62, 0))
 			end
+			table.insert(points, polar(entry.angle, 72, 0))
+			table.insert(points, entry.position)
 			for index, at in points do
 				make(list, { Name = tostring(index), Size = Vector3.new(2, 0.2, 2), CFrame = CFrame.new(at.X, 0.2, at.Z), Transparency = 1, CanCollide = false, CanQuery = false, CastShadow = false })
 			end
@@ -724,7 +734,7 @@ local function buildLoreFiles(folder: Instance)
 	slate(files, "garden_irrigation", at(81, R - 6, -10)) -- beside the way you came in
 	slate(files, "night_shift_07", at(54, R - 6, 5)) -- beside the Spectating Lounge door
 	slate(files, "badge_okafor", at(wolf, STATUE_R + 7, 30)) -- behind the wolf
-	slate(files, "varga_tape_12", at(61.5, 22, 0)) -- by the Archive book
+	slate(files, "varga_tape_12", at(67.5, 74, 0) * CFrame.new(-2.4, 2.2, 0)) -- on the reading nook bench, quiet, with books
 	slate(files, "warden_boot", at(-126, R - 6, -5)) -- beside the door to Jeffery's Base
 	slate(files, "eclipse_cleanup", at(-9, R - 6, 15)) -- by the Test Chambers, under the scorched panels
 	-- Scorched panels on the Test Chambers wall, left of the door
@@ -739,7 +749,7 @@ local function buildLoreFiles(folder: Instance)
 	local leaf = bx(files, "Door09Leaf", door, -3, 3, 0, 10, -1.35, -1.2, GRAPHITE, M.DiamondPlate, SMALL)
 	bx(files, "Door09Lamp", door, -0.4, 0.4, 10.9, 11.3, -1.3, -1.2, rgb(150, 30, 30), M.Neon, SMALL)
 	local plate = surface(leaf, Enum.NormalId.Front, 30)
-	label(plate, "09", { 0.25, 0.08, 0.5, 0.14 }, rgb(205, 196, 180), FONT_DISPLAY, 60, Enum.TextXAlignment.Center)
+	label(plate, "09", { 0.15, 0.04, 0.7, 0.2 }, rgb(226, 218, 202), FONT_MONO, 90, Enum.TextXAlignment.Center)
 	slate(files, "door_09_note", door * CFrame.new(0, 0, -3) * CFrame.Angles(0, math.rad(8), 0)) -- at the foot of the door that never opens
 	files.Parent = folder
 end
@@ -751,17 +761,15 @@ function Hub.build(folder: Instance): SpawnLocation
 	buildCeiling(folder)
 	buildLantern(folder)
 	buildStatues(folder)
+	buildNooks(folder)
 	for _, entry in Hub.Gates do
-		if entry.stand then
-			buildArchive(folder, entry)
-		else
-			buildPortal(folder, entry)
-		end
+		buildPortal(folder, entry)
 	end
 	buildGuides(folder)
 	buildLoreFiles(folder)
 	require(script.Parent.Jeffery).build(folder)
 	require(script.Parent.Leaderboards).build(folder, R)
+	require(script.Parent.CommunityBoard).build(folder, R)
 
 	-- Spawn on the plaza south of the dais, facing the Lantern, the entrance behind
 	local spawn = Instance.new("SpawnLocation")

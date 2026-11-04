@@ -30,6 +30,7 @@ local TEXT: { [string]: string } = {
 	busy = "The last request of this kind is still running. Try again in a moment.",
 	timeout = "The server did not answer in time.",
 	no_servers_picked = "Pick at least one server in the Server monitor first, or choose another scope.",
+	bad_likes = "Enter a whole number from 0 to 1,000,000,000.",
 	no_selection = "Nothing is selected yet.",
 }
 

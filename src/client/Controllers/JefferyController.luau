@@ -2,9 +2,14 @@
 -- runs the tutorial card, and delivers contextual hints.
 --
 -- The server (TutorialService) decides what counts as progress. This controller only shows what
--- it is told: DataEvent "Tutorial" (state) and "Hint". It sends CONTINUE for note-only steps,
--- Exit and Replay. Hints wait in a queue until combat is quiet and are dropped when the Hints
--- setting is off. During the tutorial a companion copy of Jeffery floats beside the player.
+-- it is told: DataEvent "Tutorial" (state) and "Hint". It sends TutorialReady (once it runs and
+-- Jeffery is in the world), TutorialLine (the step's lines are finished, so the server starts
+-- watching), CONTINUE for the welcome step, "camera turned" for the camera step, Exit and Replay.
+-- Hints wait in a queue until combat is quiet and are dropped when the Hints setting is off.
+--
+-- Jeffery stays at his post in the hall. During the tour he turns to face the player and waves, and
+-- pointing is done with floor arrows and a light beam along the hub's Guides waypoints; he never
+-- follows or hovers beside the player.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,10 +41,19 @@ JefferyController.Config = {
 	HintSeconds = 7,
 	-- The world copy only animates when you are this close (studs)
 	AnimateRange = 160,
-	CompanionOffset = Vector3.new(4, 1, 3),
+	-- He turns to face you when you are this close (studs) during the tour
+	FaceRange = 90,
+	-- A pause between finishing one step and Jeffery starting the next, so the tick is seen first
+	StepGap = 0.9,
+	-- Floor arrows: spacing (studs) and how many are shown ahead of the player
+	ArrowSpacing = 6,
+	ArrowCount = 7,
+	-- How long the client waits for the world (Jeffery, the character, no open window) before saying ready
+	ReadyWait = 20,
 }
 
-local state = { active = false, step = nil :: string?, index = 0, total = #Tutorial.Steps, replay = false }
+local state = { active = false, step = nil :: string?, index = 0, total = #Tutorial.Steps, replay = false, armed = false }
+local tourToken = 0
 local lastCombat = -math.huge
 local hintQueue: { { id: string, text: string, face: string } } = {}
 local hintCard: Frame? = nil
@@ -150,11 +164,11 @@ function JefferyController:_buildCard()
 	self.cardParts = {
 		card = card,
 		eyebrow = Components.text({
-			Name = "Eyebrow", Text = "TUTORIAL", Style = "Micro", Track = true, Color = Colors.Cyan,
+			Name = "Eyebrow", Text = "TOUR", Style = "Micro", Track = true, Color = Colors.Cyan,
 			Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -110, 0, 18), ZIndex = 13, Parent = card,
 		}),
 		count = Components.text({
-			Name = "Count", Text = "1 / 13", Style = "Micro", AlignX = "Right",
+			Name = "Count", Text = "1 / 8", Style = "Micro", AlignX = "Right",
 			Position = UDim2.new(1, -90, 0, 10), Size = UDim2.fromOffset(74, 18), ZIndex = 13, Parent = card,
 		}),
 		title = Components.text({
@@ -188,6 +202,9 @@ function JefferyController:_refreshCard()
 	parts.count.Text = `{state.index} / {state.total}`
 	parts.title.Text = stepDef.title
 	parts.goal.Text = stepDef.goal
+	-- "LISTEN" while Jeffery is talking, "YOUR TURN" once the server is watching for the step
+	parts.eyebrow.Text = Theme.track(if state.armed then "YOUR TURN" else "LISTEN")
+	parts.eyebrow.TextColor3 = if state.armed then Colors.Cyan else Colors.TextMuted
 	for _, child in parts.keys:GetChildren() do
 		if child:IsA("GuiObject") then
 			child:Destroy()
@@ -206,113 +223,420 @@ function JefferyController:_say(lines: { string }, face: string, options: { [str
 	for key, value in options or {} do
 		merged[key] = value
 	end
-	-- Talking animates the world copy and the companion too
+	-- Talking animates the world copy (he stays at his post and waves)
 	merged.onTalking = function(talking: boolean)
-		for _, rig in { self.worldRig, self.companionRig } do
-			if rig then
-				rig.setTalking(talking)
-				rig.setFace(face)
-			end
+		if self.worldRig then
+			self.worldRig.setTalking(talking)
+			self.worldRig.setFace(face)
 		end
 	end
 	self.panel.say(lines, merged)
 end
 
--- Says a step's lines. Note-only steps send CONTINUE to the server when the lines end.
+-- The tour --------------------------------------------------------------------------------------
+
+-- Is a Shell window (shop, settings, Ask Jeffery...) in the way of a line?
+local function windowOpen(): boolean
+	return Shell.isOpen()
+end
+
+-- The step's lines are over: tell the server to start watching, show the goal, start the pointers
+function JefferyController:_lineDone(step)
+	if state.step ~= step.id or not state.active then
+		return
+	end
+	state.armed = true
+	self:_refreshCard()
+	if step.event == "ack" then
+		ProgressRequest:FireServer(Protocol.ProgressAction.TutorialAck, step.id)
+		return
+	end
+	ProgressRequest:FireServer(Protocol.ProgressAction.TutorialLine, step.id)
+	if step.guide then
+		self:_setGuide(step.guide)
+	end
+	if step.event == "look" then
+		self:_watchLook(step.id)
+	end
+end
+
+-- Says a step's lines. The step is only "armed" (guide arrows, camera watch, the server's
+-- watching) after the lines end, never while Jeffery is still talking.
 function JefferyController:_sayStep(stepId: string)
 	local index = Tutorial.stepIndex(stepId)
 	local step = index and Tutorial.Steps[index]
 	if not step then
 		return
 	end
-	local function ack()
-		if step.event == "ack" and state.step == step.id then
-			ProgressRequest:FireServer(Protocol.ProgressAction.TutorialAck, step.id)
+	state.armed = false
+	self:_setGuide(nil)
+	self.lookWatch = nil
+	self:_refreshCard()
+	if self.worldRig then
+		self.worldRig.gesture()
+	end
+	self:_say(step.lines, step.face, {
+		title = "Jeffery",
+		skipLabel = "Skip tour",
+		autoClose = if step.autoClose then Tutorial.AutoCloseSeconds else nil,
+		onDone = function()
+			self:_lineDone(step)
+		end,
+		onSkip = function()
+			ProgressRequest:FireServer(Protocol.ProgressAction.TutorialExit)
+		end,
+	})
+end
+
+-- The camera step: the client owns the camera, so it reports when it has turned far enough
+function JefferyController:_watchLook(stepId: string)
+	local camera = workspace.CurrentCamera
+	if not camera then
+		ProgressRequest:FireServer(Protocol.ProgressAction.TutorialAck, stepId)
+		return
+	end
+	self.lookWatch = { step = stepId, start = camera.CFrame.LookVector }
+end
+
+function JefferyController:_stepLook()
+	local watch = self.lookWatch
+	local camera = workspace.CurrentCamera
+	if not watch or not camera then
+		return
+	end
+	if state.step ~= watch.step or not state.armed then
+		self.lookWatch = nil
+		return
+	end
+	local dot = math.clamp(watch.start:Dot(camera.CFrame.LookVector), -1, 1)
+	if math.deg(math.acos(dot)) >= Tutorial.LookDegrees then
+		self.lookWatch = nil
+		ProgressRequest:FireServer(Protocol.ProgressAction.TutorialAck, watch.step)
+	end
+end
+
+-- After the last step: the outro with a choice, the optional "tell me more" talk, then the gift
+function JefferyController:_playMore(topics: { any }, index: number, finish: () -> ())
+	local topic = topics[index]
+	if not topic then
+		finish()
+		return
+	end
+	local function nextTopic()
+		self:_playMore(topics, index + 1, finish)
+	end
+	self:_say(topic.lines, topic.face, { title = "Jeffery", skipLabel = "That is enough", onDone = nextTopic, onSkip = finish })
+end
+
+function JefferyController:_finishTour(rewarded: boolean, gift: any)
+	local function showGift()
+		if rewarded then
+			self:showGift(gift)
+		else
+			self:_say(Tutorial.ReplayDone.lines, Tutorial.ReplayDone.face, { title = "Jeffery", skippable = false })
 		end
 	end
-	self:_say(step.lines, step.face, { title = "Jeffery", skipLabel = "Skip tutorial", onDone = ack, onSkip = ack })
+	local outro = Tutorial.Outro
+	local choices = {
+		outro.choices[1],
+		{ id = "gift", label = if rewarded then outro.choices[2].label else "Done" },
+	}
+	self:_say(outro.lines, outro.face, {
+		title = "Jeffery",
+		skippable = false,
+		choices = choices,
+		onChoice = function(id)
+			if id == "more" then
+				self:_playMore(Tutorial.More, 1, showGift)
+			else
+				showGift()
+			end
+		end,
+	})
+end
+
+-- The welcome gift moment: what was given, and one voluntary line. Never tied to liking the game.
+function JefferyController:showGift(gift: any)
+	self.panel.hide()
+	if self.giftCard then
+		self.giftCard:Destroy()
+	end
+	gift = if typeof(gift) == "table" then gift else {}
+	local text = Tutorial.Gift
+	local items = {}
+	if gift.title or Tutorial.Reward.title then
+		table.insert(items, `{gift.title or Tutorial.Reward.title} title`)
+	end
+	table.insert(items, `{Components.formatNumber(gift.money or Tutorial.Reward.money)} Money`)
+	if gift.founding then
+		table.insert(items, `{Tutorial.Reward.foundingTitle} title`)
+	end
+	local card = make("Frame", {
+		Name = "WelcomeGift", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45),
+		Size = UDim2.fromOffset(460, 0), AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Colors.Panel, BorderSizePixel = 0, ZIndex = 40, Parent = self.gui,
+	}, {
+		Components.corner(), Components.stroke(Colors.Cyan, 1.5, 0.3), Components.padding(20, 20, 20, 20),
+		make("UISizeConstraint", { MaxSize = Vector2.new(460, 9999) }),
+		make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }),
+	})
+	Components.text({ Name = "Title", Text = string.upper(text.title), Style = "Heading", AlignX = "Center", Color = Colors.Cyan, LayoutOrder = 1, ZIndex = 41, Parent = card })
+	Components.text({ Name = "Intro", Text = text.intro, Style = "Body", Wrap = true, AlignX = "Center", LayoutOrder = 2, ZIndex = 41, Parent = card })
+	local list = make("Frame", {
+		Name = "Items", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 3, ZIndex = 41, Parent = card,
+	}, { make("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }) })
+	for order, item in items do
+		local row = make("Frame", {
+			Name = "Item_" .. order, LayoutOrder = order, Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Colors.PanelLight,
+			BackgroundTransparency = 0.2, BorderSizePixel = 0, ZIndex = 41, Parent = list,
+		}, { Components.corner() })
+		Components.text({ Name = "Label", Text = item, Style = "Body", Weight = "Bold", AlignX = "Center", Size = UDim2.fromScale(1, 1), ZIndex = 42, Parent = row })
+	end
+	Components.text({ Name = "Like", Text = text.like, Style = "Caption", Wrap = true, AlignX = "Center", Color = Colors.TextDim, LayoutOrder = 4, ZIndex = 41, Parent = card })
+	Components.button(text.button, {
+		Name = "GiftDone", Variant = "Primary", KeepCase = true, Size = UDim2.fromOffset(180, 44), LayoutOrder = 5, ZIndex = 42, Parent = card,
+	}, function()
+		card:Destroy()
+		if self.giftCard == card then
+			self.giftCard = nil
+		end
+	end)
+	self.giftCard = card
+	if self.worldRig then
+		self.worldRig.setFace(text.face)
+		self.worldRig.gesture()
+	end
 end
 
 function JefferyController:_onTutorial(payload)
 	if typeof(payload) ~= "table" then
 		return
 	end
+	local wasStep = state.step
 	state.active = payload.active == true
 	state.replay = payload.replay == true
 	state.index = tonumber(payload.index) or 0
 	state.total = tonumber(payload.total) or #Tutorial.Steps
 	state.step = if typeof(payload.step) == "string" then payload.step else nil
+	if state.step ~= wasStep or not state.active then
+		state.armed = false
+		-- A pointer or camera watch belongs to the step that made it
+		self:_setGuide(nil)
+		self.lookWatch = nil
+	end
+	tourToken += 1
+	local token = tourToken
 	self:_refreshCard()
-	self:_setCompanion(state.active)
 	local event = payload.event
 	if event == "start" or event == "step" then
-		if state.step then
-			self:_sayStep(state.step)
+		local stepId = state.step
+		if stepId then
+			-- A beat after the last step's tick, and never under an open window
+			local gap = if event == "step" then JefferyController.Config.StepGap else 0.2
+			task.spawn(function()
+				task.wait(gap)
+				while tourToken == token and windowOpen() do
+					task.wait(0.3)
+				end
+				if tourToken == token and state.step == stepId and state.active then
+					self:_sayStep(stepId)
+				end
+			end)
 		end
 	elseif event == "complete" then
-		self:_say(Tutorial.Outro.lines, Tutorial.Outro.face, { title = "Jeffery", skippable = true })
-		if payload.rewarded then
-			Shell.toast(`Welcome reward: the title {Tutorial.Reward.title} and {Tutorial.Reward.money} Money.`, "reward")
-		end
+		self:_setGuide(nil)
+		self.lookWatch = nil
+		self:_finishTour(payload.rewarded == true, payload.gift)
 	elseif event == "exit" then
+		self:_setGuide(nil)
+		self.lookWatch = nil
 		self.panel.hide()
 		Shell.toast(Tutorial.Exited.lines[1], "info")
+	elseif not state.active then
+		self:_setGuide(nil)
+		self.lookWatch = nil
 	end
 end
 
--- Companion --------------------------------------------------------------------------------------
+-- Floor arrows -----------------------------------------------------------------------------------
 
-function JefferyController:_setCompanion(on: boolean)
-	if not on then
-		if self.companion then
-			self.companion:Destroy()
-			self.companion, self.companionRig = nil, nil
-		end
-		return
-	end
-	if self.companion or not self.worldModel then
-		return
-	end
-	local copy = self.worldModel:Clone()
-	for _, item in copy:GetDescendants() do
-		if item:IsA("ProximityPrompt") then
-			item:Destroy()
-		end
-	end
-	copy.Name = "JefferyCompanion"
-	copy.Parent = workspace
-	self.companion = copy
-	self.companionRig = DialoguePanel.rig(copy, false)
+local function findGuides(): Instance?
+	return workspace:FindFirstChild("Guides", true)
 end
+
+-- Shows arrows along the hub's waypoints to a destination (a Guides folder id), or nothing for nil
+function JefferyController:_setGuide(destination: string?)
+	if self.guideFolder then
+		self.guideFolder:Destroy()
+		self.guideFolder = nil
+	end
+	self.guide = nil
+	if not destination then
+		return
+	end
+	local guides = findGuides()
+	local list = guides and guides:FindFirstChild(destination)
+	if not list then
+		return
+	end
+	local points = {}
+	local children = list:GetChildren()
+	table.sort(children, function(a, b)
+		return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0)
+	end)
+	for _, item in children do
+		if item:IsA("BasePart") then
+			table.insert(points, Vector3.new(item.Position.X, 0.25, item.Position.Z))
+		end
+	end
+	if #points == 0 then
+		return
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "JefferyGuide"
+	folder.Parent = workspace
+	self.guideFolder = folder
+	self.guide = { points = points, arrows = {}, beam = nil }
+	-- A soft light beam over the destination, so it can be seen from across the hall
+	local beam = Instance.new("Part")
+	beam.Name = "Beam"
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CanQuery = false
+	beam.CanTouch = false
+	beam.CastShadow = false
+	beam.Material = Enum.Material.Neon
+	beam.Color = Tutorial.FaceColor
+	beam.Transparency = 0.8
+	beam.Size = Vector3.new(2.2, 46, 2.2)
+	beam.CFrame = CFrame.new(points[#points] + Vector3.new(0, 23, 0))
+	beam.Parent = folder
+	self.guide.beam = beam
+	self:_stepGuide(0)
+end
+
+local function chevron(folder: Folder, name: string): { Part }
+	local parts = {}
+	for side = -1, 1, 2 do
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+		part.Material = Enum.Material.Neon
+		part.Color = Tutorial.FaceColor
+		part.Size = Vector3.new(0.5, 0.1, 2.6)
+		part.Parent = folder
+		table.insert(parts, part)
+	end
+	return parts
+end
+
+-- Lays the arrows from the player towards the destination (called often, cheap)
+function JefferyController:_stepGuide(dt: number)
+	local guide = self.guide
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not guide or not root or not self.guideFolder then
+		return
+	end
+	local config = JefferyController.Config
+	local here = Vector3.new(root.Position.X, 0.25, root.Position.Z)
+	local points = guide.points
+	-- The first waypoint still ahead of the player
+	local nearest, best = 1, math.huge
+	for index, point in points do
+		local distance = (point - here).Magnitude
+		if distance < best then
+			nearest, best = index, distance
+		end
+	end
+	local route = { here }
+	for index = nearest + (if best < 10 and nearest < #points then 1 else 0), #points do
+		table.insert(route, points[index])
+	end
+	-- Walk along the route placing an arrow every ArrowSpacing studs
+	local placed = 0
+	local carried = config.ArrowSpacing * 0.6
+	for index = 1, #route - 1 do
+		local from, to = route[index], route[index + 1]
+		local segment = to - from
+		local length = segment.Magnitude
+		if length > 0.01 then
+			local direction = segment / length
+			while carried <= length and placed < config.ArrowCount do
+				placed += 1
+				local tip = from + direction * carried
+				local arrow = guide.arrows[placed]
+				if not arrow then
+					arrow = chevron(self.guideFolder, "Arrow")
+					guide.arrows[placed] = arrow
+				end
+				local base = CFrame.lookAt(tip, tip + direction)
+				-- Two bars angled back from the tip make a chevron
+				arrow[1].CFrame = base * CFrame.Angles(0, math.rad(35), 0) * CFrame.new(0, 0, 1.1)
+				arrow[2].CFrame = base * CFrame.Angles(0, math.rad(-35), 0) * CFrame.new(0, 0, 1.1)
+				-- A pulse travels along the arrows, nearest first
+				local pulse = 0.35 + 0.4 * (0.5 + 0.5 * math.sin(os.clock() * 4 - placed * 0.9))
+				arrow[1].Transparency, arrow[2].Transparency = pulse, pulse
+				carried += config.ArrowSpacing
+			end
+			carried -= length
+		end
+	end
+	for index = placed + 1, #guide.arrows do
+		for _, part in guide.arrows[index] do
+			part.Transparency = 1
+		end
+	end
+	local _ = dt
+end
+
+-- Where Jeffery stands -----------------------------------------------------------------------------
 
 function JefferyController:_stepWorld(dt: number)
 	local camera = workspace.CurrentCamera
 	if self.worldRig and self.worldModel then
 		local close = not camera or (camera.CFrame.Position - self.worldModel:GetPivot().Position).Magnitude < JefferyController.Config.AnimateRange
 		if close then
+			-- He never leaves his post. During the tour (or a talk) he turns to face you.
+			local home = self.home
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if home then
+				local goal = home
+				if root and (state.active or self.panel.isOpen()) and (root.Position - home.Position).Magnitude < JefferyController.Config.FaceRange then
+					local target = Vector3.new(root.Position.X, home.Position.Y, root.Position.Z)
+					if (target - home.Position).Magnitude > 0.5 then
+						goal = CFrame.lookAt(home.Position, target)
+					end
+				end
+				self.facing = (self.facing or home):Lerp(goal, math.min(1, dt * 3))
+				self.worldRig.setBase(self.facing)
+			end
 			self.worldRig.step(os.clock(), dt)
 		end
 	end
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if self.companionRig and root then
-		local target = root.CFrame * CFrame.new(JefferyController.Config.CompanionOffset) * CFrame.new(0, -1.4, 0)
-		local current = self.companion:GetPivot()
-		local goal = CFrame.lookAt(target.Position, target.Position + root.CFrame.LookVector)
-		self.companionRig.setBase(current:Lerp(goal, math.min(1, dt * 4)))
-		self.companionRig.step(os.clock(), dt)
+	self:_stepLook()
+	if self.guide then
+		self:_stepGuide(dt)
 	end
 end
 
 -- Replay (How to Play) ---------------------------------------------------------------------------
 
-function JefferyController:replayDialogue()
-	local step = Tutorial.Steps[1]
-	self:_say(step.lines, step.face, { title = "Jeffery" })
-end
-
 function JefferyController:replayTutorial()
 	ProgressRequest:FireServer(Protocol.ProgressAction.TutorialReplay)
+end
+
+-- Opens the Ask Jeffery chat panel
+function JefferyController:openChat()
+	if Shell.hasWindow("AskJeffery") then
+		self.panel.hide()
+		Shell.open("AskJeffery")
+	end
 end
 
 function JefferyController._queue()
@@ -351,7 +675,29 @@ function JefferyController:Start()
 		local found = workspace:WaitForChild("Jeffery", 30) or workspace:FindFirstChild("Jeffery", true)
 		if found and found:IsA("Model") and found.PrimaryPart then
 			self.worldModel = found
+			self.home = found:GetPivot()
 			self.worldRig = DialoguePanel.rig(found, false)
+		end
+		-- Tell the server the tour may begin only once there is something to show it with: Jeffery
+		-- is in the world, the character exists and no window or cinematic is covering the screen
+		local waited = 0
+		while waited < JefferyController.Config.ReadyWait do
+			local character = player.Character
+			local ready = character ~= nil and character:FindFirstChild("HumanoidRootPart") ~= nil
+				and Shell.getMode() ~= "Cinematic" and not windowOpen()
+			if ready then
+				break
+			end
+			task.wait(0.25)
+			waited += 0.25
+		end
+		ProgressRequest:FireServer(Protocol.ProgressAction.TutorialReady)
+	end)
+
+	-- Jeffery's prompt in the hall opens the Ask Jeffery panel
+	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt)
+		if prompt:GetAttribute("Action") == "Jeffery:Ask" then
+			self:openChat()
 		end
 	end)
 
@@ -383,6 +729,20 @@ function JefferyController:Start()
 		while true do
 			task.wait(0.4)
 			self:_tickHints()
+			self:_stepLook()
+			-- A window opened over Jeffery's line: put the line away and say it again when the window closes
+			local covered = windowOpen()
+			if covered and not self.covered and self.panel.isOpen() and state.active and state.step and not state.armed then
+				self.resumeStep = state.step
+				self.panel.hide()
+			elseif not covered and self.covered and self.resumeStep then
+				local stepId = self.resumeStep
+				self.resumeStep = nil
+				if state.active and state.step == stepId and not state.armed then
+					self:_sayStep(stepId)
+				end
+			end
+			self.covered = covered
 			-- Opening fighter selection or the shop can bring a hint (the server decides)
 			for windowId in Tutorial.WindowHints do
 				local isOpen = Shell.isOpen(windowId)

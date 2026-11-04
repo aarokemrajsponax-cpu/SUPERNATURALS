@@ -41,6 +41,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Common = require(script.Parent.Parent.Arenas.Common)
 local BaseStreet = require(script.Parent.BaseStreet)
+local GameRoom = require(script.Parent.GameRoom)
 local Homes = require(ReplicatedStorage.Shared.Config.Homes)
 
 local BaseHome = {}
@@ -59,6 +60,7 @@ local SCREEN = rgb(14, 22, 36)
 local TEXT = rgb(232, 238, 244)
 local AMBER = rgb(232, 162, 74)
 local GOLD = rgb(236, 196, 92)
+local WOOD_TRIM = rgb(70, 46, 30)
 local FONT = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 local FONT_REG = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Medium)
 
@@ -70,6 +72,13 @@ export type Built = {
 	vaultEntry: CFrame,
 	prompts: { [string]: ProximityPrompt },
 	alcovePanel: BasePart,
+	gameRoom: GameRoom.Built,
+	seats: { BasePart },
+	setVisitors: (names: { string }, hearts: number) -> (),
+	setEffect: (key: string, on: boolean) -> (),
+	setParty: (on: boolean) -> (),
+	animate: (hue: number) -> (),
+	fireworks: { start: () -> (), shot: (index: number, color: Color3) -> (), stop: () -> () },
 	console: BasePart?,
 	applyTheme: (themeId: string) -> (),
 	render: (view: any) -> (),
@@ -139,6 +148,8 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 	local prompts: { [string]: ProximityPrompt } = {}
 	local roles: { [string]: { BasePart } } = {}
 	local lamps: { Light } = {}
+	local partyHome: { BasePart } = {}
+	local seats: { BasePart } = {}
 	local pads: { [string]: TextLabel } = {}
 
 	local function piece(group: Instance, frame: CFrame)
@@ -181,7 +192,15 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 	put("Floor", 52, 2, 40, 0, -1, 0, rgb(96, 62, 38), M.WoodPlanks, nil, "floor")
 	put("Ceiling", 52, 1.5, 40, 0, 14.75, 0, rgb(222, 218, 208), M.SmoothPlastic)
 	-- Walls: north has the window opening
-	put("WallSouth", 52, 14, 2, 0, 7, 19, rgb(214, 204, 188), M.SmoothPlastic, nil, "wall")
+	-- South wall: the entrance door (x -14) and the lift (x 14) sit in it; the doorway to the game room is x -4..4
+	put("WallSouth", 22, 14, 2, -15, 7, 19, rgb(214, 204, 188), M.SmoothPlastic, nil, "wall")
+	put("WallSouth", 22, 14, 2, 15, 7, 19, rgb(214, 204, 188), M.SmoothPlastic, nil, "wall")
+	put("WallSouth", 8, 4, 2, 0, 12, 19, rgb(214, 204, 188), M.SmoothPlastic, nil, "wall")
+	put("DoorwayPostL", 0.7, 10, 2.2, -4.35, 5, 19, WOOD_TRIM, M.Wood, nil, "panel")
+	put("DoorwayPostR", 0.7, 10, 2.2, 4.35, 5, 19, WOOD_TRIM, M.Wood, nil, "panel")
+	put("DoorwayHead", 9.4, 0.8, 2.2, 0, 10.2, 19, WOOD_TRIM, M.Wood, nil, "panel")
+	local doorwaySign = put("DoorwaySign", 5, 1, 0.2, 0, 11.6, 17.9, DARK, M.SmoothPlastic, DECOR_)
+	label(gui(doorwaySign, Enum.NormalId.Front, 40), "GAME ROOM", 0, 0, 1, 1, 18, AMBER, Enum.TextXAlignment.Center)
 	put("WallWest", 2, 14, 40, -25, 7, 0, rgb(214, 204, 188), M.SmoothPlastic, nil, "wall")
 	put("DisplayWall", 2, 14, 40, 25, 7, 0, rgb(70, 46, 30), M.Wood, nil, "panel")
 	put("WallNorthL", 8, 14, 2, -22, 7, -19, rgb(214, 204, 188), M.SmoothPlastic, nil, "wall")
@@ -202,9 +221,10 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 		put("Beam", 1.2, 0.9, 36, x, 13.4, 0, rgb(70, 46, 30), M.Wood, nil, "panel")
 		local panel = put("LightPanel", 3.4, 0.2, 5, x, 13.85, -2, rgb(255, 232, 196), M.Neon, DECOR_)
 		lamp(panel, 34, 0.9)
+		table.insert(partyHome, panel)
 	end
 	for _, z in { -17.4, 17.4 } do
-		put("Cove", 44, 0.2, 0.4, 0, 13.3, z, AMBER, M.Neon, DECOR_)
+		table.insert(partyHome, put("Cove", 44, 0.2, 0.4, 0, 13.3, z, AMBER, M.Neon, DECOR_))
 	end
 
 	-- Window wall: glass, mullions, sill, and the lit alcove with the holographic skyline
@@ -247,7 +267,7 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 	end
 	sofa("SofaBase", 11, 0.9, 3.8, 0, 1.05, 0, rgb(150, 82, 44), M.Fabric, nil, "sofa")
 	for i = -1, 1 do
-		sofa("SeatCushion", 3.2, 0.8, 3.0, i * 3.3, 1.9, -0.3, rgb(160, 90, 50), M.Fabric, nil, "sofa")
+		table.insert(seats, sofa("SeatCushion", 3.2, 0.8, 3.0, i * 3.3, 1.9, -0.3, rgb(160, 90, 50), M.Fabric, { ClassName = "Seat" }, "sofa"))
 		sofa("BackCushion", 3.2, 1.9, 0.8, i * 3.3, 2.9, 1.3, rgb(160, 90, 50), M.Fabric, nil, "sofa")
 	end
 	sofa("SofaBack", 11, 2.8, 0.8, 0, 2.5, 1.7, rgb(140, 76, 42), M.Fabric, nil, "sofa")
@@ -302,7 +322,7 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 	end
 	local chair = piece(home, H * CFrame.new(-16, 0, -2) * CFrame.Angles(0, math.rad(90), 0))
 	chair("ChairBase", 3.4, 1, 3.2, 0, 1, 0, rgb(150, 82, 44), M.Fabric, nil, "sofa")
-	chair("ChairCushion", 2.8, 0.7, 2.6, 0, 1.75, 0.1, rgb(160, 90, 50), M.Fabric, nil, "sofa")
+	table.insert(seats, chair("ChairCushion", 2.8, 0.7, 2.6, 0, 1.75, 0.1, rgb(160, 90, 50), M.Fabric, { ClassName = "Seat" }, "sofa"))
 	chair("ChairBack", 3.4, 2.8, 0.8, 0, 2.7, 1.2, rgb(140, 76, 42), M.Fabric, nil, "sofa")
 	for _, x in { -1.45, 1.45 } do
 		chair("ChairArm", 0.6, 1.7, 3.2, x, 1.9, 0, rgb(140, 76, 42), M.Fabric, nil, "sofa")
@@ -382,6 +402,26 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 		pads[entry[1]].TextWrapped = true
 		prompt("Pad" .. entry[1], pad, "Change", entry[1] == "Theme" and "Decor theme" or entry[1] .. " display", 5)
 	end
+
+	-- Visitors board (west wall, by the entrance): the last visitors by Roblox display name and a heart count
+	put("VisitorsFrame", 0.4, 7.6, 6.8, -24.2, 6.8, 14.6, BRONZE, M.Metal, DECOR_, "trim")
+	local visitorsScreen = put("VisitorsBoard", 0.2, 7, 6.2, -24.0, 6.8, 14.6, SCREEN, M.SmoothPlastic, DECOR_)
+	local visitorsGui = gui(visitorsScreen, Enum.NormalId.Right, 40)
+	label(visitorsGui, "VISITORS", 0.06, 0.02, 0.6, 0.1, 22, AMBER)
+	local heartsLabel = label(visitorsGui, "", 0.5, 0.02, 0.44, 0.1, 20, rgb(240, 120, 130), Enum.TextXAlignment.Right)
+	local visitorLines = {}
+	for i = 1, Homes.VisitorsKept do
+		visitorLines[i] = label(visitorsGui, "", 0.06, 0.14 + (i - 1) * 0.105, 0.88, 0.1, 18, TEXT)
+	end
+	local heartPad = put("HeartPad", 0.3, 0.9, 4.2, -23.9, 2.6, 14.6, DARK, M.SmoothPlastic, DECOR_)
+	label(gui(heartPad, Enum.NormalId.Right, 40), "GIVE A HEART", 0, 0, 1, 1, 16, rgb(240, 120, 130), Enum.TextXAlignment.Center)
+	prompt("Heart", heartPad, "Give a heart", "Visitors board", 8)
+	-- Base panel lectern (owner): hosting, jukebox, party, effects, fireworks
+	put("LecternBase", 2.6, 3, 1.6, -7.5, 1.5, 16.6, WOOD_TRIM, M.Wood, nil, "panel")
+	put("LecternTop", 2.9, 0.2, 1.9, -7.5, 3.1, 16.6, BRONZE, M.Metal, DECOR_, "trim")
+	local lecternScreen = put("LecternScreen", 2.4, 0.15, 1.4, -7.5, 3.3, 16.5, SCREEN, M.SmoothPlastic, DECOR_)
+	label(gui(lecternScreen, Enum.NormalId.Top, 40), "BASE PANEL", 0, 0, 1, 1, 16, AMBER, Enum.TextXAlignment.Center)
+	prompt("Panel", lecternScreen, "Open the base panel", "Hosting and effects", 8)
 
 	-- Entrance door (back to the street) and the lift, both on the south wall
 	local door = piece(home, H * CFrame.new(-14, 0, 18))
@@ -529,6 +569,156 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 		label(gui(screen, Enum.NormalId.Back, 40), "COMMAND CONSOLE", 0, 0.15, 1, 0.7, 20, AMBER, Enum.TextXAlignment.Center)
 		consolePart = cn("ConsolePad", 2, 0.3, 1, 0, 3.3, 0.9, DARK, M.SmoothPlastic, DECOR_)
 		prompt("Console", consolePart :: BasePart, "Open control center", "Command console", 9)
+	end
+
+	-- ============================== GAME ROOM ==============================
+	local gameRoom = GameRoom.build(root, origin, owner.slot)
+	for key, item in gameRoom.prompts do
+		prompts[key] = item
+	end
+	for _, item in gameRoom.seats do
+		table.insert(seats, item)
+	end
+
+	-- Home effects (Base Effects Pack): built on demand, not counted in the part budget
+	local homeEffects = Instance.new("Folder")
+	homeEffects.Name = "Effects"
+	homeEffects.Parent = home
+	local auroraParts: { BasePart } = {}
+	local function setHomeEffect(key: string, on: boolean)
+		local old = homeEffects:FindFirstChild(key)
+		if old then
+			old:Destroy()
+		end
+		if key == "Aurora" then
+			for i = #auroraParts, 1, -1 do
+				if auroraParts[i].Parent == nil then
+					table.remove(auroraParts, i)
+				end
+			end
+		end
+		if not on then
+			return
+		end
+		local folder = Instance.new("Folder")
+		folder.Name = key
+		folder.Parent = homeEffects
+		if key == "Aurora" then
+			for i = 0, 4 do
+				local ribbon = Common.block(folder, "AuroraRibbon", Vector3.new(34, 0.15, 3 - (i % 2) * 0.8), H * CFrame.new(0, 13.95 - (i % 2) * 0.1, -12 + i * 6) * CFrame.Angles(0, math.rad((i - 2) * 7), 0), rgb(90, 220, 170), M.Neon, { Transparency = 0.5, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false })
+				ribbon:SetAttribute("HueOffset", i * 0.18)
+				table.insert(auroraParts, ribbon)
+			end
+		elseif key == "Snowfall" then
+			local source = Common.block(folder, "SnowSource", Vector3.new(34, 0.2, 3), H * CFrame.new(0, 13, -16.5), rgb(255, 255, 255), M.SmoothPlastic, { Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false })
+			Common.emitter(source, {
+				Texture = Common.SPARKLES, Color = ColorSequence.new(rgb(255, 255, 255)), LightEmission = 0.4, Rate = 36,
+				Lifetime = NumberRange.new(4, 5), Speed = NumberRange.new(0.5, 1.5), SpreadAngle = Vector2.new(20, 20),
+				EmissionDirection = Enum.NormalId.Bottom, Acceleration = Vector3.new(0, -2.4, 0),
+				Size = NumberSequence.new(0.28), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(0.85, 0.2), NumberSequenceKeypoint.new(1, 1) }),
+				Rotation = NumberRange.new(0, 360), RotSpeed = NumberRange.new(-40, 40),
+			})
+		elseif key == "Fireflies" then
+			local source = Common.block(folder, "FireflySource", Vector3.new(30, 0.2, 24), H * CFrame.new(0, 6, 3), rgb(255, 230, 140), M.SmoothPlastic, { Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false })
+			Common.motes(source, rgb(255, 226, 120), 6, { size = 0.3, minLife = 5, maxLife = 8, minSpeed = 0.4, maxSpeed = 1.2, spread = 180, acceleration = Vector3.zero, alpha = 0.1, lightEmission = 1 })
+		end
+	end
+	local partyOn = false
+	local homeOriginal: { [BasePart]: Color3 } = {}
+	for _, item in partyHome do
+		homeOriginal[item] = item.Color
+	end
+	local function setEffect(key: string, on: boolean)
+		if key == "Fireplace" or key == "LightShow" then
+			gameRoom.setEffect(key, on)
+		else
+			setHomeEffect(key, on)
+		end
+	end
+	local function setParty(on: boolean)
+		partyOn = on
+		home:SetAttribute("Party", on)
+		gameRoom.setParty(on)
+		if not on then
+			for item, color in homeOriginal do
+				item.Color = color
+			end
+		end
+	end
+	local function animate(hue: number)
+		if partyOn then
+			for i, item in partyHome do
+				item.Color = Color3.fromHSV((hue + i * 0.11) % 1, 0.6, 1)
+			end
+		end
+		for _, ribbon in auroraParts do
+			local offset = ribbon:GetAttribute("HueOffset")
+			local wave = 0.5 + 0.5 * math.sin((hue * 2 + (if typeof(offset) == "number" then offset else 0)) * math.pi * 2)
+			ribbon.Color = Color3.fromHSV(0.32 + 0.4 * wave, 0.65, 1)
+		end
+		gameRoom.animate(hue)
+	end
+	-- Fireworks Show: three mortar tubes by the window wall, built when a show starts and removed
+	-- when it ends. A shot pulses a rising emitter, then a burst emitter at the top (Enabled pulses
+	-- replicate to clients; the server runs the schedule in BaseService).
+	local show = Instance.new("Folder")
+	show.Name = "Fireworks"
+	show.Parent = home
+	local tubes: { { rocket: ParticleEmitter, burst: ParticleEmitter, top: BasePart } } = {}
+	local SPARK = Common.SPARKLES
+	local fireworks = {
+		start = function()
+			show:ClearAllChildren()
+			tubes = {}
+			for i, x in { -12, 0, 12 } do
+				local tube = Common.cylinder(show, "MortarTube", H * CFrame.new(x, 1, -13), 2, 1, DARK, M.Metal)
+				local rocket = Common.emitter(tube, {
+					Texture = SPARK, Color = ColorSequence.new(rgb(255, 214, 150)), LightEmission = 1, Rate = 60, Enabled = false,
+					Lifetime = NumberRange.new(0.5, 0.8), Speed = NumberRange.new(26, 30), SpreadAngle = Vector2.new(2, 2),
+					EmissionDirection = Enum.NormalId.Top, Size = NumberSequence.new(0.4),
+					Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }),
+				})
+				local top = Common.block(show, "BurstPoint", Vector3.one, H * CFrame.new(x * 0.7, 10 + (i % 2) * 1.2, -10), rgb(255, 255, 255), M.SmoothPlastic, { Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false })
+				local burst = Common.emitter(top, {
+					Texture = SPARK, Color = ColorSequence.new(rgb(255, 120, 90)), LightEmission = 1, Rate = 500, Enabled = false,
+					Lifetime = NumberRange.new(1.0, 1.8), Speed = NumberRange.new(8, 14), SpreadAngle = Vector2.new(180, 180),
+					Acceleration = Vector3.new(0, -5, 0), Drag = 1.5, Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) }),
+					Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.7, 0.2), NumberSequenceKeypoint.new(1, 1) }),
+				})
+				tubes[i] = { rocket = rocket, burst = burst, top = top }
+			end
+		end,
+		shot = function(index: number, color: Color3)
+			local tube = tubes[(index - 1) % math.max(#tubes, 1) + 1]
+			if not tube then
+				return
+			end
+			tube.rocket.Enabled = true
+			task.delay(0.25, function()
+				tube.rocket.Enabled = false
+			end)
+			task.delay(0.85, function()
+				tube.burst.Color = ColorSequence.new(color, color:Lerp(rgb(255, 255, 255), 0.5))
+				tube.burst.Enabled = true
+				task.delay(0.12, function()
+					tube.burst.Enabled = false
+				end)
+			end)
+		end,
+		stop = function()
+			show:ClearAllChildren()
+			tubes = {}
+		end,
+	}
+
+	local function setVisitors(names: { string }, hearts: number)
+		setText(heartsLabel, string.format("%d hearts", hearts))
+		for i, line in visitorLines do
+			setText(line, names[i] or "")
+		end
+		if #names == 0 then
+			setText(visitorLines[1], "No visitors yet")
+		end
 	end
 
 	root.Parent = parent
@@ -688,6 +878,13 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 		vaultEntry = vaultEntry,
 		prompts = prompts,
 		alcovePanel = panel,
+		gameRoom = gameRoom,
+		seats = seats,
+		setVisitors = setVisitors,
+		setEffect = setEffect,
+		setParty = setParty,
+		animate = animate,
+		fireworks = fireworks,
 		console = consolePart,
 		applyTheme = applyTheme,
 		render = render,
@@ -699,6 +896,7 @@ function BaseHome.build(parent: Instance, origin: Vector3, owner: { name: string
 		end,
 	}
 	setAlcove(false, 0, 10)
+	setVisitors({}, 0)
 	applyTheme(Homes.DefaultTheme)
 	return built :: Built
 end

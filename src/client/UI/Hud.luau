@@ -6,6 +6,10 @@
 --   controls      a neat row of key caps for keyboard or gamepad, each with what
 --                 it does and a small cooldown sweep (hidden on touch, where the
 --                 touch buttons show them)
+-- The whole HUD shows only in a fight, in training and in the owner's showcase (UI/CombatView
+-- reads the server's context); anywhere social it fades out and does no work. On touch the
+-- ability row moves to the thumb arch (UI/TouchArch) and the vitals narrow to fit between the
+-- thumbstick and the arch.
 -- Plus, away from the strip: a charge meter under the crosshair while a heavy
 -- charges, and corner brackets over the lock-on target.
 -- Everything sits on the 8 px grid and follows Theme. Nothing here catches clicks,
@@ -20,6 +24,7 @@ local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
+local TouchArch = require(script.Parent.TouchArch)
 
 local Attribute = Protocol.Attribute
 local Colors = Theme.Colors
@@ -38,8 +43,10 @@ local CAP_CELL = 50
 local CAP_HEIGHT = 24
 local CAP_WIDTH = 28
 local CELL_HEIGHT = 48
--- On touch the HUD moves left a little to leave room for the button cluster
-local TOUCH_SHIFT = -48
+-- On touch the vitals are this wide at most (design px); they sit between the thumbstick and
+-- the arch of buttons (see TouchArch)
+local TOUCH_WIDTH = 300
+local TOUCH_SHIFT = 0
 -- Health turns red below this fraction; stamina turns amber below this one
 local LOW_HEALTH = 0.3
 local LOW_STAMINA = 0.25
@@ -48,8 +55,9 @@ local CHARGE_COLOR = Colors.Accent
 Hud.Layout = {
 	width = WIDTH,
 	touchShift = TOUCH_SHIFT,
-	-- Height on touch (ability row, gap, vitals) and the gap under it, in design px
-	touchHeight = ABILITY_SIZE + Space.S + VITALS_HEIGHT,
+	touchWidth = TOUCH_WIDTH,
+	-- Height on touch (the vitals; the ability row is in the arch) and the gap under it, in design px
+	touchHeight = VITALS_HEIGHT + 22,
 	bottom = Space.L,
 }
 
@@ -123,7 +131,7 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		Parent = parent,
 	})
 	Components.list(frame, Space.S, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
-	require(script.Parent.PhaseMeter).mount(frame)
+	require(script.Parent.PhaseMeter).mount(frame, device)
 
 	-- The ability bar's home: centred, room for six 64x64 buttons
 	local abilityRow = make("Frame", {
@@ -348,12 +356,37 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		end },
 	}
 
-	local faded, fadedOut = false, false
+	-- faded: Jeffery is talking. inCombat: the player is in a fight or in training. The HUD is
+	-- hidden (and does no work) unless it is in combat and not faded. It starts hidden.
+	local faded, fadedOut, inCombat = false, true, false
+	local targetHidden = true
+	frame.GroupTransparency = 1
+	frame.Visible = false
+
+	-- Where the HUD sits on touch: between the thumbstick and the arch, narrowed to fit
+	local function placeOnTouch()
+		local camera = workspace.CurrentCamera
+		local viewport = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+		local scale = math.max(0.1, require(script.Parent.Shell).scale())
+		local arch = TouchArch.state.arch
+		local left = viewport.X * TouchArch.THUMBSTICK_SHARE
+		local right = if arch then arch.leftEdge - TouchArch.GAP else viewport.X * 0.55
+		local band = math.max(120, (right - left) / scale)
+		local width = math.min(TOUCH_WIDTH, band)
+		frame.AnchorPoint = Vector2.new(0.5, 1)
+		frame.Size = UDim2.fromOffset(width, 0)
+		frame.Position = UDim2.new(0, (left + right) / 2 / scale, 1, -Space.L)
+	end
 
 	local function update()
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		frame.Visible = humanoid ~= nil and not fadedOut
+		if fadedOut then
+			reticle.Enabled = false
+			chargeFrame.Visible = false
+			return
+		end
 		local combat = controller("CombatController")
 		local camera = controller("CameraController")
 
@@ -377,7 +410,13 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 			return
 		end
 		local kind = device()
-		frame.Position = UDim2.new(0.5, if kind == "touch" then TOUCH_SHIFT else 0, 1, -Space.L)
+		if kind == "touch" then
+			placeOnTouch()
+		else
+			frame.AnchorPoint = Vector2.new(0.5, 1)
+			frame.Size = UDim2.fromOffset(WIDTH, 0)
+			frame.Position = UDim2.new(0.5, 0, 1, -Space.L)
+		end
 		nameLabel.Text = player.DisplayName
 		local fraction = if humanoid.MaxHealth > 0 then humanoid.Health / humanoid.MaxHealth else 0
 		local low = fraction < LOW_HEALTH
@@ -449,26 +488,42 @@ function Hud.build(parent: Instance, bindings: { any }, device: () -> string, cu
 		end
 	end
 
-	-- Fades the whole HUD out (true) or back in (false); used while Jeffery is talking
-	local function setFaded(hidden: boolean)
-		if hidden == faded then
+	-- One fade for both reasons the HUD can be hidden
+	local function refreshFade()
+		local hidden = faded or not inCombat
+		if hidden == targetHidden then
 			return
 		end
-		faded = hidden
+		targetHidden = hidden
 		if not hidden then
 			fadedOut = false
 		end
 		local tween = TweenService:Create(frame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = if hidden then 1 else 0 })
 		tween.Completed:Connect(function()
-			if faded == hidden then
+			if targetHidden == hidden then
 				fadedOut = hidden
 				update()
 			end
 		end)
 		tween:Play()
+		if not hidden then
+			update()
+		end
 	end
 
-	return { frame = frame, update = update, setFaded = setFaded, abilityRow = abilityRow, chargeMeter = chargeFrame, reticle = reticle }
+	-- Fades the whole HUD out (true) or back in (false); used while Jeffery is talking
+	local function setFaded(hidden: boolean)
+		faded = hidden
+		refreshFade()
+	end
+
+	-- Shows the HUD in a fight or in training, hides it everywhere else (see UI/CombatView)
+	local function setCombat(active: boolean)
+		inCombat = active
+		refreshFade()
+	end
+
+	return { frame = frame, update = update, setFaded = setFaded, setCombat = setCombat, isShown = function() return not targetHidden end, abilityRow = abilityRow, chargeMeter = chargeFrame, reticle = reticle }
 end
 
 return Hud

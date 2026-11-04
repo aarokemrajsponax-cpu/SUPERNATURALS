@@ -211,7 +211,7 @@ end
 
 -- A quiet welcome card for the season, in the interface's own style (docs/specs/UI_Craft_Pass.md):
 -- a solid panel with a light top lip, a thin bar in the season's accent colour, the season's
--- name in Michroma and one plain line under it. It eases in under the top bar and leaves.
+-- name in bold capitals and one plain line under it. It eases in under the top bar and leaves.
 local function showBanner(theme)
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "SeasonalBanner"
@@ -221,13 +221,13 @@ local function showBanner(theme)
 	local frame = Instance.new("Frame")
 	frame.Name = "Card"
 	frame.AnchorPoint = Vector2.new(0.5, 0)
-	frame.Position = UDim2.new(0.5, 0, 0, -120)
-	frame.Size = UDim2.new(0.9, 0, 0, 76)
+	frame.Position = UDim2.new(0.5, 0, 0, -140)
+	frame.Size = UDim2.new(0.9, 0, 0, 96)
 	frame.BackgroundColor3 = Colors.Panel
 	frame.BorderSizePixel = 0
 	frame.Parent = gui
 	local maxSize = Instance.new("UISizeConstraint")
-	maxSize.MaxSize = Vector2.new(460, 76)
+	maxSize.MaxSize = Vector2.new(520, 96)
 	maxSize.Parent = frame
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = Theme.Corner
@@ -267,8 +267,8 @@ local function showBanner(theme)
 		label.TextTruncate = Enum.TextTruncate.AtEnd
 		label.Parent = frame
 	end
-	line("Title", Theme.track(theme.name), 14, 20, Theme.Faces.Display, Colors.Text)
-	line("Subtitle", theme.subtitle, 42, 16, Theme.Faces.Medium, Colors.TextDim)
+	line("Title", Theme.caps(theme.name), 12, 26, Theme.Faces.ExtraBold, Colors.Text)
+	line("Subtitle", theme.subtitle, 50, 18, Theme.Faces.SemiBold, Colors.TextDim)
 
 	gui.Parent = player:WaitForChild("PlayerGui")
 	local slideIn = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
@@ -277,7 +277,7 @@ local function showBanner(theme)
 	slideIn:Play()
 	task.delay(7, function()
 		local slideOut = TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-			Position = UDim2.new(0.5, 0, 0, -120),
+			Position = UDim2.new(0.5, 0, 0, -140),
 		})
 		slideOut.Completed:Once(function()
 			gui:Destroy()

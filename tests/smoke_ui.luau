@@ -2,7 +2,7 @@
 --   rojo build default.project.json -o build/game.rbxl
 --   lune run tests/smoke_ui.luau build/game.rbxl
 -- Every window opens at 1920x1080, 1280x720 and 667x375 and passes the layout audit; no emoji
--- or em dash reaches a label; text is at least 14 px; the 3D preview builds for all eight
+-- or em dash reaches a label; text is at least 14 px; the 3D preview builds for all seven released
 -- powers and every phase; the dock lists each window once; Training is labelled free; the
 -- Phase meter shows its "press T" cue.
 
@@ -88,7 +88,37 @@ for _, size in SIZES do
 end
 t.setScreen(1280, 720)
 
-t.check("the preview builds for all eight powers and every phase", function()
+t.check("phone mode: scale floor, full-canvas window, chrome hidden, signal and rotation", function()
+	local Theme = t.client("UI.Theme")
+	local flips = {}
+	local link = Shell.compactChanged:Connect(function(value)
+		table.insert(flips, value)
+	end)
+	t.setScreen(1280, 720)
+	assert(not Shell.isCompact(), "1280x720 is not compact")
+	t.setScreen(667, 375)
+	assert(Shell.isCompact(), "667x375 is compact")
+	assert(Shell.scale() >= Theme.Scale.CompactMin - 1e-6, `scale {Shell.scale()} is under the compact floor`)
+	for _, id in { "Powers", "Play", "Settings" } do
+		Shell.open(id)
+		local window = t.findNamed(gui, "Window_" .. id)
+		local canvas = { X = 667 / Shell.scale(), Y = 375 / Shell.scale() }
+		assert(math.abs(window.Size.X.Offset - canvas.X) < 1 and window.Size.Y.Offset > canvas.Y - 80, `{id} fills the phone canvas {window.Size.X.Offset}x{window.Size.Y.Offset} of {canvas.X}x{canvas.Y}`)
+		assert(not t.findNamed(gui, "Dock").Visible, "dock hides behind a phone window")
+		Shell.close()
+		assert(t.findNamed(gui, "Dock").Visible, "dock returns after the window closes")
+	end
+	Shell.open("Settings")
+	t.setScreen(1024, 768)
+	assert(not Shell.isCompact() and Shell.isOpen("Settings"), "rotating to a tablet keeps the window open")
+	assert(t.findNamed(gui, "Window_Settings").Size.X.Offset < 1024 / Shell.scale() - 40, "the window leaves the canvas at tablet size")
+	Shell.close()
+	assert(#flips == 2 and flips[1] == true and flips[2] == false, `compactChanged fired {#flips} times`)
+	link:Disconnect()
+	t.setScreen(1280, 720)
+end)
+
+t.check("the preview builds for all seven released powers and every phase", function()
 	Shell.open("Powers")
 	local list = t.findNamed(gui, "PowerList")
 	local built = 0
@@ -111,10 +141,10 @@ t.check("the preview builds for all eight powers and every phase", function()
 		end
 	end
 	local expected = 0
-	for _, id in Powers.Order do
+	for _, id in Powers.released() do
 		expected += Powers.degreeCount(id)
 	end
-	assert(built == expected and expected == 25, `built {built} previews, expected {expected} (8 powers: 7 x 3 phases + Grandmaster 4 = 25)`)
+	assert(built == expected and expected == 22, `built {built} previews, expected {expected} (7 released powers: 6 x 3 phases + Grandmaster 4 = 22)`)
 	Shell.close()
 end)
 

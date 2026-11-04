@@ -37,6 +37,11 @@ add("title_member", { kind = "title", name = "Facility Member", text = "Facility
 add("title_recruiter", { kind = "title", name = "Recruiter", text = "Recruiter", source = "referral", how = "Invite a new player who finishes the tour and one training session." })
 add("title_brought_in", { kind = "title", name = "Brought In", text = "Brought In by a Friend", source = "referral", how = "Join through a friend's invite and finish the tour and one training session." })
 
+-- Community like goals (CommunityService, Config/Community.LikeGoals) -----------------------------
+-- Given to every player when the game reaches the like count. Never sold, never a roll.
+add("title_supporter", { kind = "title", name = "Supporter", text = "Supporter", source = "community", how = "Given to every player when the game reaches 1,000 likes." })
+add("aura_crowd_glow", { kind = "aura", name = "Crowd Glow", colors = { { 232, 162, 74 }, { 255, 214, 166 } }, source = "community", how = "Given to every player when the game reaches 25,000 likes." })
+
 -- Achievements (AchievementService) -----------------------------------------------------------
 add("title_veteran", { kind = "title", name = "Veteran", text = "Veteran", source = "achievement", how = "Win 50 matches." })
 add("title_champion", { kind = "title", name = "Champion", text = "Champion", source = "achievement", how = "Win 250 matches." })
@@ -47,7 +52,7 @@ add("title_precise", { kind = "title", name = "Precise", text = "Precise", sourc
 add("title_duelist", { kind = "title", name = "Duelist", text = "Duelist", source = "achievement", how = "Win 5 duels against other players." })
 add("title_adept", { kind = "title", name = "Adept", text = "Adept", source = "achievement", how = "Reach mastery level 10 with any fighter." })
 add("title_master", { kind = "title", name = "Master", text = "Master", source = "achievement", how = "Reach mastery level 20 with any fighter." })
-add("title_all_rounder", { kind = "title", name = "All-Rounder", text = "All-Rounder", source = "achievement", how = "Fight a match with all eight fighters." })
+add("title_all_rounder", { kind = "title", name = "All-Rounder", text = "All-Rounder", source = "achievement", how = "Fight a match with all seven fighters." })
 add("title_trainee", { kind = "title", name = "Trainee", text = "Trainee", source = "achievement", how = "Finish 10 practice rounds with Jeffery." })
 add("title_archivist", { kind = "title", name = "Archivist", text = "Archivist", source = "achievement", how = "Recover every Archive file." })
 add("title_spectator", { kind = "title", name = "Spectator", text = "Spectator", source = "achievement", how = "Watch 10 matches from the Spectating Lounge." })
@@ -188,6 +193,23 @@ do
 	sold("founders_plate", "plate", "Founders' Brass", founders, { COPPER, GOLD })
 	sold("founders_title", "title", "Charter Patron", founders, nil, "Charter Patron")
 end
+
+-- Lounge wheel (WheelService, Config/Wheel) ---------------------------------------------------------
+-- Prizes only the wheel gives. Looks only; the odds are on the wheel and in the Wheel window, and a
+-- player who already owns one is paid Money instead.
+do
+	local AMBER = { 232, 162, 74 }
+	local WARM = { 255, 214, 166 }
+	local CYAN = { 63, 214, 232 }
+	local COPPER = { 184, 115, 63 }
+	local how = "A prize on the Lounge wheel."
+	add("wheel_aura_lantern", { kind = "aura", name = "Lantern Ring", colors = { AMBER, WARM }, source = "wheel", how = how })
+	add("wheel_ko_spotlight", { kind = "knockout", name = "Spotlight Burst", colors = { WARM, CYAN }, source = "wheel", how = how })
+	add("wheel_plate_marquee", { kind = "plate", name = "Marquee", colors = { COPPER, AMBER }, source = "wheel", how = how })
+end
+
+-- Lounge refreshments (RefreshmentService): the drinks and snacks are not cosmetics you keep; their
+-- looks last a few minutes and are defined in Config/Refreshments. No permanent items here.
 
 -- Lookups ----------------------------------------------------------------------------------------
 

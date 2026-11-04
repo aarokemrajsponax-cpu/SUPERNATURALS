@@ -48,6 +48,21 @@ character:SetAttribute("SNRes", 12)
 character:SetAttribute("SNResMax", 100)
 character:SetAttribute("SNUlt", 100)
 character:SetAttribute("SNCD_TitanGrip", world.workspace:GetServerTimeNow() + 5)
+-- The hall statues, as the hub places them in Workspace (the Fighters preview copies them)
+do
+	local okStatues, Statues = pcall(function()
+		return world.require(world.find("ServerScriptService.Server.World.Statues"))
+	end)
+	if okStatues then
+		for index, id in Statues.Order do
+			local base = roblox.CFrame.new(index * 40, 0, 0) * roblox.CFrame.Angles(0, math.rad(index * 45), 0)
+			local okBuild, statue = pcall(Statues.build, id, base)
+			if okBuild then
+				statue.Parent = world.workspace
+			end
+		end
+	end
+end
 UIController:Start()
 local Shell = world.require(world.find(CLIENT .. "UI.Shell"))
 local gui = world.localPlayer.PlayerGui:FindFirstChild("SNInterface")

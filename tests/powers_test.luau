@@ -69,6 +69,10 @@ check("an ability hits a training dummy, costs grit and starts its cooldown", fu
 		end
 		return false
 	end, 6, "a training dummy")
+	-- Combat is off in the hall (the lobby lock), so the fight with the dummy happens inside the
+	-- Training Studio; faceOff keeps Alice where she stands and brings the dummy to her
+	local Match = game.world.require(game.world.find("ReplicatedStorage.Shared.Config.Match"))
+	fighter.root.CFrame = CFrame.new(Match.TrainingGround.Center + Vector3.new(0, 4, 20))
 	game.faceOff(fighter, dummy, 5)
 	ready(fighter)
 	-- Start half full so spending shows even with fast regeneration

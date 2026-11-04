@@ -22,6 +22,7 @@ end
 
 local Homes = require(script.Parent.Parent.Config.Homes)
 local Calendars = require(script.Parent.Parent.Config.Calendars)
+local Wheel = require(script.Parent.Parent.Config.Wheel)
 
 -- Bump this when the shape changes, and add a MIGRATIONS step below
 Schema.VERSION = 1
@@ -152,6 +153,28 @@ export type Profile = {
 	calendars: { [string]: { claimed: { [string]: boolean }, perfect: boolean, milestones: { [string]: boolean } } },
 	-- Premium fighter trials: [powerId] = os.time() the trial ends (PowerService)
 	trials: { [string]: number },
+	-- The Lounge wheel (WheelService): UTC day of the last free spin, paid spin credits held, total
+	-- spins, and the ids of the last few prizes (newest first)
+	wheel: { freeDay: number, credits: number, spins: number, last: { string } },
+	-- The Lounge (LoungeService, RefreshmentService): the UTC day and Money earned that day from the
+	-- games table, and how many refreshments were bought
+	lounge: { gameDay: number, gameEarned: number, refreshments: number },
+	-- Hosting and the game room (BaseService, GameRoom; Config/Homes): who may visit, the jukebox
+	-- style, the cosmetic effects switched on, saved Fireworks Show charges, hearts received, the
+	-- last visitors (Roblox names), the UTC day of the daily counters, and activity bests
+	hosting: {
+		access: string,
+		jukebox: string,
+		effects: { [string]: boolean },
+		fireworks: number,
+		hearts: number,
+		visitors: { { id: number, name: string } },
+		day: number,
+		heartedToday: { [string]: boolean },
+		bonusDay: number,
+		bests: { [string]: number },
+		playedDay: { [string]: number },
+	},
 	-- Last known game pass ownership by pass key (Roblox is asked again on join)
 	passes: { [string]: boolean },
 	-- Recent Robux PurchaseIds already granted, oldest first
@@ -341,12 +364,27 @@ local DEFAULT = {
 	achievements = { done = {}, progress = {} },
 	-- Community: who invited this player (Roblox's ReferredByPlayerId, once), whether the referral
 	-- and group rewards were given, and how many recruits this player brought in (CommunityService)
-	community = { referredBy = 0, referralDone = false, groupRewarded = false, recruits = 0, firstJoin = 0 },
+	community = { referredBy = 0, referralDone = false, groupRewarded = false, recruits = 0, firstJoin = 0, goals = {}, likeNote = false },
 	-- The cosmetic season pass: which season, points earned, premium track, claimed tiers (SeasonPassService)
 	pass = { season = "", points = 0, premium = false, claimed = {} },
 	lore = { found = {}, read = {}, last = "", page = 0 },
 	calendars = {},
 	trials = {},
+	wheel = { freeDay = 0, credits = 0, spins = 0, last = {} },
+	lounge = { gameDay = 0, gameEarned = 0, refreshments = 0 },
+	hosting = {
+		access = "Friends",
+		jukebox = Homes.DefaultMusic,
+		effects = {},
+		fireworks = 0,
+		hearts = 0,
+		visitors = {},
+		day = 0,
+		heartedToday = {},
+		bonusDay = 0,
+		bests = {},
+		playedDay = {},
+	},
 	settings = defaultSettings(),
 	passes = {},
 	receipts = {},
@@ -569,6 +607,8 @@ local function repair(source: { [any]: any }): Profile
 		groupRewarded = community.groupRewarded == true,
 		recruits = integer(community.recruits, 0, 1e6, 0),
 		firstJoin = integer(community.firstJoin, 0, 1e11, 0),
+		goals = stringSet(community.goals), -- community like goals this player already received
+		likeNote = community.likeNote == true, -- Jeffery's one-time like reminder was said
 	}
 
 	local pass = asTable(source.pass)
@@ -606,6 +646,72 @@ local function repair(source: { [any]: any }): Profile
 			profile.trials[powerId] = integer(endsAt, 1, 4102444800, 1)
 		end
 	end
+
+	-- The Lounge wheel: counters bounded, prize ids kept only if the wheel still has them
+	local wheel = asTable(source.wheel)
+	local lastPrizes = {}
+	for _, id in stringList(wheel.last, Wheel.HistoryKept, false) do
+		if Wheel.byId(id) then
+			table.insert(lastPrizes, id)
+		end
+	end
+	profile.wheel = {
+		freeDay = integer(wheel.freeDay, 0, 1e6, 0),
+		credits = integer(wheel.credits, 0, Wheel.MaxCredits, 0),
+		spins = integer(wheel.spins, 0, 1e9, 0),
+		last = lastPrizes,
+	}
+	local lounge = asTable(source.lounge)
+	profile.lounge = {
+		gameDay = integer(lounge.gameDay, 0, 1e6, 0),
+		gameEarned = integer(lounge.gameEarned, 0, 1e6, 0),
+		refreshments = integer(lounge.refreshments, 0, 1e9, 0),
+	}
+
+	-- Hosting: access reads "Friends" unless a valid mode was saved here (the old base.access
+	-- field was never used and held "Everyone" in old profiles, so it is ignored)
+	local hosting = asTable(source.hosting)
+	local effects = {}
+	for _, key in Homes.EffectOrder do
+		if hosting.effects ~= nil and asTable(hosting.effects)[key] == true then
+			effects[key] = true
+		end
+	end
+	local visitors = {}
+	for _, entry in ipairs(asTable(hosting.visitors)) do
+		if typeof(entry) == "table" and isFinite(entry.id) and typeof(entry.name) == "string" and entry.name ~= "" and #entry.name <= 40 then
+			table.insert(visitors, { id = integer(entry.id, 1, 1e15, 1), name = entry.name })
+		end
+	end
+	while #visitors > Homes.VisitorsKept do
+		table.remove(visitors, 1)
+	end
+	local hearted = {}
+	local heartedCount = 0
+	for key, flag in asTable(hosting.heartedToday) do
+		if typeof(key) == "string" and #key <= 20 and flag == true and heartedCount < 200 then
+			hearted[key] = true
+			heartedCount += 1
+		end
+	end
+	local bests, playedDay = {}, {}
+	for _, id in Homes.ActivityOrder do
+		bests[id] = integer(asTable(hosting.bests)[id], 0, 100000, 0)
+		playedDay[id] = integer(asTable(hosting.playedDay)[id], 0, 1e6, 0)
+	end
+	profile.hosting = {
+		access = if typeof(hosting.access) == "string" and Homes.AccessModes[hosting.access] then hosting.access else "Friends",
+		jukebox = if typeof(hosting.jukebox) == "string" and table.find(Homes.MusicStyles, hosting.jukebox) then hosting.jukebox else Homes.DefaultMusic,
+		effects = effects,
+		fireworks = integer(hosting.fireworks, 0, Homes.FireworksMaxCharges, 0),
+		hearts = integer(hosting.hearts, 0, 1e9, 0),
+		visitors = visitors,
+		day = integer(hosting.day, 0, 1e6, 0),
+		heartedToday = hearted,
+		bonusDay = integer(hosting.bonusDay, 0, 1e6, 0),
+		bests = bests,
+		playedDay = playedDay,
+	}
 
 	-- Lore: only ids the Archive has (a file must be found before it can be read)
 	local lore = asTable(source.lore)

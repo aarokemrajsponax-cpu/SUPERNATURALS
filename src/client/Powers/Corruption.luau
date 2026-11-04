@@ -217,7 +217,7 @@ local function crack(kit, from: Vector3, direction: Vector3, length: number, lif
 			stage(core, delay, 0.2, life * 0.5, 0.5)
 		end
 		if options.fork ~= false and index == 2 and random:NextNumber() < 0.45 then
-			crack(kit, nextPoint, turned(heading, if random:NextBoolean() then 40 else -40), length * 0.3, life * 0.8, {
+			crack(kit, nextPoint, turned(heading, if (random:NextNumber() < 0.5) then 40 else -40), length * 0.3, life * 0.8, {
 				width = width * 0.6,
 				speed = speed,
 				delay = delay,
@@ -2034,7 +2034,7 @@ function Corruption.appearance(kit)
 				part = shard,
 				radius = if halo then rng:NextNumber(1.3, 1.7) else rng:NextNumber(2.4, 3.2),
 				height = if halo then rng:NextNumber(2.1, 2.5) else rng:NextNumber(-1, 1.6),
-				speed = (if halo then 1.6 else rng:NextNumber(0.6, 1.1)) * (if rng:NextBoolean() then 1 else -1),
+				speed = (if halo then 1.6 else rng:NextNumber(0.6, 1.1)) * (if (rng:NextNumber() < 0.5) then 1 else -1),
 				angle = index / total * math.pi * 2,
 				tumble = rng:NextNumber(0.8, 2.4),
 				halo = halo,
@@ -2218,5 +2218,33 @@ function Corruption.appearance(kit)
 		surges[model] = nil
 	end
 end
+
+-- Layered signature on top (core flash, glow, shaped burst, ground shockwave, light, shake)
+local Signature = require(script.Parent.Parent.Effects.Signature)
+Signature.decorate(Corruption, "Corruption", {
+	VoidStrikeWindup = { "windup", 1, 4 },
+	VoidStrike = { "impact", 2 },
+	MarkApplied = { "impact", 1 },
+	ShardWindup = { "windup", 1, 4 },
+	StaticGather = { "windup", 1, 5 },
+	StaticBurst = { "impact", 2 },
+	RiftDissolve = { "cast", 1 },
+	RiftArrive = { "impact", 2 },
+	RiftOpen = { "cast", 2 },
+	RiftBurst = { "impact", 2 },
+	GroundCrack = { "impact", 1 },
+	PulseWindup = { "windup", 2, 8 },
+	DistortionPulse = { "impact", 2 },
+	UnravelWindup = { "windup", 2, 6 },
+	UnravelDetonate = { "impact", 3 },
+	ZoneFold = { "windup", 1, 8 },
+	PhantasmSplit = { "cast", 1 },
+	PhantasmBurst = { "impact", 2 },
+	CataclysmWindup = { "ultwindup", 3, 14 },
+	Cataclysm = { "ultimate", 3, 24 },
+	SystemBreakWindup = { "ultwindup", 3, 14 },
+	SystemBreak = { "ultimate", 3, 26 },
+	FinalForm = { "cast", 3 },
+})
 
 return Corruption

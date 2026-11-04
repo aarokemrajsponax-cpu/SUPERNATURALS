@@ -21,6 +21,7 @@ local FighterState = require(ReplicatedStorage.Shared.Combat.FighterState)
 local HitResolver = require(ReplicatedStorage.Shared.Combat.HitResolver)
 local Hitbox = require(ReplicatedStorage.Shared.Combat.Hitbox)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
+local Selection = require(ReplicatedStorage.Shared.Config.Selection)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local CombatRequest = Remotes:WaitForChild("CombatRequest") :: RemoteEvent
@@ -234,8 +235,26 @@ function CombatService:onHit(callback: (any, any, any, any) -> ())
 end
 
 -- Can this fighter act at all right now? (Shared by basic attacks and abilities.)
-function CombatService:canAct(fighter): (boolean, string?)
-	if not self.services.MatchService:isCombatAllowed(fighter) then
+-- Where they stand decides first (PowerService:combatContext: a running fight, the training
+-- hall, CPU practice or the owner's showcase; the lobby, hub, lounge, bases and corridors
+-- refuse). Dodging, sprinting and emoting still work in the lobby (Selection.LobbyActions).
+function CombatService:canAct(fighter, action: string?): (boolean, string?)
+	local power = self.services.PowerService
+	if power and power.combatContext then
+		local verdict = power:combatContext(fighter)
+		if not verdict.allowed then
+			if verdict.reason == Protocol.RejectReason.Lobby then
+				if not (action ~= nil and Selection.LobbyActions[action]) then
+					if fighter.player then
+						power:noteLobbyRefusal(fighter.player, action)
+					end
+					return false, verdict.reason
+				end
+			else
+				return false, "unavailable"
+			end
+		end
+	elseif not self.services.MatchService:isCombatAllowed(fighter) then
 		return false, "unavailable"
 	end
 	-- Frozen in ice (owner panel or Ice Age): no fighting until thawed
@@ -289,7 +308,7 @@ end
 -- alike. Returns whether it happened, and why not.
 function CombatService:perform(fighter, action: string, payload: any?): (boolean, string?)
 	if not RELEASE_ACTIONS[action] then
-		local ok, reason = self:canAct(fighter)
+		local ok, reason = self:canAct(fighter, action)
 		if not ok then
 			return false, reason
 		end

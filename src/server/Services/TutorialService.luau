@@ -3,13 +3,24 @@
 -- The tutorial is a path of steps (Config/Tutorial.Steps). A step completes only on a REAL
 -- event the server sees: a hit landed (CombatService), an ability used (AbilityService), a
 -- transformation (PowerService), a win (MatchService), or the fighter's own state (moving,
--- jumping, sprinting, blocking, dodging, standing in the training hall). Note-only steps
--- (welcome, camera) take a CONTINUE from the player, but only for the current step. Nothing
--- else the client sends can complete a step.
+-- jumping, sprinting, blocking, dodging, standing in the training hall). The welcome step takes
+-- a CONTINUE from the player and the camera step a "camera turned" report from the client, but
+-- only for the current step. Nothing else the client sends can complete a step.
+--
+-- Staying in sync with the client (Config/Tutorial has the full list):
+--   * The tour does not start when the profile loads. It waits for the client's TutorialReady
+--     (its controller runs and Jeffery is in the world) so the first step is never sent to a
+--     client that is not listening yet. Without it the tour starts after Tutorial.ClientWait.
+--   * A step is "armed" (watched) only after the client says Jeffery finished the step's lines
+--     (TutorialLine), or after Tutorial.ArmTimeout. What the player did while Jeffery talked
+--     does not count, and movement, camera and held states are measured from that moment.
+--   * Hints are held back from the first moment the tour is pending until it ends.
 --
 -- Progress lives in profile.tutorial.done (keys in Config/Tutorial). Players with 3 or more
--- matches are skipped automatically. The welcome reward (title "Recruit" and some Money) is
--- granted once, by this service. Exiting is always possible and never blocks play.
+-- matches are skipped automatically. The welcome gift (title "Recruit" and some Money) is
+-- granted once, by this service, and the finish payload lists what was given (plus Founding
+-- Recruit when the player owns it). It never depends on liking the game. Exiting is always
+-- possible and never blocks play.
 --
 -- Hints are one-line tips from Jeffery, each shown once per account (remembered here), skipped
 -- while the player has hints off (profile.settings.hints) or while the tutorial is running.
@@ -36,9 +47,14 @@ type Run = {
 	replay: boolean,
 	startPosition: Vector3?,
 	finished: boolean,
+	armed: boolean,
+	sentAt: number,
+	sawIdle: boolean,
 }
 
 local runs: { [Player]: Run } = {}
+-- Players whose tour is waiting for the client's TutorialReady
+local pending: { [Player]: boolean } = {}
 local seenZone: { [Player]: string } = {}
 local POLL = 0.25
 local PREMIUM_HINTS = { Corruption = "power_Corruption", Syntax = "power_Syntax", Admin = "power_Admin" }
@@ -113,11 +129,15 @@ function TutorialService:_begin(player: Player, replay: boolean)
 		end
 	end
 	local fighter = self.characters:getByPlayer(player)
+	pending[player] = nil
 	runs[player] = {
 		index = index,
 		replay = replay,
 		startPosition = fighter and fighter.root.Position or nil,
 		finished = false,
+		armed = false,
+		sentAt = now(),
+		sawIdle = false,
 	}
 	if not replay and self.services.AnalyticsLog then
 		self.services.AnalyticsLog:funnel(player, "tour_started")
@@ -128,6 +148,39 @@ end
 function TutorialService:isActive(player: Player): boolean
 	local run = runs[player]
 	return run ~= nil and not run.finished
+end
+
+-- True from the moment a tour is waiting to start until it ends (hints wait for this)
+function TutorialService:isBusy(player: Player): boolean
+	return pending[player] == true or self:isActive(player)
+end
+
+function TutorialService:isArmed(player: Player): boolean
+	local run = runs[player]
+	return run ~= nil and not run.finished and run.armed
+end
+
+-- The step's lines are done: from now on the server watches for the step's event. Movement is
+-- measured from here, and held states (sprint, block, dodge) must be released first.
+function TutorialService:_arm(player: Player, run: Run)
+	if run.armed or run.finished then
+		return
+	end
+	run.armed = true
+	local fighter = self.characters:getByPlayer(player)
+	run.startPosition = fighter and fighter.root.Position or run.startPosition
+	-- A held state only counts if the player lets go and does it again after the lines
+	local event = Tutorial.Steps[run.index].event
+	local time = now()
+	local held = false
+	if fighter and event == "sprint" then
+		held = FighterState.isSprinting(fighter.state, time)
+	elseif fighter and event == "block" then
+		held = FighterState.isBlocking(fighter.state)
+	elseif fighter and event == "dodge" then
+		held = FighterState.isDodging(fighter.state, time)
+	end
+	run.sawIdle = not held
 end
 
 function TutorialService:currentStep(player: Player): string?
@@ -150,12 +203,19 @@ function TutorialService:_event(player: Player?, kind: string)
 	if step.event ~= kind then
 		return
 	end
+	-- Only a step whose lines are finished counts (the welcome step's CONTINUE is the end of its lines)
+	if not run.armed and kind ~= "ack" then
+		return
+	end
 	if not run.replay then
 		if not self:_mark(player, "tut_step_" .. step.id) then
 			return
 		end
 	end
 	run.index += 1
+	run.armed = false
+	run.sawIdle = false
+	run.sentAt = now()
 	if not run.replay and self.services.AnalyticsLog then
 		self.services.AnalyticsLog:tourStep(player, step.id)
 	end
@@ -191,6 +251,11 @@ end
 
 function TutorialService:_finish(player: Player, run: Run)
 	local rewarded = false
+	local gift = { money = Tutorial.Reward.money, title = Tutorial.Reward.title, founding = false }
+	do
+		local profile = self.data:get(player)
+		gift.founding = profile ~= nil and profile.cosmetics.owned[Tutorial.Reward.foundingId] == true
+	end
 	if not run.replay then
 		local done = self:_done(player)
 		if done and not done.tut_reward then
@@ -220,7 +285,7 @@ function TutorialService:_finish(player: Player, run: Run)
 			self.services.CommunityService:onTourFinished(player)
 		end
 	end
-	self:_send(player, { event = "complete", rewarded = rewarded, reward = Tutorial.Reward })
+	self:_send(player, { event = "complete", rewarded = rewarded, reward = Tutorial.Reward, gift = gift })
 	runs[player] = nil
 end
 
@@ -229,6 +294,7 @@ function TutorialService:_exit(player: Player)
 	if not run then
 		return
 	end
+	pending[player] = nil
 	runs[player] = nil
 	if not run.replay then
 		self:_mark(player, "tut_exited")
@@ -244,7 +310,7 @@ function TutorialService:_hint(player: Player, id: string)
 	if not hint or not profile or not player.Parent then
 		return
 	end
-	if profile.tutorial.done["hint_" .. id] or profile.settings.hints == false or self:isActive(player) then
+	if profile.tutorial.done["hint_" .. id] or profile.settings.hints == false or self:isBusy(player) then
 		return
 	end
 	if not self:_mark(player, "hint_" .. id) then
@@ -287,6 +353,13 @@ end
 function TutorialService:_pollSteps(player: Player, fighter, run: Run, position: Vector3, training: boolean)
 	local step = Tutorial.Steps[run.index]
 	local time = now()
+	if not run.armed then
+		-- The client normally reports the end of the lines; if it never does, do not leave anyone stuck
+		if time - run.sentAt >= Tutorial.ArmTimeout then
+			self:_arm(player, run)
+		end
+		return
+	end
 	local state = fighter.state
 	local event = step.event
 	if event == "move" then
@@ -303,7 +376,11 @@ function TutorialService:_pollSteps(player: Player, fighter, run: Run, position:
 		end
 	elseif event == "sprint" then
 		if FighterState.isSprinting(state, time) then
-			self:_event(player, "sprint")
+			if run.sawIdle then
+				self:_event(player, "sprint")
+			end
+		else
+			run.sawIdle = true
 		end
 	elseif event == "training" then
 		if training then
@@ -311,11 +388,19 @@ function TutorialService:_pollSteps(player: Player, fighter, run: Run, position:
 		end
 	elseif event == "block" then
 		if training and FighterState.isBlocking(state) then
-			self:_event(player, "block")
+			if run.sawIdle then
+				self:_event(player, "block")
+			end
+		else
+			run.sawIdle = true
 		end
 	elseif event == "dodge" then
 		if training and FighterState.isDodging(state, time) then
-			self:_event(player, "dodge")
+			if run.sawIdle then
+				self:_event(player, "dodge")
+			end
+		else
+			run.sawIdle = true
 		end
 	end
 end
@@ -392,22 +477,51 @@ function TutorialService:Start()
 			self:_send(player, { event = "state" })
 			return
 		end
-		self:_begin(player, false)
+		-- Wait for the client (TutorialReady), but never forever
+		pending[player] = true
+		task.delay(Tutorial.ClientWait, function()
+			if pending[player] and player.Parent then
+				self:_begin(player, false)
+			end
+		end)
 	end)
 
 	ProgressRequest.OnServerEvent:Connect(function(player, action, argument)
 		if typeof(action) ~= "string" then
 			return
 		end
-		if action == Action.TutorialAck then
+		if action == Action.TutorialReady then
+			if not self.antiExploit:allow(player, "Progress") then
+				return
+			end
+			if pending[player] then
+				self:_begin(player, false)
+			elseif self:isActive(player) then
+				-- The client (re)started: say where the tour is again
+				local run = runs[player]
+				run.armed = false
+				run.sentAt = now()
+				self:_send(player, { event = "start" })
+			else
+				self:_send(player, { event = "state" })
+			end
+		elseif action == Action.TutorialLine then
+			if typeof(argument) ~= "string" or not self.antiExploit:allow(player, "Progress") then
+				return
+			end
+			local run = runs[player]
+			if run and not run.finished and Tutorial.Steps[run.index].id == argument then
+				self:_arm(player, run)
+			end
+		elseif action == Action.TutorialAck then
 			if typeof(argument) ~= "string" or not self.antiExploit:allow(player, "Progress") then
 				return
 			end
 			local run = runs[player]
 			if run and not run.finished then
 				local step = Tutorial.Steps[run.index]
-				if step.id == argument and step.event == "ack" then
-					self:_event(player, "ack")
+				if step.id == argument and (step.event == "ack" or step.event == "look") then
+					self:_event(player, step.event)
 				end
 			end
 		elseif action == Action.TutorialExit then
@@ -415,7 +529,7 @@ function TutorialService:Start()
 				self:_exit(player)
 			end
 		elseif action == Action.TutorialReplay then
-			if self.antiExploit:allow(player, "Progress") and not self:isActive(player) then
+			if self.antiExploit:allow(player, "Progress") and not self:isBusy(player) then
 				self:_begin(player, true)
 			end
 		elseif action == Action.HintWindow then
@@ -423,7 +537,7 @@ function TutorialService:Start()
 				return
 			end
 			local hintId = Tutorial.WindowHints[argument]
-			if hintId and not self:isActive(player) then
+			if hintId and not self:isBusy(player) then
 				self:_hint(player, hintId)
 			end
 		end
@@ -431,6 +545,7 @@ function TutorialService:Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		runs[player] = nil
+		pending[player] = nil
 		seenZone[player] = nil
 	end)
 

@@ -142,6 +142,10 @@ Protocol.DataEvent = {
 	-- Holiday calendars (CalendarService): { kind = "State", serverNow, catchUp, calendar, today, claimed, count, perfect, milestones, nextId, nextStartsAt }
 	-- | { kind = "Claimed", calendar, day, ok, text }
 	Calendar = "Calendar",
+	-- The Lounge (WheelService, RefreshmentService, LoungeService games table), always { kind = ... }:
+	-- "Wheel" { freeReady, credits, paidAllowed, spins, last, productsReady } | "Spin" { ok, index, prizeId, text, converted, source, wheel } |
+	-- "Refreshments" { items, cooldownLeft, active = { id, name, left }?, money, canBoost, note } | "Bought" { ok, text }
+	Lounge = "Lounge",
 	SelectionResult = "SelectionResult", -- { action, ok, code, message, charged, ... } reply to Confirm, Select, Trial, EndTrial, SetShowcase, SetLoadout and a Queue that carried a selection
 }
 
@@ -159,6 +163,15 @@ Protocol.ShopAction = {
 -- Client -> server, through Remotes.CosmeticRequest: (action, slot, itemId) (CosmeticService)
 Protocol.CosmeticAction = {
 	Equip = "Equip", -- (slot, itemId) itemId "" takes the slot's item off
+}
+
+-- Client -> server, through Remotes.LoungeRequest: (action, argument?)
+Protocol.LoungeAction = {
+	WheelState = "WheelState", -- () ask for the wheel state; the reply is DataEvent Lounge kind "Wheel"
+	SpinFree = "SpinFree", -- () the free daily spin
+	SpinPaid = "SpinPaid", -- () spend one held paid spin (only for players Roblox allows paid random items)
+	RefreshmentsState = "RefreshmentsState", -- () ask for the menu and your effect; reply kind "Refreshments"
+	BuyRefreshment = "BuyRefreshment", -- (itemId) earned Money only
 }
 
 -- Server -> clients, through Remotes.StatusEvent (CosmeticService, AchievementService)
@@ -179,6 +192,14 @@ Protocol.BaseAction = {
 	Street = "Street", -- () go to Player Base Street (the hub door)
 	Decor = "Decor", -- (themeId) set the decor theme of your own base
 	Toggle = "Toggle", -- (key, value: boolean) a display toggle of your own base
+	AskLeave = "AskLeave", -- (userId) the owner asks a visitor inside the base to leave
+	Heart = "Heart", -- (ownerUserId) a visitor gives one heart to the base they are in (once per UTC day)
+	Effect = "Effect", -- (effectId, on: boolean) a Base Effects Pack effect in your own base
+	Jukebox = "Jukebox", -- (styleId) the music style of your own base
+	Party = "Party", -- (on: boolean) party mode in your own base
+	Fireworks = "Fireworks", -- () launch one saved Fireworks Show charge in your own base
+	Activity = "Activity", -- (activityId, "press") Power Meter or Reflex cabinet press; the server keeps the clock
+	Panel = "Panel", -- () ask for the base panel state
 }
 
 -- Server -> clients, through Remotes.BaseEvent
@@ -186,6 +207,8 @@ Protocol.BaseEvent = {
 	Result = "Result", -- { ok: boolean, message: string } (to the requester)
 	Plots = "Plots", -- { { index, userId, name, access } } who lives where
 	OpenConsole = "OpenConsole", -- () the owner used the vault console: open the owner panel
+	Panel = "Panel", -- (state) the base panel numbers, to the owner (also when it should open: state.open)
+	Activity = "Activity", -- (activityId, phase, data) Power Meter and Reflex steps, to the one playing
 }
 
 -- Client -> server, through Remotes.ProgressRequest
@@ -199,12 +222,22 @@ Protocol.ProgressAction = {
 	TutorialAck = "TutorialAck", -- (stepId) CONTINUE on a note-only tutorial step (TutorialService)
 	TutorialExit = "TutorialExit", -- () leave Jeffery's tutorial
 	TutorialReplay = "TutorialReplay", -- () start Jeffery's tutorial again
+	TutorialReady = "TutorialReady", -- () the client is running and Jeffery is in the world: the tour may begin
+	TutorialLine = "TutorialLine", -- (stepId) Jeffery finished the step's lines: the server starts watching for the step
 	HintWindow = "HintWindow", -- (windowId) a hint window was opened (Powers, Market)
 	SeenHint = "SeenHint", -- (hintId) a one-time hint was shown; remembered in tutorial.done (ReplayService)
 	-- Jeffery's practice fights in the Training Studio (PracticeService); nothing is saved or at stake
 	PracticeStart = "PracticeStart", -- (modeId, options?) options = { theme, hints, difficulty, behavior, duration, abilities }
 	PracticeRestart = "PracticeRestart", -- () the same round again
 	PracticeStop = "PracticeStop", -- () exit the practice fight
+}
+
+-- Ask Jeffery (chat), through Remotes.JefferyChat. Client -> server: (Ask, text). Server -> one client:
+-- (Answer, { id, ok, text, source, topic?, retryIn?, remaining? }). source is "knowledge" or "ai".
+-- The chat can only return text; it never triggers a game action (JefferyChatService).
+Protocol.JefferyChat = {
+	Ask = "Ask",
+	Answer = "Answer",
 }
 
 -- Client -> server, through Remotes.SettingsRequest: (settings table, sanitized on the server)
@@ -257,6 +290,8 @@ Protocol.OverlordAction = {
 	CustomSave = "CustomSave", -- { id?, name, description?, effects = { { effect, params } } }
 	CustomList = "CustomList",
 	CustomDelete = "CustomDelete", -- { id }
+	GoalsState = "GoalsState", -- () community like goals: { likes, setAt, goals = { { id, likes, reached } } }
+	GoalsSet = "GoalsSet", -- { likes: integer 0..1e9 } the owner types in the like count from the game page
 }
 
 -- Server -> owner, through Remotes.OverlordEvent
@@ -352,6 +387,10 @@ Protocol.Attribute = {
 	CombatContext = "SNCombatContext",
 	-- On Player objects: the owner's showcase mode is on
 	Showcase = "SNShowcase",
+	-- On Player objects: the Money and experience bonus (in percent, e.g. 20) earned while a
+	-- Roblox friend is in the same server, set by CommunityService; nil when none is here.
+	-- The player card shows a "Friend bonus" chip from it.
+	FriendBonus = "SNFriendBonus",
 	-- On ReplicatedStorage
 	AdminEvent = "AdminEvent",
 	AdminEventStartedAt = "AdminEventStartedAt",

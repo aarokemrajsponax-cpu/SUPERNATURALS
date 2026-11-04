@@ -47,7 +47,7 @@ Achievements.List = {
 	{ id = "mastery_10", name = "Double Digits", desc = "Reach mastery level 10 with any fighter.", group = "Mastery", kind = "mastery", goal = 10, title = "title_adept", notable = true },
 	{ id = "mastery_20", name = "Fully Mastered", desc = "Reach mastery level 20 with any fighter.", group = "Mastery", kind = "mastery", goal = 20, title = "title_master", notable = true },
 	{ id = "fighters_3", name = "Three Fighters", desc = "Fight a match with 3 different fighters.", group = "Mastery", kind = "fighters", goal = 3 },
-	{ id = "fighters_all", name = "Every Fighter", desc = "Fight a match with all eight fighters.", group = "Mastery", kind = "fighters", goal = #Powers.Order, title = "title_all_rounder" },
+	{ id = "fighters_all", name = "Every Fighter", desc = "Fight a match with all seven fighters.", group = "Mastery", kind = "fighters", goal = #Powers.released(), title = "title_all_rounder" },
 
 	-- Training
 	{ id = "practice_1", name = "First Practice", desc = "Finish a practice round with Jeffery.", group = "Training", kind = "counter", key = "practiceRounds", goal = 1 },
@@ -112,7 +112,8 @@ function Achievements.valueOf(def: { [string]: any }, profile: { [string]: any }
 		end
 	elseif kind == "fighters" then
 		local progress = profile.achievements and profile.achievements.progress or {}
-		for _, id in Powers.Order do
+		-- Released fighters only: the owner testing an unreleased one earns nothing here
+		for _, id in Powers.released() do
 			if (progress["used_" .. id] or 0) > 0 then
 				value += 1
 			end

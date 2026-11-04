@@ -17,46 +17,68 @@ local Colors = Theme.Colors
 
 local LearnWindow = {}
 
--- Each section: id, title, body (short), keys (binding names or extra key names).
+-- Each section: id, title, body (short, for complete beginners), keys (binding names or extra key
+-- names, shown as key caps for the chosen device). The guided tour only covers the first steps;
+-- everything else is here.
 LearnWindow.Sections = {
 	{
-		id = "lobby", title = "The lobby",
-		body = "The lobby is the hall you spawn in. Fighting is off here, so it is safe to look around. The doors lead everywhere: Test Chambers for fights, Training Studio for practice, Master Shop, Calibration Chamber for fighters, Spectating Lounge and Player Base Street.",
-		keys = { "move", "SNDodge" },
-	},
-	{
-		id = "training", title = "Training",
-		body = "Training is free. Every fighter and every phase can be tried on the dummies. Nothing you do there is saved or charged, so experiment.",
-		keys = { "SNLight", "SNHeavy", "SNBlock", "SNDodge" },
-	},
-	{
-		id = "fighters", title = "Fighters and phases",
-		body = "Open the Calibration Chamber or the Fighters button. Pick a fighter, then a phase. Phase 1 is open and later phases unlock as you play. In a match, fill the phase meter and evolve.",
-		keys = { "SNEvolve" },
-	},
-	{
-		id = "money", title = "Purchases and currency",
-		body = "Money comes from matches and daily challenges. Gems are the premium currency. Every price is shown before you confirm, and nothing is a mystery box.",
+		id = "about", title = "What is SUPERNATURALS?",
+		body = "A superpower fighting game. Pick a fighter with its own power, train, then fight other players or the computer. Win to earn Money, Gems and new things for your Locker.",
 		keys = {},
 	},
 	{
-		id = "abilities", title = "Abilities and targeting",
-		body = "Your abilities sit on the bar at the bottom. Press the number, or tap the button. Lock on to the nearest enemy to aim at it, and watch your stamina.",
-		keys = { "ability", "SNLock", "SNGrab" },
+		id = "moving", title = "Moving and the camera",
+		body = "Walk with the move keys, jump, and hold sprint to run. To look around: hold the right mouse button and move the mouse on a PC, drag the screen on a phone, or use the right stick on a gamepad.",
+		keys = { "move", "jump", "SNSprint", "camera" },
 	},
 	{
-		id = "movement", title = "Movement",
-		body = "Walk, jump and sprint to get around. A dodge is a quick burst that also avoids hits. Sprinting and dodging use stamina.",
-		keys = { "move", "jump", "SNSprint", "SNDodge", "camera" },
+		id = "fighting", title = "Attacks, block and dodge",
+		body = "A light attack is quick. A heavy attack is slower and hits harder. Hold block to take much less damage. Dodge to roll past a hit. Grab beats a block, and sweep knocks a standing fighter down.",
+		keys = { "SNLight", "SNHeavy", "SNBlock", "SNDodge", "SNGrab", "SNSweep" },
 	},
 	{
-		id = "matches", title = "Matches",
-		body = "Pick a mode in the Test Chambers. Practice against the computer is a safe start. Matches begin in Phase 1, and the last fighter standing or the best score wins.",
-		keys = { "SNBlock", "SNTaunt" },
+		id = "abilities", title = "Abilities and the ultimate",
+		body = "Abilities 1 to 3 are on the bar at the bottom. They use energy, then recharge. Your ultimate is the big move: it charges as you fight and a bar shows when it is ready. Lock on to aim at the nearest enemy.",
+		keys = { "ability", "ultimate", "SNLock" },
 	},
 	{
-		id = "progress", title = "Progression",
-		body = "Matches pay Money and experience. Each fighter levels up with use and unlocks abilities and phases. Daily challenges, events and the Archive give you more to chase.",
+		id = "phases", title = "Phases",
+		body = "Phases are stronger forms. The phase meter fills while you fight. When it is full, press the evolve key to transform. Phase 1 is open, later phases unlock as you use a fighter, and training lets you try every phase for free.",
+		keys = { "SNEvolve" },
+	},
+	{
+		id = "fighters", title = "Changing fighters",
+		body = "Tap your player card at the top, or the FIGHTERS button. Pick a fighter, then a phase. You can change before a match, not during one. Premium fighters are unlocked in the shop.",
+		keys = {},
+	},
+	{
+		id = "places", title = "Where to go",
+		body = "You start in the lobby, where fighting is off. The doors lead to the Training Studio, the Test Chambers, the Master Shop, the Calibration Chamber for fighters, the Spectating Lounge, Player Base Street and my own door, Jeffery's Base.",
+		keys = {},
+	},
+	{
+		id = "training", title = "Training",
+		body = "Walk through the TRAINING STUDIO door to practice on dummies. Every fighter and every phase is free there, and nothing is saved. Practice with Jeffery is a real fight against me, also free.",
+		keys = {},
+	},
+	{
+		id = "matches", title = "Fighting for real",
+		body = "Walk through the TEST CHAMBERS door or press PLAY, then pick a mode: Duel, Free-for-All, or CPU Practice against the computer. The most knockouts when time runs out wins.",
+		keys = { "SNTaunt" },
+	},
+	{
+		id = "money", title = "Money and Gems",
+		body = "Money comes from matches and daily challenges. Gems come from your first win each day, fighter level ups and some challenges. Every shop price is shown before you confirm, and nothing is a mystery box.",
+		keys = {},
+	},
+	{
+		id = "extras", title = "Gifts, Locker and season pass",
+		body = "GIFTS is the gift calendar with something new each day you visit. The LOCKER holds your titles, looks and achievements. The season pass is a 30 tier track of cosmetics you earn by playing.",
+		keys = {},
+	},
+	{
+		id = "help", title = "Need help?",
+		body = "Press Ask Jeffery and type a question. Replay tutorial shows the guided tour again. For a rude player, press Esc and choose Report in the Roblox menu.",
 		keys = {},
 	},
 }
@@ -81,7 +103,7 @@ function LearnWindow.keyFor(key: string, device: string): (string, string)
 		end
 	end
 	local extra = Tutorial.ExtraKeys[key]
-	local label = ({ move = "Move", jump = "Jump", camera = "Camera", ability = "Abilities" })[key] or key
+	local label = ({ move = "Move", jump = "Jump", camera = "Camera", ability = "Abilities", ultimate = "Ultimate" })[key] or key
 	return (extra and (extra[device] or extra.keyboard)) or key, label
 end
 
@@ -95,35 +117,27 @@ local function build(body: Frame)
 	local column = Components.scroll({ Name = "LearnColumn", Padding = 2, Parent = body })
 	Components.list(column, Theme.Space.L)
 
-	-- Top row: device tabs and Jeffery's buttons
-	local top = make("Frame", { Name = "Top", Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 0, Parent = column })
+	-- Top: device tabs, then Jeffery's buttons in a row that wraps on narrow screens
+	local top = make("Frame", {
+		Name = "Top", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 0, Parent = column,
+	}, { make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }) })
 	local tabs = Components.segmented(nil, LearnWindow.Devices, device, function(id)
 		device = id
 		LearnWindow.refresh()
-	end, { Name = "DeviceTabs", Size = UDim2.new(0, 340, 0, 44), Parent = top })
-	local talk = Components.button("Talk to Jeffery", {
-		Name = "TalkButton", Variant = "Secondary", KeepCase = true, AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -176, 0, 0), Size = UDim2.fromOffset(180, 44), Parent = top,
+	end, { Name = "DeviceTabs", Size = UDim2.new(0, 340, 0, 44), LayoutOrder = 1, Parent = top })
+	local buttons = make("Frame", {
+		Name = "Buttons", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 2, Parent = top,
+	}, { make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal, Wraps = true, Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}) })
+	local ask = Components.button("Ask Jeffery", {
+		Name = "AskButton", Variant = "Primary", KeepCase = true, LayoutOrder = 1, Size = UDim2.fromOffset(170, 44), Parent = buttons,
 	}, function()
-		local c = controller()
-		if c then
-			Shell.close()
-			c:replayDialogue()
-		end
-	end)
-	local replay = Components.button("Replay tutorial", {
-		Name = "ReplayButton", Variant = "Primary", KeepCase = true, AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 0, 0, 0), Size = UDim2.fromOffset(170, 44), Parent = top,
-	}, function()
-		local c = controller()
-		if c then
-			Shell.close()
-			c:replayTutorial()
-		end
+		Shell.open("AskJeffery")
 	end)
 	local practice = Components.button("Practice with Jeffery", {
-		Name = "PracticeButton", Variant = "Secondary", KeepCase = true, AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -356, 0, 0), Size = UDim2.fromOffset(200, 44), Parent = top,
+		Name = "PracticeButton", Variant = "Secondary", KeepCase = true, LayoutOrder = 2, Size = UDim2.fromOffset(210, 44), Parent = buttons,
 	}, function()
 		local ok, module = pcall(require, script.Parent.Parent.Controllers.PracticeController)
 		if ok and module.instance then
@@ -131,7 +145,16 @@ local function build(body: Frame)
 			module.instance:openWindow()
 		end
 	end)
-	local _ = { tabs, talk, replay, practice }
+	local replay = Components.button("Replay tutorial", {
+		Name = "ReplayButton", Variant = "Secondary", KeepCase = true, LayoutOrder = 3, Size = UDim2.fromOffset(170, 44), Parent = buttons,
+	}, function()
+		local c = controller()
+		if c then
+			Shell.close()
+			c:replayTutorial()
+		end
+	end)
+	local _ = { tabs, ask, replay, practice }
 
 	local cards: { [string]: Frame } = {}
 	for order, section in LearnWindow.Sections do
@@ -197,6 +220,8 @@ local function build(body: Frame)
 end
 
 function LearnWindow.register()
+	-- The chat panel opened by the Ask Jeffery button and by Jeffery's prompt in the hall
+	require(script.Parent.AskJefferyWindow).register()
 	Shell.registerWindow("Learn", {
 		title = "How to Play",
 		label = "LEARN",

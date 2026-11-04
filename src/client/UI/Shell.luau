@@ -12,9 +12,11 @@
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
 local Icons = require(script.Parent.Icons)
@@ -31,6 +33,9 @@ local apply = Components.apply
 local player = Players.LocalPlayer
 
 local Shell = {}
+local compactEvent = Instance.new("BindableEvent")
+-- Fires (isCompact) when the viewport crosses the phone threshold, e.g. on rotation or resize
+Shell.compactChanged = compactEvent.Event
 
 -- Layout, in design pixels (the UIScale turns them into screen pixels)
 local EDGE = 12
@@ -43,7 +48,11 @@ local DOCK_COMPACT = 48
 local DOCK_PADDING = 8
 local DOCK_GAP = 6
 local WALLET_PILL = 190
-local PLAYER_CARD = 260
+local PLAYER_CARD = 300
+-- The "Change" chip on the player card, the Friend bonus chip beside it, the Fighters button in training
+local CHANGE_CHIP = Vector2.new(68, 26)
+local FRIEND_CHIP = Vector2.new(172, 28)
+local FIGHTERS_BUTTON = Vector2.new(124, 48)
 local STATUS_WIDTH = 420
 local TOAST_WIDTH = 320
 local MAX_TOASTS = 4
@@ -67,6 +76,9 @@ type ModeLook = { dock: boolean, topBar: "full" | "small" | "none", windows: boo
 local MODES: { [string]: ModeLook } = {
 	Lobby = { dock = true, topBar = "full", windows = true, hidden = false },
 	Match = { dock = false, topBar = "small", windows = false, hidden = false },
+	-- The Training Studio and CPU practice: the fight layout (no dock, no wallet, no player card;
+	-- a settings button and a Fighters button stay), and windows still open for trials
+	Training = { dock = false, topBar = "small", windows = true, hidden = false },
 	Editor = { dock = false, topBar = "full", windows = true, hidden = false },
 	Spectate = { dock = false, topBar = "small", windows = true, hidden = false },
 	Cinematic = { dock = false, topBar = "none", windows = false, hidden = true },
@@ -144,6 +156,11 @@ local powerText: TextLabel
 local powerIcon: Frame? = nil
 local wallet: Frame
 local smallBar: Frame
+local changeButton: TextButton
+local fightersButton: TextButton
+local friendChip: Frame
+local friendText: TextLabel
+local friendPercent: number? = nil
 local gearButton: TextButton
 local banner: Frame
 local bannerText: TextLabel
@@ -267,7 +284,10 @@ local function relayout()
 	end
 	local camera = workspace.CurrentCamera
 	local viewport = if camera then camera.ViewportSize else Theme.Size.Design
-	local base = math.clamp(math.min(viewport.X / Theme.Size.Design.X, viewport.Y / Theme.Size.Design.Y), Theme.Scale.Min, Theme.Scale.Max)
+	local wasCompact = compact
+	compact = viewport.X < COMPACT_WIDTH or viewport.Y < COMPACT_HEIGHT
+	local floor = if compact then Theme.Scale.CompactMin else Theme.Scale.Min
+	local base = math.clamp(math.min(viewport.X / Theme.Size.Design.X, viewport.Y / Theme.Size.Design.Y), floor, Theme.Scale.Max)
 	local setting = Settings.get("uiScale")
 	local factor = if typeof(setting) == "number" and setting == setting then math.clamp(setting, 0.5, 1.5) else 1
 	local scale = base * factor
@@ -276,17 +296,20 @@ local function relayout()
 	local inset = GuiService:GetGuiInset()
 	local width = viewport.X / scale
 	local height = math.max(1, viewport.Y - inset.Y) / scale
-	compact = viewport.X < COMPACT_WIDTH or viewport.Y < COMPACT_HEIGHT
 	local look = MODES[mode]
+	-- On phones an open window takes the whole canvas, so the chrome behind it steps aside
+	local covered = compact and openId ~= nil
 
 	-- Cinematic hides the whole interface (HUD included)
 	gui.Enabled = not look.hidden
 
 	-- Top bar
-	playerCard.Visible = look.topBar == "full"
-	wallet.Visible = look.topBar == "full"
-	smallBar.Visible = look.topBar == "small"
-	gearButton.Visible = registry.Settings ~= nil
+	playerCard.Visible = look.topBar == "full" and not covered
+	wallet.Visible = look.topBar == "full" and not covered
+	smallBar.Visible = look.topBar == "small" and not covered
+	gearButton.Visible = registry.Settings ~= nil and not covered
+	fightersButton.Visible = mode == "Training" and registry.Powers ~= nil and not covered
+	friendChip.Visible = friendPercent ~= nil and look.topBar == "full" and not covered
 	-- The wallet's + buttons only appear once there's a shop to open
 	local hasShop = registry.Shop ~= nil
 	for _, counter in counters do
@@ -297,7 +320,7 @@ local function relayout()
 	if look.topBar ~= "none" then
 		top += TOP_BAR + 10
 	end
-	banner.Visible = not Profile.saving and look.topBar == "full"
+	banner.Visible = not Profile.saving and look.topBar == "full" and not covered
 	if banner.Visible then
 		banner.Position = UDim2.new(0.5, 0, 0, top)
 		banner.Size = UDim2.fromOffset(math.min(BANNER_WIDTH, width - EDGE * 2), BANNER)
@@ -308,11 +331,14 @@ local function relayout()
 	-- and the wallet when there's room, otherwise centred under the top bar
 	local walletWidth = WALLET_PILL * 2 + Space.S
 	local free = width - EDGE * 2 - PLAYER_CARD - walletWidth - 24
+	-- The Friend bonus chip sits right of the player card and takes its room
+	local chipRoom = if friendChip.Visible then FRIEND_CHIP.X + 8 else 0
+	free -= chipRoom
 	if look.topBar ~= "full" then
 		statusSlot.Position = UDim2.new(0.5, 0, 0, EDGE)
 		statusSlot.Size = UDim2.fromOffset(math.min(STATUS_WIDTH, width - EDGE * 2 - TOP_BAR * 2), TOP_BAR)
 	elseif free >= 340 then
-		statusSlot.Position = UDim2.fromOffset(EDGE + PLAYER_CARD + 12 + free / 2, EDGE)
+		statusSlot.Position = UDim2.fromOffset(EDGE + PLAYER_CARD + 12 + chipRoom + free / 2, EDGE)
 		statusSlot.Size = UDim2.fromOffset(math.min(STATUS_WIDTH, free), TOP_BAR)
 	else
 		statusSlot.Position = UDim2.new(0.5, 0, 0, top)
@@ -362,7 +388,7 @@ local function relayout()
 
 	-- Dock: items shrink to fit the height; icons only on phones
 	local items = navEntries()
-	dock.Visible = look.dock and #items > 0
+	dock.Visible = look.dock and #items > 0 and not covered
 	local dockWidth = 0
 	local available = height - top - EDGE
 	if dock.Visible then
@@ -391,13 +417,19 @@ local function relayout()
 	local availableWidth = width - left - EDGE
 	for _, entry in registry do
 		local frame = entry.frame
-		if frame then
+		if frame and compact and openId == entry.id then
+			-- Phone: the whole canvas below the Roblox top bar, one column
+			frame.Size = UDim2.fromOffset(width, height)
+			frame.Position = UDim2.fromOffset(width / 2, height / 2)
+		elseif frame then
 			local wanted = entry.spec.size or Theme.Size.DefaultWindow
 			local w = math.max(MIN_WINDOW.X, math.min(wanted.X, availableWidth))
 			local h = math.max(MIN_WINDOW.Y, math.min(wanted.Y, available))
 			frame.Size = UDim2.fromOffset(w, h)
 			frame.Position = UDim2.fromOffset(left + availableWidth / 2, top + available / 2)
 		end
+	end	if compact ~= wasCompact then
+		compactEvent:Fire(compact)
 	end
 end
 
@@ -547,7 +579,7 @@ local function buildTopBar()
 		Text = player.DisplayName,
 		Style = "strong",
 		Position = UDim2.fromOffset(56, 6),
-		Size = UDim2.new(1, -66, 0, 22),
+		Size = UDim2.new(1, -56 - CHANGE_CHIP.X - 16, 0, 22),
 		Parent = playerCard,
 	})
 	powerText = Components.text({
@@ -559,6 +591,46 @@ local function buildTopBar()
 		Size = UDim2.new(1, -66, 0, 18),
 		Parent = playerCard,
 	})
+	-- The whole card is one button that opens the Fighter Showcase; the chip says so
+	local chip = make("Frame", {
+		Name = "ChangeChip",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -8, 0, 6),
+		Size = UDim2.fromOffset(CHANGE_CHIP.X, CHANGE_CHIP.Y),
+		BackgroundColor3 = Colors.Raised,
+		BackgroundTransparency = 0.2,
+		BorderSizePixel = 0,
+		Parent = playerCard,
+	}, { Components.corner(Theme.SmallCorner), Components.stroke(Colors.Cyan, 1, 0.5) })
+	local chipText = Components.text({
+		Name = "Label",
+		Text = "Change",
+		Style = "caption",
+		Weight = "Bold",
+		Color = Colors.Cyan,
+		AlignX = "Center",
+		Size = UDim2.fromScale(1, 1),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = chip,
+	})
+	changeButton = make("TextButton", {
+		Name = "ChangeFighter",
+		AutoButtonColor = false,
+		Text = "",
+		Selectable = true,
+		SelectionImageObject = Components.noSelection,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 5,
+		Parent = playerCard,
+	}, { Components.corner(Theme.SmallCorner) })
+	local cardSurface = Components.surface(changeButton, { Edge = "left", Flat = true, NoFrame = true, Title = chipText })
+	Components.interactive(changeButton, function(state, instant)
+		cardSurface.render(state, instant)
+	end)
+	changeButton.Activated:Connect(function()
+		Shell.changeFighter()
+	end)
 	task.spawn(function()
 		local ok, content = pcall(function()
 			return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
@@ -603,6 +675,45 @@ local function buildTopBar()
 	}, function()
 		Shell.toggle("Settings")
 	end)
+
+	-- Training only: one tap to the Fighter Showcase, beside the settings button
+	fightersButton = Components.button("Fighters", {
+		Name = "FightersButton",
+		Variant = "Secondary",
+		Position = UDim2.fromOffset(EDGE + TOP_BAR + 8, EDGE),
+		Size = UDim2.fromOffset(FIGHTERS_BUTTON.X, FIGHTERS_BUTTON.Y),
+		Visible = false,
+		Parent = chrome,
+	}, function()
+		Shell.changeFighter()
+	end)
+
+	-- "Friend bonus +20%": shown under the player card while a Roblox friend is in the server
+	friendChip = make("Frame", {
+		Name = "FriendBonus",
+		Position = UDim2.fromOffset(EDGE + PLAYER_CARD + 8, EDGE + (TOP_BAR - FRIEND_CHIP.Y) / 2),
+		Size = UDim2.fromOffset(FRIEND_CHIP.X, FRIEND_CHIP.Y),
+		BackgroundColor3 = Colors.Success,
+		BackgroundTransparency = 0.86,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = chrome,
+	}, {
+		Components.corner(Theme.PillCorner),
+		Components.stroke(Colors.Success, 1, 0.5),
+		Components.padding(0, 8, 0, 8),
+	})
+	friendText = Components.text({
+		Name = "Label",
+		Text = "Friend bonus",
+		Style = "caption",
+		Weight = "SemiBold",
+		Color = Colors.Success,
+		AlignX = "Center",
+		Size = UDim2.fromScale(1, 1),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = friendChip,
+	})
 
 	-- Where short-lived status (like the queue pill) goes; positioned by relayout
 	statusSlot = make("Frame", {
@@ -1271,7 +1382,7 @@ end
 
 -- Modes ---------------------------------------------------------------------------------------------
 
--- "Lobby" | "Match" | "Editor" | "Spectate" | "Cinematic"
+-- "Lobby" | "Match" | "Training" | "Editor" | "Spectate" | "Cinematic"
 function Shell.setMode(newMode: string)
 	if not MODES[newMode] then
 		warn(`[Shell] unknown mode {newMode}`)
@@ -1287,11 +1398,44 @@ function Shell.setMode(newMode: string)
 	relayout()
 end
 
+-- Opens the Fighter Showcase so the player can pick another fighter: one tap from the player
+-- card in the lobby and from the Fighters button in training. Refused in a match (the server
+-- locks the fighter until it ends) with a plain message. Returns whether it opened.
+function Shell.changeFighter(): boolean
+	if mode == "Match" or mode == "Spectate" then
+		Shell.toast("Your fighter is locked until the match ends.", "info")
+		return false
+	end
+	if not registry.Powers then
+		return false
+	end
+	Shell.open("Powers")
+	return Shell.isOpen("Powers")
+end
+
+-- The Friend bonus chip: percent is the server's number (Attribute.FriendBonus) or nil
+function Shell.setFriendBonus(percent: any)
+	local value = if typeof(percent) == "number" and percent > 0 then math.floor(percent + 0.5) else nil
+	if value == friendPercent then
+		return
+	end
+	friendPercent = value
+	if value then
+		friendText.Text = `Friend bonus +{value}%`
+	end
+	relayout()
+end
+
 function Shell.getMode(): string
 	return mode
 end
 
 -- The interface's current scale (design pixels -> screen pixels)
+-- Phone-sized viewport (under 900 wide or 500 tall)? Windows switch to one column.
+function Shell.isCompact(): boolean
+	return compact
+end
+
 function Shell.scale(): number
 	return if initialized then uiScale.Scale else 1
 end
@@ -1410,6 +1554,12 @@ function Shell.init(screen: ScreenGui, dependencies: { input: any? }?)
 	end)
 	refreshProfile()
 	refreshBanner()
+
+	-- The Friend bonus chip follows the server's flag on the player (event-driven)
+	Shell.setFriendBonus(player:GetAttribute(Protocol.Attribute.FriendBonus))
+	player:GetAttributeChangedSignal(Protocol.Attribute.FriendBonus):Connect(function()
+		Shell.setFriendBonus(player:GetAttribute(Protocol.Attribute.FriendBonus))
+	end)
 
 	local elapsed = 0
 	RunService.Heartbeat:Connect(function(dt)

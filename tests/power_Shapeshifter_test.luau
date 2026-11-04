@@ -28,6 +28,10 @@ local world, Engine = game.world, game.Engine
 local FighterState = world.require(world.find("ReplicatedStorage.Shared.Combat.FighterState"))
 local Protocol = world.require(world.find("ReplicatedStorage.Shared.Protocol"))
 local Powers = world.require(world.find("ReplicatedStorage.Shared.Powers"))
+-- The fighter is held for a later update (Powers.Unreleased), so players are refused it. This
+-- test checks the power itself, so it turns the switch off first. world.require returns the one
+-- shared module the server services use. tests/release_test.luau covers the switch.
+Powers.Unreleased.Shapeshifter = nil
 local Attribute = Protocol.Attribute
 local ID = "Shapeshifter"
 local DEF = Powers.get(ID)

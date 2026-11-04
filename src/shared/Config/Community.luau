@@ -34,4 +34,29 @@ Community.Referral = {
 	Attempts = 3,
 }
 
+-- Community like goals. The server cannot read the game's like count, so the owner types it in
+-- under OWNER, Community goals. When the count reaches a goal EVERY player gets its reward,
+-- whether or not they liked the game, including players who join later. Nothing is given to an
+-- individual for liking (Roblox gives a game no way to see who liked it). Lowering the count
+-- later never takes a reward back. reward = { kind = "title" | "aura", cosmetic = id } or
+-- { kind = "gems", amount = n }. text finishes the sentence "everyone gets ...".
+Community.LikeGoals = {
+	{ id = "likes_1000", likes = 1000, reward = { kind = "title", cosmetic = "title_supporter" }, text = "the Supporter title" },
+	{ id = "likes_5000", likes = 5000, reward = { kind = "gems", amount = 150 }, text = "150 Gems" },
+	{ id = "likes_25000", likes = 25000, reward = { kind = "aura", cosmetic = "aura_crowd_glow" }, text = "the Crowd Glow aura" },
+}
+
+Community.LikeStore = {
+	StoreName = "SN_CommunityLikes_v1",
+	Key = "count",
+	Topic = "SN_CommunityLikes",
+	MaxLikes = 1e9,
+	Attempts = 3,
+	-- Seconds between two saves by the owner
+	SetGap = 3,
+	-- Jeffery's one-time reminder comes after this many finished matches
+	ReminderAfterMatches = 3,
+	ReminderText = "A like on the game page helps us reach the next community goal. When a goal is reached, every player gets its reward, whether they liked the game or not.",
+}
+
 return Community

@@ -223,6 +223,20 @@ end
 -- More shapes for power effects ----------------------------------------------------
 
 Vfx.reduced = reduced
+Vfx.container = container
+
+-- 1 on desktop, lower on touch devices and with Reduced effects: scales particle
+-- counts and the number of decorative layers
+function Vfx.scale(): number
+	if reduced() then
+		return 0.35
+	end
+	local UserInputService = game:GetService("UserInputService")
+	local ok, touch = pcall(function()
+		return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	end)
+	return if ok and touch then 0.6 else 1
+end
 
 -- Full-screen flashes and colour shifts are optional (Settings: Intense flashes)
 function Vfx.intense(): boolean

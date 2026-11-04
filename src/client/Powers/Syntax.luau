@@ -2344,4 +2344,33 @@ function Syntax.appearance(kit)
 	end
 end
 
+-- Layered signature on top (core flash, glow, shaped burst, ground shockwave, light, shake)
+local Signature = require(script.Parent.Parent.Effects.Signature)
+Signature.decorate(Syntax, "Syntax", {
+	Lock = { "impact", 1 },
+	Pin = { "impact", 1 },
+	StrikeMark = { "windup", 1, 4 },
+	Strike = { "impact", 2 },
+	Barrier = { "cast", 2 },
+	Sentry = { "cast", 1 },
+	RerouteOpen = { "cast", 1 },
+	PacketReroute = { "trail", 1.2, 10 },
+	Pulse = { "impact", 1 },
+	PylonCharge = { "windup", 1, 4 },
+	PylonFire = { { "trail", 2, 30 }, { "impact", 2 } },
+	VentCharge = { "windup", 1, 5 },
+	VentBlast = { "impact", 2 },
+	CommandZone = { "windup", 2, 8 },
+	CommandExecute = { "impact", 2 },
+	CellClosing = { "windup", 2, 6 },
+	CellBreak = { "impact", 2 },
+	ChainStep = { "impact", 1 },
+	RuleField = { "cast", 2 },
+	Lane = { "trail", 1.2, 20 },
+	Override = { "ultwindup", 3, 14 },
+	OverrideClaim = { "impact", 2 },
+	OverrideStrike = { "ultimate", 3, 24 },
+	OverrideRestore = { "cast", 2 },
+})
+
 return Syntax

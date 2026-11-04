@@ -88,13 +88,21 @@ check("the Nexus lobby builds: plaza, gates with prompts, statues, spawn", funct
 		end
 	end
 	assert(prompts == #Nexus.Gates, `one prompt per gate ({prompts})`)
+	-- The Archive book stand lives in the Spectating Lounge only: nothing in the hub opens the Archive
+	assert(folder:FindFirstChild("ArchiveStand", true) == nil, "no Archive stand in the hub")
+	for _, item in folder:GetDescendants() do
+		assert(not (item:IsA("ProximityPrompt") and item:GetAttribute("Action") == "Window:Archive"), "no Archive prompt in the hub")
+	end
+	for _, gate in Nexus.Gates do
+		assert(gate.id ~= "Archive" and not gate.stand, "no Archive entry in the gates")
+	end
 	-- Jeffery stands beside his door: a nameplate and his own prompt on T / D-pad right
 	local jeffery = folder:FindFirstChild("Jeffery", true)
 	assert(jeffery, "Jeffery stands in the hub")
 	assert(jeffery:FindFirstChild("Nameplate", true), "Jeffery has his nameplate")
 	local talk = jeffery:FindFirstChildWhichIsA("ProximityPrompt", true)
 	assert(talk and talk.KeyboardKeyCode == roblox.Enum.KeyCode.T and talk.GamepadKeyCode == roblox.Enum.KeyCode.DPadRight, "Jeffery's prompt uses T / D-pad right")
-	assert(talk:GetAttribute("Action") == "Window:Learn", "Jeffery opens How to Play")
+	assert(talk:GetAttribute("Action") == "Jeffery:Ask", "Jeffery opens the Ask Jeffery panel")
 	for id in Archive.Files do
 		assert(files[id], `recovered file {id} is placed in the hub`)
 	end
@@ -234,7 +242,7 @@ check("components: numbers, prices and every building block", function()
 	assert(paragraph.TextWrapped and paragraph.AutomaticSize == roblox.Enum.AutomaticSize.Y, "paragraphs wrap and grow")
 	-- Older callers: TextScaled labels and buttons, legacy fonts upgraded to Builder Sans
 	local legacy = Components.label("Old", { Font = Theme.Fonts.Title, MaxTextSize = 20, Parent = holder })
-	assert(legacy.TextScaled and legacy.FontFace.Weight == roblox.Enum.FontWeight.Bold, "legacy labels still scale, in Builder Sans")
+	assert(legacy.TextScaled and legacy.FontFace.Weight == roblox.Enum.FontWeight.ExtraBold, "legacy labels still scale, in Builder Sans ExtraBold")
 	local clicks = 0
 	for _, variant in { "Primary", "Secondary", "Ghost", "Danger", "Gold" } do
 		local button = Components.button(variant, { Variant = variant, Parent = holder }, function()
@@ -686,7 +694,7 @@ check("powers window, ability bar and defense prompts", function()
 			auditLayout(findNamed(gui, "PowerActions"), "Fighter actions")
 		end
 	end
-	assert(cardsPressed == 8, `eight fighter cards ({cardsPressed})`)
+	assert(cardsPressed == 7, `seven fighter cards for a player ({cardsPressed})`)
 	for _, name in { "Unlock", "UnlockDegree", "UnlockPower", "UnlockAbility", "Confirm", "Select" } do
 		assert(#sentSince(start, "PowerRequest", name) == 0, "the showcase never buys or charges: " .. name)
 	end
@@ -700,6 +708,8 @@ check("powers window, ability bar and defense prompts", function()
 		character.Parent = world.workspace
 		world.localPlayer.Character = character
 	end
+	-- The combat interface shows only where the server says combat works (here: training)
+	character:SetAttribute("SNCombatContext", "Training")
 	character:SetAttribute("SNPower", "StrongDude")
 	character:SetAttribute("SNDegree", 1)
 	character:SetAttribute("SNLoadout", "Groundbreaker,TitanGrip,MeteorCharge")

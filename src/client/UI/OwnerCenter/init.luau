@@ -14,6 +14,7 @@ local Components = require(script.Parent.Components)
 local Shell = require(script.Parent.Shell)
 local Announce = require(script.Announce)
 local CatalogueView = require(script.CatalogueView)
+local CommunityGoals = require(script.CommunityGoals)
 local Custom = require(script.Custom)
 local Dashboard = require(script.Dashboard)
 local History = require(script.History)
@@ -31,7 +32,7 @@ local make = Components.make
 local OwnerCenter = {}
 
 local WINDOW_ID = "OwnerCenter"
-local NAV_WIDTH = 216
+local NAV_WIDTH = 248
 local STRIP = 52
 local REFRESH_SECONDS = 10
 
@@ -94,6 +95,7 @@ OwnerCenter.Groups = {
 			{ id = "fighters", name = "Fighter and degree control", build = Personal.buildFighters },
 			{ id = "summon", name = "Summoning and teleportation", build = Personal.buildSummon },
 			{ id = "announce", name = "Announcement center", build = Announce.build },
+			{ id = "goals", name = "Community goals", build = CommunityGoals.build },
 			{ id = "emergency", name = "Emergency restore", build = History.buildEmergency },
 		},
 	},
@@ -232,6 +234,7 @@ local function build(body: Frame, _api: any)
 				KeepCase = true,
 				LayoutOrder = order,
 				Size = UDim2.new(1, -4, 0, Theme.Size.Control),
+				TextSize = 17,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextWrapped = true,
 				Parent = nav,
@@ -292,10 +295,11 @@ function OwnerCenter.register(opts: { sendAdmin: (string, any?, any?) -> () }?)
 	Net.start()
 	Shell.registerWindow(WINDOW_ID, {
 		title = "Control Center",
-		label = "CONTROL",
-		icon = "gear",
-		order = 90,
-		nav = false,
+		-- Only registered for the owner, so only the owner ever sees this dock button
+		label = "OWNER",
+		icon = "crown",
+		order = 0,
+		nav = true,
 		size = Vector2.new(1120, 660),
 		build = build,
 	})

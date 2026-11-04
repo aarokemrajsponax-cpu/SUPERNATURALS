@@ -17,6 +17,7 @@ Homes.VaultDrop = 40 -- the vault floor sits this far below the home floor
 Homes.StreetPartBudget = 560
 Homes.HomePartBudget = 430
 Homes.VaultPartBudget = 330
+Homes.GameRoomPartBudget = 350
 
 -- Friend checks are cached so door presses never spam Roblox
 Homes.FriendCacheSeconds = 300
@@ -91,5 +92,74 @@ function Homes.titleName(id: string): string
 		return string.upper(first) .. rest
 	end))
 end
+
+-- Hosting (BaseService; DECISIONS 62) -----------------------------------------------------------
+-- Who may come in. "Friends" is the default and is what every old profile reads.
+Homes.AccessOrder = { "Friends", "Everyone", "Nobody" }
+Homes.AccessModes = {
+	Friends = { label = "Friends", blurb = "Your Roblox friends can come in." },
+	Everyone = { label = "Open house", blurb = "Anyone on this server can come in." },
+	Nobody = { label = "Just me", blurb = "The door stays shut to everyone else." },
+}
+Homes.VisitorsKept = 8 -- the board shows the last 8 visitors
+Homes.AskLeaveCooldown = 3 -- seconds between "ask to leave" requests from one owner
+Homes.AskLeaveBar = 120 -- seconds a visitor who was asked to leave cannot come back in
+-- Host bonus: the first time each UTC day that a Roblox friend stays this long, the owner gets Money
+Homes.HostBonusSeconds = 60
+Homes.HostBonusMoney = 25
+Homes.PresenceTick = 2 -- seconds between the server's presence checks
+
+-- Game room activities --------------------------------------------------------------------------
+-- Rewards are small and only for the first valid play of each activity per UTC day
+Homes.ActivityOrder = { "PowerMeter", "Reflex" }
+Homes.Activities = {
+	PowerMeter = { label = "Power Meter", dailyMoney = 10 },
+	Reflex = { label = "Reflex Cabinet", dailyMoney = 10 },
+}
+-- Power Meter: the needle rises and falls in a triangle wave; one full up and down is `period`
+-- seconds. The server starts the run on the first press and scores the second press from its
+-- own clock: score = round(100 * triangle(elapsed / period)). A run left alone ends after `timeout`.
+Homes.PowerMeter = { period = 1.6, timeout = 6, startupGrace = 0 }
+-- Reflex cabinet: a random wait before "go". The reaction is measured on the server from the
+-- moment "go" was sent to the moment the press arrived, minus the player's round-trip ping
+-- (capped at latencyCapMs so a bad connection cannot hide a slow reaction), never below minMs.
+Homes.Reflex = { waitMin = 1.5, waitMax = 4, latencyCapMs = 150, minMs = 120, timeout = 6 }
+
+function Homes.powerMeterScore(elapsed: number, period: number): number
+	local phase = (elapsed / period) % 1
+	local height = if phase < 0.5 then phase * 2 else (1 - phase) * 2
+	return math.clamp(math.floor(height * 100 + 0.5), 0, 100)
+end
+
+-- The jukebox: the base owner picks one AudioLibrary category for the whole base
+Homes.MusicStyles = { "Chill", "Pop", "Electronic", "Classical", "Phonk", "Rock", "Funny", "SciFi" }
+Homes.DefaultMusic = "Chill"
+
+-- Party mode (free): the room lights and dance floor run a slow colour cycle
+Homes.PartyStep = 0.02 -- hue step per tick
+Homes.PartyTick = 0.3 -- seconds
+
+-- Cosmetic base effects, unlocked by the Base Effects Pack pass (Monetization.Passes.BaseEffectsPack).
+-- Looks only: no stats, nothing random, no timers. Each one is switched on or off by the owner.
+Homes.EffectsPass = "BaseEffectsPack"
+Homes.EffectOrder = { "Aurora", "Snowfall", "Fireplace", "LightShow", "Fireflies" }
+Homes.Effects = {
+	Aurora = { label = "Aurora", blurb = "Soft green and violet ribbons drift across the home ceiling." },
+	Snowfall = { label = "Indoor snowfall", blurb = "Gentle snow falls by the big window." },
+	Fireplace = { label = "Ember fireplace", blurb = "A crackling fire with rising embers in the game room." },
+	LightShow = { label = "Dance floor light show", blurb = "Coloured beams sweep over the game room dance floor." },
+	Fireflies = { label = "Fireflies", blurb = "Warm lights drift through the home." },
+}
+
+-- Fireworks Show (developer product, Monetization.Products.FireworksShow): each purchase saves one
+-- charge; the owner launches a show from the base panel whenever they like.
+Homes.FireworksSeconds = 45
+Homes.FireworksMaxCharges = 20
+Homes.FireworksShotEvery = 1.1
+
+-- The game room is joined to the south wall of the home; these bounds say who is "in the base"
+Homes.InsideX = 30
+Homes.InsideZMin = -34
+Homes.InsideZMax = 52
 
 return Homes

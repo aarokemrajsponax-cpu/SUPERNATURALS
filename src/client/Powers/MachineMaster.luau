@@ -1497,4 +1497,30 @@ function Machine.appearance(kit)
 	end
 end
 
+-- Layered signature on top (core flash, glow, shaped burst, ground shockwave, light, shake)
+local Signature = require(script.Parent.Parent.Effects.Signature)
+Signature.decorate(Machine, "MachineMaster", {
+	ScatterFire = { "trail", 0.6, 14 },
+	ShockPulse = { { "cast", 2 }, { "impact", 2 } },
+	ShieldUp = { "cast", 1 },
+	ShieldBlock = { "impact", 1 },
+	ShieldShatter = { "impact", 2 },
+	ProjectorUp = { "cast", 1 },
+	InterceptShot = { "trail", 0.8 },
+	RailCharge = { "windup", 2, 5 },
+	RailFire = { "trail", 2.5, 40 },
+	StreamsIgnite = { "cast", 1 },
+	Burst = { "impact", 2 },
+	BurnAway = { "impact", 1 },
+	MissileLaunch = { { "cast", 1 }, { "trail", 1.5, 14 } },
+	DevicePlaced = { "impact", 1 },
+	DeviceArmed = { "impact", 1 },
+	DeviceTrigger = { "impact", 2 },
+	DevicePulse = { "impact", 1 },
+	InfernoIgnite = { "cast", 2 },
+	InfernoSweep = { "impact", 2 },
+	InfernoCharge = { "ultwindup", 3, 14 },
+	InfernoBlast = { "ultimate", 3, 24 },
+})
+
 return Machine

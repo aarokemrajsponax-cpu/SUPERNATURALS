@@ -25,6 +25,7 @@ local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Poser = require(script.Parent.Parent.Effects.Poser)
 local Vfx = require(script.Parent.Parent.Effects.Vfx)
+local Signature = require(script.Parent.Parent.Effects.Signature)
 local Settings = require(script.Parent.Parent.Settings)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Components = require(script.Parent.Parent.UI.Components)
@@ -417,8 +418,10 @@ function EffectsController:_playAttack(model: Model, move: string, timing: { num
 		self:_chargeGlow(model, false)
 		Poser.sequence(model, sequence, 1, { timing = { startup = timing[1], active = timing[2], recovery = timing[3] } })
 		local startup = timing[1]
+		local palette = Signature.palette(model:GetAttribute(Attribute.Power))
 		if info.telegraph and startup >= 0.25 then
-			Vfx.telegraph(root, Colors.Danger, startup)
+			-- Drawn in the attacker's own colour so each fighter's wind-up is recognisable
+			Vfx.telegraph(root, if palette then palette.glow else Colors.Danger, startup)
 		end
 		-- The whoosh lands just before contact
 		task.delay(math.max(0, startup - 0.06), function()
@@ -432,7 +435,18 @@ function EffectsController:_playAttack(model: Model, move: string, timing: { num
 			end
 			local slash = info.slash
 			if slash then
-				Vfx.slash(root.CFrame * CFrame.new(0, slash[3], 0), if info.kind == "Heavy" then HEAVY_COLOR else SLASH_COLOR, slash[1], slash[2], if info.kind == "Heavy" then 0.2 else 0.12)
+				local heavy = info.kind == "Heavy"
+				local arc = root.CFrame * CFrame.new(0, slash[3], 0)
+				if palette then
+					-- A bright core arc inside a wider, softer one
+					Vfx.slash(arc, palette.core, slash[1], slash[2], if heavy then 0.2 else 0.12)
+					Vfx.slash(arc, palette.glow, slash[1] * 1.12, slash[2], if heavy then 0.28 else 0.18)
+					if heavy then
+						Vfx.glow(root.Position + root.CFrame.LookVector * 3, palette.glow, 12, 2.5, 0.2)
+					end
+				else
+					Vfx.slash(arc, if heavy then HEAVY_COLOR else SLASH_COLOR, slash[1], slash[2], if heavy then 0.2 else 0.12)
+				end
 			elseif move == "Sweep" then
 				Vfx.groundRing(root.Position - Vector3.new(0, 2.6, 0), DUST_COLOR, 2, 9, 0.3)
 			end
@@ -593,8 +607,12 @@ function EffectsController:_onHit(data)
 			Poser.freeze(attacker, stop)
 		end
 		local big = weight >= 2 or tags.counter or tags.wallSplat
-		Vfx.flash(victim, Color3.new(1, 1, 1))
-		Vfx.sparks(position, if tags.counter then Colors.Gold elseif data.heavy then HEAVY_COLOR else SPARK_COLOR, if big then 28 else 14, if big then 32 else 22)
+		-- The attacker's own spark, star and 0.12 s highlight; neutral ones for powers without a palette
+		local styled = Signature.hit(if attacker then attacker:GetAttribute(Attribute.Power) else nil, position, victim, if big then 2 else 1)
+		if not styled then
+			Vfx.flash(victim, Color3.new(1, 1, 1))
+		end
+		Vfx.sparks(position, if tags.counter then Colors.Gold elseif data.heavy then HEAVY_COLOR else SPARK_COLOR, if styled then (if big then 10 else 5) elseif big then 28 else 14, if big then 32 else 22)
 		if Settings.get("damageNumbers") ~= false and typeof(data.damage) == "number" then
 			Vfx.popup(position, tostring(math.floor(data.damage + 0.5)), if big then Colors.Gold else Colors.Text, if big then 1.3 else 1)
 		end

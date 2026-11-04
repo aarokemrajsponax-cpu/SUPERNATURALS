@@ -16,6 +16,7 @@ local Combat = require(ReplicatedStorage.Shared.Config.Combat)
 local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Poser = require(script.Parent.Parent.Effects.Poser)
+local MovementFeel = require(script.Parent.Parent.Movement.MovementFeel)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local CombatRequest = Remotes:WaitForChild("CombatRequest") :: RemoteEvent
@@ -247,6 +248,8 @@ function CombatController:_basicOverride(character: Model, root: BasePart, human
 end
 
 function CombatController:Start()
+	-- Sprint view, dash trail, landing dust, robot footsteps, movement-style refresh
+	MovementFeel.start(self.camera)
 	player.CharacterAdded:Connect(function()
 		chainStep, chainUntil, lightReadyAt, busyUntil, dodgeReadyAt = 0, 0, 0, 0, 0
 		grabReadyAt, sweepReadyAt, tauntReadyAt, feintReadyAt, heavyWindupUntil = 0, 0, 0, 0, 0
@@ -414,6 +417,7 @@ function CombatController:_onDodge(data)
 		-- Not previewed (it was thought to be on cooldown): move now for what's left
 		local duration = if typeof(data.duration) == "number" then math.clamp(data.duration, 0.05, 0.4) else 0.18
 		moveDodge(root, flatDirection, speed, duration)
+		MovementFeel.dash(character, duration)
 	end
 end
 
@@ -746,6 +750,7 @@ function CombatController:dodge()
 	busyUntil = time + duration + dodge.Recovery
 	chainStep = 0
 	moveDodge(root, direction, speed, duration)
+	MovementFeel.dash(character, duration)
 
 	-- Dodging drops your block; say so explicitly in case the dodge is refused
 	if blocking then

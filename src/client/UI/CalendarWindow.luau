@@ -29,11 +29,11 @@ local CalendarWindow = {}
 
 local WINDOW_ID = "Calendar"
 local COLUMNS = 5
-local CELL_W = 126
-local CELL_H = 100
+local CELL_W = 140
+local CELL_H = 128
 local GAP = 8
 local SIDE_X = COLUMNS * (CELL_W + GAP) + 4
-local TOP_H = 76
+local TOP_H = 84
 
 local MONTHS = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" }
 local KIND_WORD = { title = "title", plate = "nameplate", aura = "aura", knockout = "knockout" }
@@ -271,7 +271,7 @@ local function buildDay(parent: Instance, s, day: number, index: number, onClaim
 	end
 	local dim = status == "missed" or status == "future"
 	local textColor = if dim then Colors.TextMuted elseif status == "claimed" then Colors.TextDim else Colors.Text
-	Components.text({ Name = "Day", Text = `Day {day}`, Style = "number", TextSize = 14, Weight = "SemiBold", Color = textColor, Position = UDim2.fromOffset(8, 6), Size = UDim2.fromOffset(56, 20), Parent = cell })
+	Components.text({ Name = "Day", Text = `Day {day}`, Style = "number", TextSize = 16, Color = textColor, Position = UDim2.fromOffset(8, 6), Size = UDim2.fromOffset(64, 22), Parent = cell })
 	local tag = STATUS_TAG[status] or shortDate(Calendars.dayStart(calendar, day))
 	local tagColor = Colors.TextMuted
 	if status == "claimed" then
@@ -281,11 +281,11 @@ local function buildDay(parent: Instance, s, day: number, index: number, onClaim
 	elseif status == "open" then
 		tagColor = Colors.Copper
 	end
-	Components.text({ Name = "Tag", Text = tag, Style = "small", TextSize = 14, Color = tagColor, AlignX = "Right", Position = UDim2.new(0, 60, 0, 6), Size = UDim2.new(1, -68, 0, 20), Parent = cell })
+	Components.text({ Name = "Tag", Text = tag, Style = "small", TextSize = 16, Color = tagColor, AlignX = "Right", Position = UDim2.new(0, 70, 0, 6), Size = UDim2.new(1, -76, 0, 22), Parent = cell })
 	local moneyLine, rest = giftLines(gift)
-	Components.text({ Name = "Money", Text = moneyLine, Style = "small", TextSize = 14, Weight = "SemiBold", Color = textColor, Position = UDim2.fromOffset(8, 28), Size = UDim2.new(1, -16, 0, 18), Parent = cell })
+	Components.text({ Name = "Money", Text = moneyLine, Style = "small", TextSize = 16, Color = textColor, Position = UDim2.fromOffset(8, 32), Size = UDim2.new(1, -16, 0, 22), Parent = cell })
 	if rest ~= "" then
-		Components.text({ Name = "Gift", Text = rest, Style = "small", TextSize = 14, Color = if dim then Colors.TextMuted else Colors.TextDim, Lines = 3, Position = UDim2.fromOffset(8, 46), Size = UDim2.new(1, -16, 0, 52), Parent = cell })
+		Components.text({ Name = "Gift", Text = rest, Style = "small", TextSize = 16, Color = if dim then Colors.TextMuted else Colors.TextDim, Lines = 3, Position = UDim2.fromOffset(8, 56), Size = UDim2.new(1, -16, 0, 68), Parent = cell })
 	end
 	if gift.cosmetic or gift.trial then
 		local strip = if gift.trial then Colors.Purple else swatchOf(gift.cosmetic)
@@ -294,7 +294,7 @@ local function buildDay(parent: Instance, s, day: number, index: number, onClaim
 end
 
 local function sideHeading(parent: Instance, text: string, y: number)
-	Components.text({ Name = "Heading_" .. text, Text = text, Style = "heading", TextSize = 18, Position = UDim2.fromOffset(0, y), Size = UDim2.new(1, 0, 0, 26), Parent = parent })
+	Components.text({ Name = "Heading_" .. text, Text = text, Style = "heading", TextSize = 20, Position = UDim2.fromOffset(0, y), Size = UDim2.new(1, 0, 0, 26), Parent = parent })
 end
 
 local started = false
@@ -346,16 +346,16 @@ function CalendarWindow.register()
 						line = "The next gift calendar has not been announced yet."
 					end
 					Components.text({ Name = "Next", Text = line, Style = "body", Color = Colors.TextDim, Lines = 3, Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, -40, 0, 70), Parent = page })
-					Components.text({ Name = "Rule", Text = "Each calendar gives one gift per day. Claim a day on its date or the day after. Claiming more days earns more rewards, and claiming every day earns an exclusive set that is never sold.", Style = "small", TextSize = 15, Color = Colors.TextDim, Lines = 3, Position = UDim2.fromOffset(0, 118), Size = UDim2.new(1, -40, 0, 70), Parent = page })
+					Components.text({ Name = "Rule", Text = "Each calendar gives one gift per day. Claim a day on its date or the day after. Claiming more days earns more rewards, and claiming every day earns an exclusive set that is never sold.", Style = "small", TextSize = 16, Color = Colors.TextDim, Lines = 3, Position = UDim2.fromOffset(0, 118), Size = UDim2.new(1, -40, 0, 70), Parent = page })
 					return
 				end
 
 				-- Header: name, real dates, the rule, and the claim button
 				local lastDay = Calendars.dayStart(calendar, calendar.days)
-				Components.text({ Name = "Title", Text = calendar.name, Style = "title", Size = UDim2.new(1, -230, 0, 30), Parent = page })
-				Components.text({ Name = "Dates", Text = `{dateText(calendar.startsAt)} to {dateText(lastDay)} (UTC days). Day {calendar.days} is {calendar.holiday}.`, Style = "small", TextSize = 15, Color = Colors.TextDim, Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, -230, 0, 22), Parent = page })
+				Components.text({ Name = "Title", Text = calendar.name, Style = "title", Size = UDim2.new(1, -230, 0, 34), Parent = page })
+				Components.text({ Name = "Dates", Text = `{dateText(calendar.startsAt)} to {dateText(lastDay)} (UTC days). Day {calendar.days} is {calendar.holiday}.`, Style = "small", TextSize = 16, Color = Colors.TextDim, Position = UDim2.fromOffset(0, 36), Size = UDim2.new(1, -230, 0, 24), Parent = page })
 				local catchText = if s.catchUp > 0 then "A missed day can be claimed the day after." else "Each day can only be claimed on its own date."
-				Components.text({ Name = "Rule", Text = `One gift a day. {catchText} Every claimed day counts.`, Style = "small", TextSize = 15, Color = Colors.TextDim, Position = UDim2.fromOffset(0, 54), Size = UDim2.new(1, -230, 0, 22), Parent = page })
+				Components.text({ Name = "Rule", Text = `One gift a day. {catchText} Every claimed day counts.`, Style = "small", TextSize = 16, Color = Colors.TextDim, Position = UDim2.fromOffset(0, 60), Size = UDim2.new(1, -230, 0, 24), Parent = page })
 
 				local ready = readyDays(s)
 				local label = if #ready > 1 then `Claim {#ready} gifts` elseif #ready == 1 then `Claim day {ready[1]}` else "Nothing to claim"
@@ -363,7 +363,7 @@ function CalendarWindow.register()
 					Name = "Claim",
 					Variant = if #ready > 0 then "Primary" else "Secondary",
 					KeepCase = true,
-					TextSize = 16,
+					TextSize = 18,
 					AnchorPoint = Vector2.new(1, 0),
 					Position = UDim2.new(1, 0, 0, 4),
 					Size = UDim2.fromOffset(200, 44),
@@ -383,7 +383,7 @@ function CalendarWindow.register()
 				else
 					nextLine = "The calendar has ended. A missed last day can still be claimed today."
 				end
-				Components.text({ Name = "Progress", Text = `Claimed {s.count} of {calendar.days} days. {nextLine}`, Style = "strong", TextSize = 16, Position = UDim2.fromOffset(0, 80), Size = UDim2.new(1, -230, 0, 24), Parent = page })
+				Components.text({ Name = "Progress", Text = `Claimed {s.count} of {calendar.days} days. {nextLine}`, Style = "strong", TextSize = 18, Position = UDim2.fromOffset(0, 88), Size = UDim2.new(1, -230, 0, 28), Parent = page })
 
 				-- The grid of days
 				local gridTop = TOP_H + 38
@@ -403,24 +403,24 @@ function CalendarWindow.register()
 					local item = Cosmetics.get(id)
 					table.insert(names, if item then `{item.name} ({KIND_WORD[item.kind] or item.kind})` else id)
 				end
-				local prize = make("Frame", { Name = "Perfect", Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 0, 172), BackgroundColor3 = if s.perfect then Colors.Panel else Colors.PanelLight, BorderSizePixel = 0, Parent = side }, { Components.corner(Theme.SmallCorner) })
+				local prize = make("Frame", { Name = "Perfect", Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 0, 244), BackgroundColor3 = if s.perfect then Colors.Panel else Colors.PanelLight, BorderSizePixel = 0, Parent = side }, { Components.corner(Theme.SmallCorner) })
 				make("Frame", { Name = "Bar", Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = Colors.Gold, BorderSizePixel = 0, Parent = prize })
-				Components.text({ Name = "Rule", Text = `Claim all {calendar.days} gifts to earn this set. It is never sold and never offered again.`, Style = "small", TextSize = 14, Color = Colors.Text, Lines = 3, Position = UDim2.fromOffset(12, 4), Size = UDim2.new(1, -20, 0, 56), Parent = prize })
-				Components.text({ Name = "Items", Text = table.concat(names, "\n"), Style = "small", TextSize = 14, Color = Colors.TextDim, Lines = 4, Position = UDim2.fromOffset(12, 62), Size = UDim2.new(1, -20, 0, 80), Parent = prize })
-				Components.text({ Name = "State", Text = if s.perfect then "Earned" else `{s.count} of {calendar.days} days claimed`, Style = "small", TextSize = 14, Color = if s.perfect then Colors.Success else Colors.TextMuted, Position = UDim2.new(0, 12, 1, -24), Size = UDim2.new(1, -20, 0, 20), Parent = prize })
-				local y = 210
+				Components.text({ Name = "Rule", Text = `Claim all {calendar.days} gifts to earn this set. It is never sold and never offered again.`, Style = "small", TextSize = 16, Color = Colors.Text, Lines = 4, Position = UDim2.fromOffset(12, 4), Size = UDim2.new(1, -20, 0, 86), Parent = prize })
+				Components.text({ Name = "Items", Text = table.concat(names, "\n"), Style = "small", TextSize = 16, Color = Colors.TextDim, Lines = 5, Position = UDim2.fromOffset(12, 94), Size = UDim2.new(1, -20, 0, 110), Parent = prize })
+				Components.text({ Name = "State", Text = if s.perfect then "Earned" else `{s.count} of {calendar.days} days claimed`, Style = "small", TextSize = 16, Color = if s.perfect then Colors.Success else Colors.TextMuted, Position = UDim2.new(0, 12, 1, -30), Size = UDim2.new(1, -20, 0, 24), Parent = prize })
+				local y = 282
 				sideHeading(side, "Days claimed rewards", y)
 				y += 30
 				for _, milestone in calendar.milestones do
 					local done = s.milestones[Calendars.milestoneKey(milestone.count)] == true
 					local reached = s.count >= milestone.count
-					local row = make("Frame", { Name = `Milestone_{milestone.count}`, Position = UDim2.fromOffset(0, y), Size = UDim2.new(1, 0, 0, 52), BackgroundColor3 = if done then Colors.Panel else Colors.PanelLight, BorderSizePixel = 0, Parent = side }, { Components.corner(Theme.SmallCorner) })
+					local row = make("Frame", { Name = `Milestone_{milestone.count}`, Position = UDim2.fromOffset(0, y), Size = UDim2.new(1, 0, 0, 82), BackgroundColor3 = if done then Colors.Panel else Colors.PanelLight, BorderSizePixel = 0, Parent = side }, { Components.corner(Theme.SmallCorner) })
 					row:SetAttribute("Done", done)
 					local status = if done then "Earned" elseif reached then "Reached" else `{milestone.count - s.count} more`
-					Components.text({ Name = "Count", Text = `{milestone.count} days`, Style = "strong", TextSize = 15, Color = if done then Colors.TextDim else Colors.Text, Position = UDim2.fromOffset(8, 3), Size = UDim2.new(0.5, -8, 0, 22), Parent = row })
-					Components.text({ Name = "Status", Text = status, Style = "small", TextSize = 14, AlignX = "Right", Color = if done then Colors.Success else Colors.TextMuted, Position = UDim2.new(0.5, 0, 0, 3), Size = UDim2.new(0.5, -8, 0, 22), Parent = row })
-					Components.text({ Name = "Reward", Text = `{cosmeticName(milestone.cosmetic)} and {milestone.money} Money`, Style = "small", TextSize = 14, Color = Colors.TextDim, Position = UDim2.fromOffset(8, 25), Size = UDim2.new(1, -16, 0, 22), Parent = row })
-					y += 58
+					Components.text({ Name = "Count", Text = `{milestone.count} days`, Style = "strong", TextSize = 16, Color = if done then Colors.TextDim else Colors.Text, Position = UDim2.fromOffset(8, 4), Size = UDim2.new(0.5, -8, 0, 24), Parent = row })
+					Components.text({ Name = "Status", Text = status, Style = "small", TextSize = 16, AlignX = "Right", Color = if done then Colors.Success else Colors.TextMuted, Position = UDim2.new(0.5, 0, 0, 4), Size = UDim2.new(0.5, -8, 0, 24), Parent = row })
+					Components.text({ Name = "Reward", Text = `{cosmeticName(milestone.cosmetic)} and {milestone.money} Money`, Style = "small", TextSize = 16, Color = Colors.TextDim, Lines = 2, Position = UDim2.fromOffset(8, 30), Size = UDim2.new(1, -16, 0, 46), Parent = row })
+					y += 88
 				end
 				side.Size = UDim2.new(1, -SIDE_X, 0, y)
 

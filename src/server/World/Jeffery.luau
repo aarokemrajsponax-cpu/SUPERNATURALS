@@ -1,5 +1,5 @@
 -- JEFFERY, the facility's assistant robot, built from parts (no meshes, no asset ids).
--- He hovers beside the JEFFERY'S BASE door. Smooth ivory body, a graphite head with a
+-- He stays at his post beside the JEFFERY'S BASE door and never follows a player. Smooth ivory body, a graphite head with a
 -- digital face screen (a SurfaceGui with two eyes and a mouth, set by Tutorial.Faces), glowing
 -- cyan details, a small octagon insignia on the chest and a nameplate reading JEFFERY.
 --
@@ -263,7 +263,8 @@ function Jeffery.dress(rig: Model): Model?
 	return look
 end
 
--- Places Jeffery beside the JEFFERY'S BASE door and gives him a "Talk" prompt
+-- Places Jeffery beside the JEFFERY'S BASE door (his post) and gives him an "Ask Jeffery" prompt.
+-- The client turns him to face a player during the tour; his position never changes.
 function Jeffery.build(folder: Instance): Model
 	local Hub = require(script.Parent.Hub)
 	local entry
@@ -281,13 +282,14 @@ function Jeffery.build(folder: Instance): Model
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ObjectText = "JEFFERY"
-	prompt.ActionText = "Talk to Jeffery"
+	prompt.ActionText = "Ask Jeffery"
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = false
 	-- Same keys as the hub's doors; E and F are combat keys
 	prompt.KeyboardKeyCode = Enum.KeyCode.T
 	prompt.GamepadKeyCode = Enum.KeyCode.DPadRight
-	prompt:SetAttribute("Action", "Window:Learn")
+	-- Opens the Ask Jeffery chat panel (JefferyController); How to Play has its own door and button
+	prompt:SetAttribute("Action", "Jeffery:Ask")
 	prompt.Parent = model:FindFirstChild("Torso")
 	model.Parent = folder
 	return model

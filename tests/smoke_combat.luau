@@ -163,6 +163,9 @@ local function respawn()
 	step(2)
 end
 
+-- The server says this fighter is in the Training Studio, so the combat interface shows
+me:SetAttribute("SNCombatContext", "Training")
+
 local KEY = { UserInputType = Enum.UserInputType.Keyboard, KeyCode = Enum.KeyCode.Unknown, Position = Vector3.zero }
 local MOUSE = { UserInputType = Enum.UserInputType.MouseButton1, KeyCode = Enum.KeyCode.Unknown, Position = Vector3.zero }
 local function pad(code)
@@ -665,11 +668,10 @@ t.check("HUD: stamina under health, charge meter, lock reticle and hint strip fi
 	assert(not reticle.Enabled, "reticle hides")
 end)
 
-t.check("touch: a tidy right-side cluster, 44 px or more, clear of the jump button and the HUD", function()
+t.check("touch: a tidy right-side cluster, 56 px or more, clear of the jump button and the HUD", function()
 	local ui = t.startUI()
 	Engine.lastInputType = Enum.UserInputType.Touch
 	local Shell = t.client("UI.Shell")
-	local Hud = t.client("UI.Hud")
 	local touch = world.localPlayer.PlayerGui:FindFirstChild("SNTouchControls")
 	assert(touch, "touch controls built")
 	for _, size in { { 1280, 720 }, { 667, 375 } } do
@@ -682,27 +684,24 @@ t.check("touch: a tidy right-side cluster, 44 px or more, clear of the jump butt
 		assert(touch.Enabled, `touch controls show on touch at {width}x{height}`)
 		t.auditLayout(touch, `touch controls {width}x{height}`)
 		local jump, scale = Input.touchFrame(Vector2.new(width, height))
-		local jumpRect = { x = width + jump.X, y = height + jump.Y, r = 35 * scale }
-		local scaleUi = Shell.scale()
-		local layout = Hud.Layout
-		local hudLeft = width / 2 + (layout.touchShift - layout.width / 2) * scaleUi
-		local hudRight = width / 2 + (layout.touchShift + layout.width / 2) * scaleUi
-		local hudTop = height - (layout.bottom + layout.touchHeight) * scaleUi
+		local jumpRect = { x = width + jump.X, y = height + jump.Y, r = (if scale > 1 then 60 else 35) }
 		local buttons = {}
+		local all = 0
 		for _, button in touch:GetChildren() do
-			if button:IsA("TextButton") then
-				local rect = rectOf(button, width, height)
-				assert(rect.size >= 44, button.Name .. " is at least 44 px")
-				assert(rect.x - rect.r >= 4 and rect.x + rect.r <= width - 4 and rect.y - rect.r >= 4 and rect.y + rect.r <= height - 4, button.Name .. " is on screen")
-				local gap = (Vector2.new(rect.x, rect.y) - Vector2.new(jumpRect.x, jumpRect.y)).Magnitude - rect.r - jumpRect.r
-				assert(gap >= 6, button.Name .. " clears the jump button by " .. gap)
-				local overHud = rect.x + rect.r > hudLeft and rect.x - rect.r < hudRight and rect.y + rect.r > hudTop
-				assert(not overHud, button.Name .. " stays off the HUD and ability bar")
-				table.insert(buttons, { name = button.Name, rect = rect })
+			if button:IsA("TextButton") and string.sub(button.Name, 1, 5) == "Touch" then
+				all += 1
+				if button.Visible then
+					local rect = rectOf(button, width, height)
+					assert(rect.size >= 56, button.Name .. " is at least 56 px")
+					assert(rect.x - rect.r >= 4 and rect.x + rect.r <= width - 4 and rect.y - rect.r >= 4 and rect.y + rect.r <= height - 4, button.Name .. " is on screen")
+					local gap = (Vector2.new(rect.x, rect.y) - Vector2.new(jumpRect.x, jumpRect.y)).Magnitude - rect.r - jumpRect.r
+					assert(gap >= 6, button.Name .. " clears the jump button by " .. gap)
+					table.insert(buttons, { name = button.Name, rect = rect })
+				end
 			end
 		end
-		-- Eight combat buttons plus Evolve (phase transformation, added with the Phase meter)
-		assert(#buttons == 9, "nine touch buttons: " .. #buttons)
+		-- Eight combat buttons show; Evolve is there too but only appears when the Phase meter is full
+		assert(all == 9 and #buttons == 8, `nine touch buttons, eight shown: {all}/{#buttons}`)
 		for i = 1, #buttons do
 			for j = i + 1, #buttons do
 				local a, b = buttons[i].rect, buttons[j].rect

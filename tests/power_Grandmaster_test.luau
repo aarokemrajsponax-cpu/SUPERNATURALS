@@ -64,10 +64,14 @@ local function ready(fighter)
 end
 
 -- Face to face in the middle of the duel's arena (walls never come between them)
+local MatchCfg = world.require(world.find("ReplicatedStorage.Shared.Config.Match"))
 local function faceOff(a, b, gap: number)
 	local current = match and services.MatchService:getMatchOf(a)
 	if current and current == match and match.arena and match.arena.center then
 		a.root.CFrame = CFrame.new(match.arena.center + Vector3.new(-gap / 2, 4, 0))
+	elseif not current then
+		-- Outside a match, fighting is allowed only in the training ground (DECISIONS 42)
+		a.root.CFrame = CFrame.new(MatchCfg.TrainingGround.Center + Vector3.new(-gap / 2, 4, 20))
 	end
 	game.faceOff(a, b, gap)
 end

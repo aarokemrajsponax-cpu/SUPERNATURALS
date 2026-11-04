@@ -49,7 +49,7 @@ local function ensureBanner()
 		Components.padding(12, 16, 12, 20),
 	})
 	make("Frame", { Name = "Bar", Position = UDim2.fromOffset(-20, -12), Size = UDim2.new(0, 4, 1, 24), BackgroundColor3 = Colors.Accent, BorderSizePixel = 0, Parent = banner })
-	bannerText = Components.text({ Name = "Text", Text = "", TextSize = 18, Weight = Theme.Faces.SemiBold, Color = Colors.Text, Wrap = true, Parent = banner })
+	bannerText = Components.text({ Name = "Text", Text = "", TextSize = 20, Weight = Theme.Faces.SemiBold, Color = Colors.Text, Wrap = true, Parent = banner })
 end
 
 -- Draws one announcement. Returns true when something was shown.

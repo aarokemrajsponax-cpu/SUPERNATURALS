@@ -939,6 +939,13 @@ check("§38: a match ending with walls, cells, rings, fields and flight out leav
 end)
 
 check("a second match starts clean at Phase 1 with Authority at its start", function()
+	-- Bob only ever had Admin through the test's direct equip, never owned: the premium rule
+	-- (correctly) keeps an unowned Admin out of Duels, so he queues on a free fighter here.
+	-- This check is about Alice's Admin starting clean.
+	request("PowerRequest", bob, "Select", "StrongDude", 1)
+	game.waitFor(function()
+		return B().power.id == "StrongDude"
+	end, 2, "Bob back on Strong Dude")
 	startDuel()
 	local a = A()
 	assert(a.power.id == "Admin" and a.power.degree == 1, "Phase 1 again: " .. a.power.id .. " " .. tostring(a.power.degree))

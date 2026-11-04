@@ -21,6 +21,7 @@ local Vector3 = roblox.Vector3
 
 local MatchConfig = world.require(world.find("ReplicatedStorage.Shared.Config.Match"))
 local Protocol = world.require(world.find("ReplicatedStorage.Shared.Protocol"))
+local TrainingHall = world.require(world.find("ServerScriptService.Server.Arenas.TrainingHall"))
 local ARENA = MatchConfig.Arena
 local Tags = Engine.services.CollectionService
 
@@ -186,15 +187,15 @@ t.check("chambers build on reserve, take the lowest free number and are torn dow
 	assert(#world.workspace.Arenas:GetChildren() == 0, "nothing left standing")
 end)
 
-t.check("the Training Studio keeps a dummy in each of its five bays and things to throw", function()
+t.check("the Training Studio keeps a dummy in each of its eight bays, big practice arenas and things to throw", function()
 	local hall = world.workspace.TrainingGround
 	local spots = ArenaService:trainingDummySpots()
-	assert(#spots == 5, "five dummy spots, one per practice bay: " .. #spots)
+	assert(#spots >= 8, "eight or more dummy spots, one per practice bay: " .. #spots)
 	local center = MatchConfig.TrainingGround.Center
 	for _, spot in spots do
-		-- The studio is 56 x 56 studs inside
+		-- The studio is 168 x 238 studs inside
 		local offset = spot.Position - center
-		assert(math.abs(offset.X) < 28 and math.abs(offset.Z) < 28, "spots on the studio floor")
+		assert(math.abs(offset.X) < TrainingHall.HalfX and math.abs(offset.Z) < TrainingHall.HalfZ, "spots on the studio floor")
 	end
 	local throwables, parts = 0, 0
 	for _, item in hall:GetDescendants() do
@@ -207,7 +208,16 @@ t.check("the Training Studio keeps a dummy in each of its five bays and things t
 		end
 	end
 	assert(throwables >= 3, "throwables in the hall")
-	assert(parts <= ARENA.PartBudget, `{parts} parts`)
+	assert(parts <= TrainingHall.PartBudget, `{parts} parts`)
+	-- Practice arenas: each at least 70 x 70 studs of open floor, at least two of them
+	local arenas = 0
+	for _, item in hall:GetChildren() do
+		if item.Name == "SparFloor" then
+			arenas += 1
+			assert(item.Size.X >= 70 and item.Size.Z >= 70, `arena floor {item.Size.X} x {item.Size.Z}`)
+		end
+	end
+	assert(arenas >= 2, "two or more practice arenas: " .. arenas)
 	print(`     training hall: {parts} parts`)
 end)
 

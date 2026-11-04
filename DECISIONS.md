@@ -127,3 +127,41 @@ Newest first within each group. "Pending" means the owner has been asked to conf
     master prompt, the competition directive and Roblox's rules on paid random items all rule
     out. The same value is sold directly instead: 24-hour trials of Corruption, Syntax and
     Admin as developer products with a fixed reward (a strong try-before-you-buy path).
+37. **Animal Shapeshifter held for a later update (owner, 4 Nov).** Launch has seven fighters.
+    The code stays; one switch (`Powers.Unreleased`) releases it; only the owner can pick it
+    until then; its hall plinth shows a veiled figure.
+38. **Five battleground designs stay (owner, 4 Nov):** quality first, then quantity.
+39. **Extra Ability Slot pass works in every mode, Duels included (owner, 4 Nov).** It replaces
+    the "casual only?" question in item 33.
+40. **Text and selection screens (owner, 4 Nov):** bolder and larger text everywhere; selection
+    screens may use soft two-colour gradients in each fighter's or mode's colours; the
+    sci-fi look is eased slightly (warmer materials, fewer neon strips).
+41. **Paid spin wheel in the lounge (owner override, 4 Nov; replaces "declined" in 30 and 36
+    for this one feature).** Built only within Roblox's rules for paid random items: the odds
+    of every prize shown before each spin, players for whom
+    `PolicyService:GetPolicyInfoForPlayerAsync(...).ArePaidRandomItemsRestricted` is true
+    never see paid spins, results drawn on the server, every prize listed, a free daily
+    spin for everyone, no countdowns or pressure wording, duplicate cosmetics converted to a
+    stated Money amount.
+42. **Combat interface and powers only where fighting happens (owner, 4 Nov):** matches, the
+    Training Studio and practice rounds. The server refuses attacks and abilities elsewhere.
+43. **Music library corrected (4 Nov).** The 37 "tier B" tracks are uploads by DistrokidOfficial,
+    DistroKid's official Roblox account for independent artists, so they are licensed partner
+    music like APM and Monstercat (item 34 was wrong to hold them back). AudioLibrary now has
+    89 tracks; the 25 public uploads by unknown accounts stay out. Playlists by place: phonk,
+    rock and electronic in fights; electronic and sci-fi in the hall; lo-fi, pop and piano in
+    the lounge and bases; meme tracks only for meme events.
+44. **Sound effects (4 Nov).** The built-in placeholder sounds are replaced by 32 effects found in
+    the Creator Store and verified through Roblox's asset API as public uploads by
+    ProSoundEffects, a professional library licensed for Roblox. Search results from other
+    accounts were not used: many were rips of other games, shows or creators' voices, which
+    the master prompt forbids.
+45. **Phones (open).** At 667x375 the shell scales the interface to about 62 percent, so body
+    text is about 11 px on screen. The fix is a phone layout per window (full screen, one
+    column, scale floor near 0.8), queued as its own pass rather than a blind scale change.
+46. **Fighter movement styles (4 Nov).** Each fighter walks, runs, idles and jumps with one of
+    Roblox's own catalog animation packs (ids from create.roblox.com/docs/animation/using, which
+    tells creators to copy them; samples checked as Animation assets created by Roblox):
+    Strong Dude Superhero, The Ghost Ninja, Machine Master Robot, The Grandmaster Mage,
+    Corruption Vampire, Syntax Levitation, Admin Powers Knight, the held-back Shapeshifter
+    Werewolf. Combat poses stay on top.

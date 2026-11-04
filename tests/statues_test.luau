@@ -33,7 +33,9 @@ for _, id in Statues.Order do
 		assert(figure and plinth, "figure and plinth")
 		assert(model:GetAttribute("Fallback") ~= true, "carved, not the fallback figure")
 		local n = count(figure)
-		assert(n >= 120 and n <= 220, "figure parts " .. n .. " outside 120..220")
+		-- a veiled (unreleased) fighter is a few draped cloth parts, not a carved figure
+		local low = if model:GetAttribute("Veiled") then 20 else 120
+		assert(n >= low and n <= 220, `figure parts {n} outside {low}..220`)
 		assert(count(model) <= 260, "total parts " .. count(model))
 		assert(model:GetAttribute("BadParts") == 0 and model:GetAttribute("Stretched") == 0, "bad or stretched parts")
 		assert(model:FindFirstChild("Cranium", true), "a head")

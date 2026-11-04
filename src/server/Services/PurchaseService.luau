@@ -300,8 +300,14 @@ function PurchaseService:_grantReceipt(receipt: any, productKey: string): Enum.P
 	if product.seasonPass then
 		return self:_grantSeasonProduct(player, purchaseId, product)
 	end
+	if product.wheelSpins then
+		return self:_grantWheelProduct(player, purchaseId, product)
+	end
 	if product.trial then
 		return self:_grantTrialProduct(player, purchaseId, product)
+	end
+	if product.fireworks then
+		return self:_grantFireworksProduct(player, purchaseId, product)
 	end
 	local amounts = { money = product.money, gems = product.gems }
 	local before = {
@@ -409,6 +415,71 @@ function PurchaseService:_grantTrialProduct(player: Player, purchaseId: string, 
 	return Decision.NotProcessedYet
 end
 
+-- Lounge wheel spin products (LoungeSpin, LoungeSpin5). The receipt id and the spin credits are
+-- written together and saved before Roblox hears "granted"; a failed save is rolled back, so a
+-- retry can never give the spins twice. The prize is drawn later, on the server, when the player
+-- spins (WheelService), with every prize and chance shown first.
+function PurchaseService:_grantWheelProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local wheel = self.services and self.services.WheelService
+	if not wheel then
+		return Decision.NotProcessedYet
+	end
+	local before = Schema.copy(self.data:get(player).wheel)
+	self.data:update(player, function(data)
+		wheel.addCredits(data, product.wheelSpins)
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		toast(player, `{product.name}: {product.wheelSpins} {if product.wheelSpins == 1 then "spin" else "spins"} added. Thank you!`, "reward")
+		wheel:onCreditsChanged(player)
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.wheel = before
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] wheel receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- Fireworks Show (FireworksShow): the receipt id and one saved show charge are written together
+-- and saved before Roblox hears "granted"; a failed save is rolled back, so a retry can never
+-- give a charge twice. A purchase made while the owner is away from their base is never lost.
+function PurchaseService:_grantFireworksProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local bases = self.services and self.services.BaseService
+	if not bases then
+		return Decision.NotProcessedYet
+	end
+	local before = self.data:get(player).hosting.fireworks
+	self.data:update(player, function(data)
+		bases.addFireworkCharges(data, product.fireworks)
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		toast(player, `{product.name}: one show saved. Launch it from your base panel. Thank you!`, "reward")
+		bases:onChargesChanged(player)
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.hosting.fireworks = before
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] fireworks receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
 -- The shop's requests. The client only names an item; the server checks the key, that the id
 -- is set, ownership and the rate, then opens Roblox's own prompt.
 function PurchaseService:_connectShopRequests()
@@ -501,6 +572,28 @@ function PurchaseService:promptProduct(player: Player, productKey: string): bool
 		else
 			ok, reason = seasonPass:canSellSkip(player)
 		end
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
+	end
+	if product.wheelSpins then
+		local wheel = self.services and self.services.WheelService
+		if not wheel then
+			return false
+		end
+		local ok, reason = wheel:canSellSpins(player, product.wheelSpins)
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
+	end
+	if product.fireworks then
+		local bases = self.services and self.services.BaseService
+		if not bases then
+			return false
+		end
+		local ok, reason = bases:canSellFireworks(player)
 		if not ok then
 			toast(player, reason or "That is not available right now.", "info")
 			return false

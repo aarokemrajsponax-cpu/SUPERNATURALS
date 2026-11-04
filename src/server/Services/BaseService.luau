@@ -21,6 +21,15 @@
 --   BaseEvent.OpenConsole. The owner panel's own server checks stay the authority.
 -- * BaseService.friendCheck(player, userId) can be replaced by tests.
 -- Visitors are returned to the street when the owner leaves.
+-- * Hosting (DECISIONS 62): hosting.access ("Friends" default, "Everyone", "Nobody") is checked on
+--   every entry; narrowing it sends visitors who are no longer allowed back to the street. The
+--   owner can ask a visitor inside the base to leave. The visitors board lists the last 8 visitors
+--   by Roblox display name; each visitor gives one heart per base per UTC day. The first time each
+--   UTC day a Roblox friend has stayed 60 seconds the owner earns a small Money host bonus
+--   (presence tick, once per day, so re-entering cannot farm it).
+-- * The jukebox style, party mode, Base Effects Pack looks (pass checked here) and the Fireworks
+--   Show (saved charges, launched by the owner) are all requests validated here; the look is built
+--   by World/BaseHome and World/GameRoom. The game room's activities live in GameRoomService.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -46,6 +55,10 @@ type Base = {
 	origin: Vector3,
 	built: BaseHome.Built,
 	ownerBase: boolean,
+	party: boolean?,
+	animated: boolean?,
+	applied: string?,
+	showing: boolean?,
 }
 
 local bases: { [Player]: Base } = {}
@@ -53,6 +66,29 @@ local slots: { [number]: Player } = {}
 local street: BaseStreet.Built
 local services: any = {}
 local friendCache: { [string]: { value: boolean, at: number } } = {}
+-- Visitors who were asked to leave: ["visitorId:ownerId"] = clock time they may return
+local barred: { [string]: number } = {}
+local lastAsk: { [Player]: number } = {}
+-- Where each visitor has been standing: [Player] = { owner = Player, since = clock }
+local presence: { [Player]: { owner: Player, since: number } } = {}
+local fireworkColors = { Color3.fromRGB(255, 96, 96), Color3.fromRGB(255, 200, 80), Color3.fromRGB(110, 220, 160), Color3.fromRGB(110, 170, 255), Color3.fromRGB(220, 130, 255) }
+
+-- Roblox display name, falling back to the account name
+function BaseService.shownName(player: Player): string
+	return if player.DisplayName ~= "" then player.DisplayName else player.Name
+end
+
+-- Replaceable in tests
+BaseService.now = os.time
+BaseService.clock = os.clock
+function BaseService.today(): number
+	return BaseService.now() // 86400
+end
+
+-- A saved Fireworks Show charge (PurchaseService adds one per purchase; capped)
+function BaseService.addFireworkCharges(data: any, count: number)
+	data.hosting.fireworks = math.min(Homes.FireworksMaxCharges, data.hosting.fireworks + count)
+end
 
 -- Replaceable in tests; Roblox's call can fail or yield, so it runs in a pcall
 BaseService.friendCheck = function(player: Player, userId: number): boolean
@@ -84,7 +120,7 @@ function BaseService:viewOf(player: Player, profile: any): any
 	local mastery, premiumOwned, premiumTotal = {}, {}, 0
 	for _, id in Powers.Order do
 		local def = Powers.get(id)
-		if def then
+		if def and Powers.isReleased(id) then
 			local saved = profile.powers[id]
 			-- A power can have a record (bought, or a trial) before it has any experience
 			local xp = if saved and typeof(saved.xp) == "number" then saved.xp else 0
@@ -172,6 +208,27 @@ function BaseService:Start()
 	Players.PlayerRemoving:Connect(function(player)
 		self:_remove(player)
 	end)
+	local purchases = services.PurchaseService
+	if purchases and purchases.onPassGranted then
+		purchases:onPassGranted(function(player, key)
+			if key == Homes.EffectsPass then
+				self:_applyHosting(player)
+				self:pushPanel(player)
+			end
+		end)
+	end
+	task.spawn(function()
+		while true do
+			task.wait(Homes.PresenceTick)
+			self:_presenceTick()
+		end
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(Homes.PartyTick)
+			self:_animate()
+		end
+	end)
 	BaseRequest.OnServerEvent:Connect(function(player, action, first, second)
 		if typeof(action) ~= "string" then
 			return
@@ -221,6 +278,8 @@ function BaseService:_create(player: Player)
 		end)
 	end
 	self:_refresh(player)
+	self:_applyHosting(player)
+	player:SetAttribute("InBaseOf", 0)
 end
 
 function BaseService:_remove(player: Player)
@@ -236,13 +295,19 @@ function BaseService:_remove(player: Player)
 		local root = rootOf(other)
 		if other ~= player and root then
 			local offset = root.Position - base.origin
-			if math.abs(offset.X) < 40 and math.abs(offset.Z) < 30 and offset.Y > -Homes.VaultDrop - 10 and offset.Y < 30 then
+			if math.abs(offset.X) < 40 and offset.Z > Homes.InsideZMin and offset.Z < Homes.InsideZMax and offset.Y > -Homes.VaultDrop - 10 and offset.Y < 30 then
 				notice(other, player.Name .. " has left, so their base closed.")
 				self:_teleport(other, street.spawn)
 			end
 		end
 	end
 	base.built.model:Destroy()
+	lastAsk[player] = nil
+	for visitor, entry in presence do
+		if entry.owner == player then
+			presence[visitor] = nil
+		end
+	end
 end
 
 function BaseService:_refresh(player: Player)
@@ -313,11 +378,456 @@ function BaseService:enter(player: Player, ownerPlayer: Player?): boolean
 		notice(player, "That base is closed right now.")
 		return false
 	end
-	if ownerPlayer ~= player and not self:isFriend(player, ownerPlayer) then
-		notice(player, "Friends only. " .. ownerPlayer.Name .. "'s base opens for their Roblox friends.")
+	if ownerPlayer ~= player then
+		local allowed, reason = self:mayEnter(player, ownerPlayer)
+		if not allowed then
+			notice(player, reason)
+			return false
+		end
+	end
+	local moved = self:_teleport(player, base.built.entry)
+	if moved and ownerPlayer ~= player then
+		player:SetAttribute("InBaseOf", ownerPlayer.UserId)
+		self:_recordVisitor(ownerPlayer, player)
+	end
+	return moved
+end
+
+-- Hosting -----------------------------------------------------------------------------------------------
+
+function BaseService:accessOf(owner: Player): string
+	local profile = self.data:get(owner)
+	return if profile then profile.hosting.access else "Friends"
+end
+
+-- Whether `visitor` may come into `owner`'s base now (the owner always may). Returns the reason if not.
+function BaseService:mayEnter(visitor: Player, owner: Player): (boolean, string)
+	if visitor == owner then
+		return true, ""
+	end
+	local bar = barred[visitor.UserId .. ":" .. owner.UserId]
+	if bar and BaseService.clock() < bar then
+		return false, owner.Name .. " asked you to leave. Try again in a little while."
+	end
+	local mode = self:accessOf(owner)
+	if mode == "Everyone" then
+		return true, ""
+	elseif mode == "Nobody" then
+		return false, owner.Name .. " is not having visitors right now."
+	end
+	if self:isFriend(visitor, owner) then
+		return true, ""
+	end
+	return false, "Friends only. " .. owner.Name .. "'s base opens for their Roblox friends."
+end
+
+-- In the home or game room of this base (the owner-only vault is not counted)
+function BaseService:isInside(player: Player, base: Base): boolean
+	local root = rootOf(player)
+	if not root then
 		return false
 	end
-	return self:_teleport(player, base.built.entry)
+	local offset = root.Position - base.origin
+	return math.abs(offset.X) < Homes.InsideX and offset.Z > Homes.InsideZMin and offset.Z < Homes.InsideZMax and offset.Y > -5 and offset.Y < 30
+end
+
+function BaseService:playersInside(base: Base): { Player }
+	local list = {}
+	for _, player in Players:GetPlayers() do
+		if self:isInside(player, base) then
+			table.insert(list, player)
+		end
+	end
+	return list
+end
+
+function BaseService:baseAt(player: Player): Base?
+	for _, base in bases do
+		if self:isInside(player, base) then
+			return base
+		end
+	end
+	return nil
+end
+
+-- The owner's hosting record, with the UTC-day counters rolled over
+function BaseService:_hosting(owner: Player): any?
+	local profile = self.data:get(owner)
+	if not profile then
+		return nil
+	end
+	local today = BaseService.today()
+	if profile.hosting.day ~= today then
+		self.data:update(owner, function(data)
+			data.hosting.day = today
+			data.hosting.heartedToday = {}
+		end)
+	end
+	return profile.hosting
+end
+
+function BaseService:_sendOut(player: Player, base: Base, text: string)
+	notice(player, text)
+	player:SetAttribute("InBaseOf", 0)
+	self:_teleport(player, street.doorFront(base.slot))
+end
+
+function BaseService:setAccess(player: Player, mode: any): (boolean, string)
+	local base = bases[player]
+	if not base or not self.data:get(player) then
+		return false, "Your base isn't ready yet."
+	end
+	if typeof(mode) ~= "string" or not Homes.AccessModes[mode] then
+		return false, "That isn't a way to share your base."
+	end
+	self.data:update(player, function(data)
+		data.hosting.access = mode
+	end)
+	-- Narrowing: anyone inside who may no longer come in goes back to the street
+	for _, other in self:playersInside(base) do
+		if other ~= player then
+			local allowed = self:mayEnter(other, player)
+			if not allowed then
+				self:_sendOut(other, base, player.Name .. " changed who can visit, so you were returned to the street.")
+			end
+		end
+	end
+	self:pushPanel(player)
+	return true, Homes.AccessModes[mode].label .. ": " .. Homes.AccessModes[mode].blurb
+end
+
+function BaseService:askLeave(owner: Player, userId: any): (boolean, string)
+	local base = bases[owner]
+	if not base then
+		return false, "Your base isn't ready yet."
+	end
+	if typeof(userId) ~= "number" or userId ~= userId then
+		return false, "Choose a visitor."
+	end
+	local now = BaseService.clock()
+	if lastAsk[owner] and now - lastAsk[owner] < Homes.AskLeaveCooldown then
+		return false, "Please wait a moment."
+	end
+	local target = Players:GetPlayerByUserId(userId)
+	if not target or target == owner or not self:isInside(target, base) then
+		return false, "That player is not in your base."
+	end
+	lastAsk[owner] = now
+	barred[target.UserId .. ":" .. owner.UserId] = now + Homes.AskLeaveBar
+	self:_sendOut(target, base, owner.Name .. " asked you to leave.")
+	return true, BaseService.shownName(target) .. " was shown out."
+end
+
+function BaseService:_recordVisitor(owner: Player, visitor: Player)
+	local profile = self.data:get(owner)
+	if not profile then
+		return
+	end
+	self.data:update(owner, function(data)
+		local list = data.hosting.visitors
+		for i = #list, 1, -1 do
+			if list[i].id == visitor.UserId then
+				table.remove(list, i)
+			end
+		end
+		table.insert(list, { id = visitor.UserId, name = string.sub(BaseService.shownName(visitor), 1, 40) })
+		while #list > Homes.VisitorsKept do
+			table.remove(list, 1)
+		end
+	end)
+	self:_applyHosting(owner)
+	self:pushPanel(owner)
+end
+
+function BaseService:giveHeart(player: Player, ownerUserId: any): (boolean, string)
+	local base = self:baseAt(player)
+	if not base then
+		return false, "Stand inside a base to give a heart."
+	end
+	if typeof(ownerUserId) == "number" and ownerUserId ~= base.player.UserId then
+		return false, "That isn't the base you are in."
+	end
+	local owner = base.player
+	if owner == player then
+		return false, "Hearts come from your visitors."
+	end
+	local hosting = self:_hosting(owner)
+	if not hosting then
+		return false, "That base is not ready."
+	end
+	local key = tostring(player.UserId)
+	if hosting.heartedToday[key] then
+		return false, "You already gave " .. BaseService.shownName(owner) .. " a heart today."
+	end
+	self.data:update(owner, function(data)
+		data.hosting.heartedToday[key] = true
+		data.hosting.hearts += 1
+	end)
+	self:_applyHosting(owner)
+	self:pushPanel(owner)
+	return true, "You gave " .. BaseService.shownName(owner) .. " a heart."
+end
+
+-- Every few seconds: who is in which base, the host bonus, the room's score board
+function BaseService:_presenceTick()
+	local now = BaseService.clock()
+	local seen: { [Player]: boolean } = {}
+	for owner, base in bases do
+		local inside = self:playersInside(base)
+		for _, visitor in inside do
+			seen[visitor] = true
+			if visitor ~= owner then
+				local entry = presence[visitor]
+				if not entry or entry.owner ~= owner then
+					entry = { owner = owner, since = now }
+					presence[visitor] = entry
+				end
+				visitor:SetAttribute("InBaseOf", owner.UserId)
+				if now - entry.since >= Homes.HostBonusSeconds then
+					self:_hostBonus(owner, visitor)
+				end
+			else
+				owner:SetAttribute("InBaseOf", owner.UserId)
+			end
+		end
+		if services.GameRoomService then
+			services.GameRoomService:refreshBoard(base)
+		end
+	end
+	for _, player in Players:GetPlayers() do
+		if not seen[player] then
+			presence[player] = nil
+			if player:GetAttribute("InBaseOf") ~= 0 then
+				player:SetAttribute("InBaseOf", 0)
+			end
+		end
+	end
+end
+
+-- The first time each UTC day that a Roblox friend has stayed long enough: a little Money for the host
+function BaseService:_hostBonus(owner: Player, visitor: Player)
+	local hosting = self:_hosting(owner)
+	local today = BaseService.today()
+	if not hosting or hosting.bonusDay == today or not self:isFriend(visitor, owner) then
+		return
+	end
+	self.data:update(owner, function(data)
+		data.hosting.bonusDay = today
+	end)
+	if services.CurrencyService then
+		services.CurrencyService:add(owner, { money = Homes.HostBonusMoney }, "Host bonus")
+	end
+	Remotes.MatchEvent:FireClient(owner, Protocol.MatchEvent.Notice, { text = string.format("%s stayed a while. Host bonus: +%d Money.", BaseService.shownName(visitor), Homes.HostBonusMoney) })
+end
+
+-- Jukebox, party, effects, fireworks ---------------------------------------------------------------------
+
+function BaseService:ownsEffects(player: Player): boolean
+	local purchases = services.PurchaseService
+	if not purchases or not purchases.ownsPass then
+		return false
+	end
+	local ok, owns = pcall(purchases.ownsPass, purchases, player, Homes.EffectsPass)
+	return ok and owns == true
+end
+
+-- Puts the saved hosting state on the base: music attribute, visitors board, owned effects
+function BaseService:_applyHosting(player: Player)
+	local base = bases[player]
+	local profile = self.data:get(player)
+	if not base or not profile then
+		return
+	end
+	local hosting = profile.hosting
+	local owns = self:ownsEffects(player)
+	local parts = { hosting.jukebox, tostring(hosting.hearts), tostring(owns) }
+	local names = {}
+	for _, visitor in hosting.visitors do
+		table.insert(names, visitor.name)
+	end
+	table.insert(parts, table.concat(names, ","))
+	for _, key in Homes.EffectOrder do
+		table.insert(parts, if owns and hosting.effects[key] then "1" else "0")
+	end
+	local signature = table.concat(parts, "|")
+	if signature == base.applied then
+		return
+	end
+	base.applied = signature
+	base.built.model:SetAttribute("MusicStyle", hosting.jukebox)
+	base.built.gameRoom.setJukebox("NOW PLAYING\n" .. hosting.jukebox)
+	-- Newest visitor first on the board
+	local newestFirst = {}
+	for i = #names, 1, -1 do
+		table.insert(newestFirst, names[i])
+	end
+	base.built.setVisitors(newestFirst, hosting.hearts)
+	local animated = false
+	for _, key in Homes.EffectOrder do
+		local on = owns and hosting.effects[key] == true
+		base.built.setEffect(key, on)
+		if on and (key == "Aurora" or key == "LightShow") then
+			animated = true
+		end
+	end
+	base.animated = animated
+end
+
+function BaseService:setJukebox(player: Player, style: any): (boolean, string)
+	local base = bases[player]
+	local profile = self.data:get(player)
+	if not base or not profile then
+		return false, "Your base isn't ready yet."
+	end
+	if style == nil then
+		local index = table.find(Homes.MusicStyles, profile.hosting.jukebox) or 0
+		style = Homes.MusicStyles[index % #Homes.MusicStyles + 1]
+	end
+	if typeof(style) ~= "string" or not table.find(Homes.MusicStyles, style) then
+		return false, "That music style doesn't exist."
+	end
+	self.data:update(player, function(data)
+		data.hosting.jukebox = style
+	end)
+	self:_applyHosting(player)
+	self:pushPanel(player)
+	return true, "Jukebox: " .. style .. "."
+end
+
+function BaseService:setParty(player: Player, on: any): (boolean, string)
+	local base = bases[player]
+	if not base then
+		return false, "Your base isn't ready yet."
+	end
+	if typeof(on) ~= "boolean" then
+		return false, "Choose on or off."
+	end
+	base.party = on
+	base.built.setParty(on)
+	self:pushPanel(player)
+	return true, if on then "Party mode is on." else "Party mode is off."
+end
+
+function BaseService:setEffect(player: Player, key: any, on: any): (boolean, string)
+	local base = bases[player]
+	if not base or not self.data:get(player) then
+		return false, "Your base isn't ready yet."
+	end
+	if typeof(key) ~= "string" or not Homes.Effects[key] or typeof(on) ~= "boolean" then
+		return false, "That effect doesn't exist."
+	end
+	if on and not self:ownsEffects(player) then
+		return false, "The Base Effects Pack unlocks this."
+	end
+	self.data:update(player, function(data)
+		data.hosting.effects[key] = if on then true else nil
+	end)
+	self:_applyHosting(player)
+	self:pushPanel(player)
+	return true, Homes.Effects[key].label .. (if on then " is on." else " is off.")
+end
+
+function BaseService:canSellFireworks(player: Player): (boolean, string?)
+	local profile = self.data:get(player)
+	if profile and profile.hosting.fireworks >= Homes.FireworksMaxCharges then
+		return false, "You already have the most saved shows. Launch one first."
+	end
+	return true, nil
+end
+
+function BaseService:onChargesChanged(player: Player)
+	self:pushPanel(player)
+end
+
+function BaseService:launchFireworks(player: Player): (boolean, string)
+	local base = bases[player]
+	local profile = self.data:get(player)
+	if not base or not profile then
+		return false, "Your base isn't ready yet."
+	end
+	if base.showing then
+		return false, "A show is already running."
+	end
+	if profile.hosting.fireworks < 1 then
+		return false, "You have no saved shows. The Fireworks Show is in the Shop."
+	end
+	self.data:update(player, function(data)
+		data.hosting.fireworks -= 1
+	end)
+	base.showing = true
+	base.built.model:SetAttribute("FireworksUntil", workspace:GetServerTimeNow() + Homes.FireworksSeconds)
+	self:pushPanel(player)
+	task.spawn(function()
+		base.built.fireworks.start()
+		local shots = 0
+		local started = BaseService.clock()
+		while BaseService.clock() - started < Homes.FireworksSeconds and bases[player] == base do
+			shots += 1
+			base.built.fireworks.shot(shots, fireworkColors[shots % #fireworkColors + 1])
+			task.wait(Homes.FireworksShotEvery)
+		end
+		base.built.fireworks.stop()
+		base.showing = false
+		base.built.model:SetAttribute("FireworksUntil", 0)
+		if bases[player] == base then
+			self:pushPanel(player)
+		end
+	end)
+	return true, "The show begins."
+end
+
+function BaseService:_animate()
+	local hue = (BaseService.clock() * Homes.PartyStep / Homes.PartyTick * 0.25) % 1
+	for _, base in bases do
+		if base.party or base.animated then
+			base.built.animate(hue)
+		end
+	end
+end
+
+-- The numbers the base panel shows (to the owner only)
+function BaseService:panelState(player: Player): any?
+	local base = bases[player]
+	local profile = self.data:get(player)
+	if not base or not profile then
+		return nil
+	end
+	local hosting = self:_hosting(player) or profile.hosting
+	local effects = {}
+	for _, key in Homes.EffectOrder do
+		effects[key] = hosting.effects[key] == true
+	end
+	local visitors = {}
+	for i = #hosting.visitors, 1, -1 do
+		table.insert(visitors, { id = hosting.visitors[i].id, name = hosting.visitors[i].name })
+	end
+	local here = {}
+	for _, other in self:playersInside(base) do
+		if other ~= player then
+			table.insert(here, { id = other.UserId, name = BaseService.shownName(other) })
+		end
+	end
+	return {
+		access = hosting.access,
+		jukebox = hosting.jukebox,
+		party = base.party == true,
+		effects = effects,
+		ownsEffects = self:ownsEffects(player),
+		fireworks = hosting.fireworks,
+		showing = base.showing == true,
+		hearts = hosting.hearts,
+		visitors = visitors,
+		here = here,
+		bests = { PowerMeter = hosting.bests.PowerMeter, Reflex = hosting.bests.Reflex },
+	}
+end
+
+function BaseService:pushPanel(player: Player, open: boolean?)
+	local state = self:panelState(player)
+	if state then
+		state.open = open == true
+		BaseEvent:FireClient(player, Protocol.BaseEvent.Panel, state)
+	end
 end
 
 function BaseService:_useDoor(player: Player, slot: number)
@@ -344,6 +854,26 @@ function BaseService:_promptUsed(player: Player, base: Base, key: string)
 			return
 		end
 		BaseEvent:FireClient(player, Protocol.BaseEvent.OpenConsole, {})
+	elseif key == "Panel" then
+		if isOwnerOfBase then
+			self:pushPanel(player, true)
+		else
+			notice(player, "The base panel is for the owner of this base.")
+		end
+	elseif key == "Heart" then
+		local _, message = self:giveHeart(player, base.player.UserId)
+		notice(player, message)
+	elseif key == "Jukebox" then
+		if isOwnerOfBase then
+			local _, message = self:setJukebox(player, nil)
+			notice(player, message)
+		else
+			notice(player, "Only the owner picks the music. Now playing: " .. (self.data:get(base.player) and self.data:get(base.player).hosting.jukebox or "") .. ".")
+		end
+	elseif key == "PowerMeter" or key == "Reflex" then
+		if services.GameRoomService then
+			services.GameRoomService:press(player, base, key)
+		end
 	elseif string.sub(key, 1, 3) == "Pad" then
 		if not isOwnerOfBase then
 			notice(player, "Only the owner can change this base.")
@@ -426,6 +956,27 @@ function BaseService:_handle(player: Player, action: string, first: any, second:
 		result(self:setTheme(player, first or false))
 	elseif action == Action.Toggle then
 		result(self:setToggle(player, first, second))
+	elseif action == Action.SetAccess then
+		result(self:setAccess(player, first))
+	elseif action == Action.AskLeave then
+		result(self:askLeave(player, first))
+	elseif action == Action.Heart then
+		result(self:giveHeart(player, first))
+	elseif action == Action.Effect then
+		result(self:setEffect(player, first, second))
+	elseif action == Action.Jukebox then
+		result(self:setJukebox(player, if first == nil then false else first))
+	elseif action == Action.Party then
+		result(self:setParty(player, first))
+	elseif action == Action.Fireworks then
+		result(self:launchFireworks(player))
+	elseif action == Action.Activity then
+		local base = self:baseAt(player)
+		if base and services.GameRoomService and typeof(first) == "string" then
+			services.GameRoomService:press(player, base, first)
+		end
+	elseif action == Action.Panel then
+		self:pushPanel(player)
 	end
 end
 

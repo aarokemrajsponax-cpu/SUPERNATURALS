@@ -83,6 +83,9 @@ function Components.make(className: string, props: { [string]: any }?, children:
 	for key, value in (props or {}) :: { [string]: any } do
 		if key == "Parent" then
 			parent = value
+		elseif key == "Font" and typeof(value) == "EnumItem" and Theme.FaceForFont[value.Name] and (className == "TextLabel" or className == "TextButton" or className == "TextBox") then
+			-- Legacy Enum fonts become the matching Builder Sans face, so every screen shares one type system
+			(instance :: any).FontFace = Theme.FaceForFont[value.Name]
 		else
 			(instance :: any)[key] = value
 		end
@@ -166,6 +169,77 @@ local function glassGradient(): UIGradient
 	})
 end
 Components.glassGradient = glassGradient
+
+-- Soft two-stop gradient (owner request, 4 November 2026): selection screens use these
+-- instead of flat fills. Sets the frame's fill to white so the gradient colours are the
+-- colours drawn, and keeps one UIGradient named "SNGradient" on it. Rotation is in degrees
+-- (default Theme.Gradient.Rotation). Panels behind ordinary reading text stay solid.
+function Components.gradient(frame: GuiObject, colorA: Color3, colorB: Color3, rotation: number?): UIGradient
+	local existing = frame:FindFirstChild("SNGradient")
+	local gradient = if existing and existing:IsA("UIGradient")
+		then existing
+		else make("UIGradient", { Name = "SNGradient", Parent = frame })
+	gradient.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, colorA), ColorSequenceKeypoint.new(1, colorB) })
+	gradient.Rotation = rotation or Theme.Gradient.Rotation
+	frame.BackgroundColor3 = Color3.new(1, 1, 1)
+	return gradient :: UIGradient
+end
+
+-- The two colours of a soft card gradient: the dark panel with `amount` (0 to 1) of each of
+-- the card's own colours mixed in
+function Components.tintPair(colorA: Color3, colorB: Color3, amount: number, base: Color3?): (Color3, Color3)
+	local ground = base or Colors.Panel
+	return ground:Lerp(colorA, amount), ground:Lerp(colorB, amount)
+end
+
+-- A gradient frame for a card state: `state` is "Rest" | "Hover" | "Selected" | "Locked"
+function Components.gradientFor(frame: GuiObject, colorA: Color3, colorB: Color3, state: string?, rotation: number?): UIGradient
+	local amount = (Theme.Gradient :: any)[state or "Rest"] or Theme.Gradient.Rest
+	local a, b = Components.tintPair(colorA, colorB, amount)
+	return Components.gradient(frame, a, b, rotation)
+end
+
+-- A dark copy of a label offset 1 to 2 px behind it, for important text over the 3D world
+-- where the stroke alone is not enough. The copy follows the label's text, size, font,
+-- position, visibility and parent. Returns the copy.
+function Components.dropShadow(label: TextLabel, offset: number?, transparency: number?): TextLabel
+	local px = offset or Theme.TextShadow.Offset
+	local copy = label:Clone()
+	for _, child in copy:GetChildren() do
+		child:Destroy()
+	end
+	copy.Name = label.Name .. "Shadow"
+	copy.TextColor3 = Colors.Ink
+	copy.TextTransparency = transparency or Theme.TextShadow.Transparency
+	copy.TextStrokeTransparency = 1
+	copy.ZIndex = math.max(label.ZIndex - 1, 0)
+	local function follow()
+		copy.Text = label.Text
+		copy.TextSize = label.TextSize
+		copy.FontFace = label.FontFace
+		copy.Visible = label.Visible
+		copy.Size = label.Size
+		copy.AnchorPoint = label.AnchorPoint
+		copy.Position = label.Position + UDim2.fromOffset(px, px)
+		copy.TextXAlignment = label.TextXAlignment
+		copy.TextYAlignment = label.TextYAlignment
+		copy.TextWrapped = label.TextWrapped
+		copy.AutomaticSize = label.AutomaticSize
+		copy.LayoutOrder = label.LayoutOrder
+	end
+	for _, property in { "Text", "TextSize", "FontFace", "Visible", "Size", "AnchorPoint", "Position", "TextXAlignment", "TextWrapped" } do
+		label:GetPropertyChangedSignal(property):Connect(follow)
+	end
+	follow()
+	copy.Parent = label.Parent
+	label:GetPropertyChangedSignal("Parent"):Connect(function()
+		copy.Parent = label.Parent
+	end)
+	label.Destroying:Connect(function()
+		copy:Destroy()
+	end)
+	return copy
+end
 
 -- The gamepad outline for older controls that set it as their SelectionImageObject:
 -- 2 px ivory, 3 px outside the frame, square
@@ -270,7 +344,7 @@ function Components.label(text: string, props: { [string]: any }?): TextLabel
 	end
 	upgradeFont(merged)
 	return make("TextLabel", merged, {
-		make("UITextSizeConstraint", { MaxTextSize = maxTextSize, MinTextSize = 14 }),
+		make("UITextSizeConstraint", { MaxTextSize = maxTextSize, MinTextSize = 15 }),
 	})
 end
 
@@ -541,6 +615,7 @@ export type Surface = {
 	scale: UIScale,
 	lock: Frame?,
 	title: TextLabel?,
+	setGradient: (a: Color3?, b: Color3?) -> (),
 	render: (state: State, instant: boolean?) -> (),
 }
 
@@ -549,7 +624,8 @@ export type Surface = {
 -- the press scale. options: Edge = "left" | "bottom" | "top" (where the bar sits),
 -- Title (a TextLabel that turns ivory when hovered or selected), Lock (a drawn
 -- lock is shown while locked; a Vector2/UDim2 position or true for the default),
--- Flat (no fill until hovered), Fill/FillAlpha (resting background).
+-- Flat (no fill until hovered), Fill/FillAlpha (resting background), Gradient = { a, b }
+-- (a soft two-colour fill from Components.gradientFor; selected is brighter, plus the bar).
 function Components.surface(frame: GuiObject, options: { [string]: any }?): Surface
 	local given = options or {}
 	local edge = given.Edge or "left"
@@ -567,7 +643,7 @@ function Components.surface(frame: GuiObject, options: { [string]: any }?): Surf
 		ZIndex = frame.ZIndex + 1,
 		AnchorPoint = if edge == "bottom" then Vector2.new(0, 1) else Vector2.zero,
 		Position = if edge == "bottom" then UDim2.fromScale(0, 1) else UDim2.new(),
-		Size = if edge == "left" then UDim2.new(0, 2, 1, 0) else UDim2.new(1, 0, 0, 2),
+		Size = if edge == "left" then UDim2.new(0, 3, 1, 0) else UDim2.new(1, 0, 0, 3),
 		Parent = frame,
 	})
 	local ring = make("Frame", {
@@ -606,9 +682,16 @@ function Components.surface(frame: GuiObject, options: { [string]: any }?): Surf
 	local restFill: Color3? = given.Fill
 	local restAlpha: number? = given.FillAlpha
 	local wasDimmed = false
+	local gradA: Color3?, gradB: Color3? = nil, nil
+	if typeof(given.Gradient) == "table" then
+		gradA, gradB = given.Gradient[1], given.Gradient[2]
+	end
 	local surface: Surface
 	surface = {
 		frame = frame,
+		setGradient = function(a: Color3?, b: Color3?)
+			gradA, gradB = a, b
+		end,
 		stroke = outline :: UIStroke,
 		bar = bar,
 		ring = ring,
@@ -634,7 +717,14 @@ function Components.surface(frame: GuiObject, options: { [string]: any }?): Surf
 			elseif hoverAlpha and not state.selected then
 				fillAlpha = hoverAlpha
 			end
-			apply(frame, info, { BackgroundColor3 = fill, BackgroundTransparency = fillAlpha })
+			if gradA and gradB then
+				-- A gradient card: brighter when selected or hovered, dimmer when locked
+				local key = if state.selected then "Selected" elseif state.hovered or state.focused or state.pressed then "Hover" elseif state.locked then "Locked" else "Rest"
+				Components.gradientFor(frame, gradA, gradB, key)
+				apply(frame, info, { BackgroundTransparency = 0.02 })
+			else
+				apply(frame, info, { BackgroundColor3 = fill, BackgroundTransparency = fillAlpha })
+			end
 			local strokeAlpha = look.strokeAlpha
 			if flat and (look == Theme.States.default or look == Theme.States.locked or look == Theme.States.disabled) then
 				strokeAlpha = 1
@@ -646,7 +736,7 @@ function Components.surface(frame: GuiObject, options: { [string]: any }?): Surf
 			ring.Visible = state.focused and not state.disabled
 			apply(surface.scale, if instant then nil else Motion.Press, { Scale = if state.pressed and not state.disabled then 0.98 else 1 })
 			if surface.title then
-				apply(surface.title, info, { TextColor3 = if state.selected or state.hovered or state.focused then Colors.Text else look.text })
+				apply(surface.title, info, { TextColor3 = if state.selected or state.hovered or state.focused or gradA then Colors.Text else look.text })
 			end
 			if lock then
 				lock.Visible = state.locked
@@ -688,7 +778,10 @@ local function placeIcon(button: TextButton, icon: Frame, size: number, gap: num
 		end
 		-- The label is centred in the padded area; the pair (icon + gap + label) is centred in the button
 		local width = Components.textWidth(text, button.TextSize, button.FontFace)
-		local room = button.AbsoluteSize.X - Space.M * 2 - size - gap
+		local okSize, absolute = pcall(function()
+			return button.AbsoluteSize
+		end)
+		local room = (if okSize then absolute.X else width + size + gap) - Space.M * 2 - size - gap
 		if room > 0 then
 			width = math.min(width, room)
 		end
@@ -756,7 +849,7 @@ function Components.button(text: string, props: { [string]: any }?, onClick: (()
 	labelPadding.Name = "LabelPadding"
 	local children: { Instance } = { corner(Theme.SmallCorner), outline, labelPadding }
 	if legacy then
-		table.insert(children, make("UITextSizeConstraint", { MaxTextSize = 20, MinTextSize = 14 }))
+		table.insert(children, make("UITextSizeConstraint", { MaxTextSize = 22, MinTextSize = 15 }))
 	end
 	local button = make("TextButton", merged, children)
 
@@ -913,7 +1006,7 @@ function Components.badge(text: string, color: Color3?): Frame
 	local tint = color or Colors.Accent
 	local chip = make("Frame", {
 		Name = "Badge",
-		Size = UDim2.fromOffset(0, 22),
+		Size = UDim2.fromOffset(0, 26),
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundColor3 = tint,
 		BackgroundTransparency = 0.86,
@@ -944,7 +1037,7 @@ function Components.chip(text: string, props: { [string]: any }?): Frame
 	local tint = given.Color or Colors.TextDim
 	local merged: { [string]: any } = {
 		Name = "Chip",
-		Size = UDim2.fromOffset(0, 26),
+		Size = UDim2.fromOffset(0, 30),
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundColor3 = Colors.Ink,
 		BackgroundTransparency = 0.5,
@@ -962,7 +1055,7 @@ function Components.chip(text: string, props: { [string]: any }?): Frame
 	})
 	Components.list(chip, 6, { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center })
 	if given.Icon then
-		local drawn = Icons.make(Icons.resolve(given.Icon), 14, tint)
+		local drawn = Icons.make(Icons.resolve(given.Icon), 16, tint)
 		drawn.LayoutOrder = 1
 		drawn.Parent = chip
 	end
@@ -985,7 +1078,7 @@ end
 -- (28), Accent (the letter colour, default white) and frame properties.
 function Components.keycap(text: string, props: { [string]: any }?): Frame
 	local given = props or {}
-	local height = given.Height or 28
+	local height = given.Height or 30
 	local merged: { [string]: any } = {
 		Name = "Keycap",
 		Size = UDim2.fromOffset(0, height),
@@ -1021,7 +1114,7 @@ function Components.keycap(text: string, props: { [string]: any }?): Frame
 		Text = text,
 		Style = "label",
 		Weight = "Bold",
-		TextSize = 14,
+		TextSize = 16,
 		Color = given.Accent or Colors.Text,
 		AlignX = "Center",
 		Size = UDim2.new(0, 0, 1, -2),
@@ -1264,7 +1357,7 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 		ZIndex = 2,
 		Parent = panel,
 	}, { padding(0, Space.S + 4, 0, Theme.Grid.Pad) })
-	local icon = Icons.make(Icons.resolve(props.Icon or "facet"), 20, props.Accent or Colors.SteelLight)
+	local icon = Icons.make(Icons.resolve(props.Icon or "facet"), 24, props.Accent or Colors.SteelLight)
 	icon.AnchorPoint = Vector2.new(0, 0.5)
 	icon.Position = UDim2.fromScale(0, 0.5)
 	icon.ZIndex = 2
@@ -1272,23 +1365,22 @@ function Components.window(props: { [string]: any }): (Frame, Frame, WindowParts
 	local title = Components.text({
 		Name = "Title",
 		Text = props.Title or "",
-		Track = true,
 		Style = "title",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 36, 0.5, 0),
-		Size = UDim2.new(0.5, -36, 0, 28),
+		Position = UDim2.new(0, 40, 0.5, 0),
+		Size = UDim2.new(0.5, -40, 0, 34),
 		ZIndex = 2,
 		Parent = header,
 	})
 	if props.Subtitle then
-		local width = Components.textWidth(Theme.track(props.Title or ""), 18, Faces.Display)
+		local width = Components.textWidth(string.upper(props.Title or ""), Theme.Roles.title.size, Theme.Roles.title.face)
 		Components.text({
 			Name = "Subtitle",
 			Text = props.Subtitle,
-			Style = "caption",
+			Style = "small",
 			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 36 + math.floor(width) + 16, 0.5, 1),
-			Size = UDim2.new(0.4, 0, 0, 20),
+			Position = UDim2.new(0, 40 + math.floor(width) + 16, 0.5, 2),
+			Size = UDim2.new(0.4, 0, 0, 22),
 			ZIndex = 2,
 			Parent = header,
 		})
@@ -1438,7 +1530,7 @@ export type Card = {
 	surface: Surface,
 }
 
-local CARD_KEYS = { Accent = true, Icon = true, Title = true, Body = true, Badge = true, BadgeColor = true, onClick = true, Selected = true, Disabled = true, Locked = true, Edge = true }
+local CARD_KEYS = { Gradient = true, Accent = true, Icon = true, Title = true, Body = true, Badge = true, BadgeColor = true, onClick = true, Selected = true, Disabled = true, Locked = true, Edge = true }
 
 -- A selectable plate with all seven states.
 -- props: Accent (the icon's colour), onClick, Selected, Disabled, Locked, and
@@ -1504,7 +1596,7 @@ function Components.card(props: { [string]: any }?): (TextButton, Card)
 		end
 	end
 
-	local surface = Components.surface(frame, { Title = titleLabel, Lock = if given.Badge then UDim2.new(1, -120, 0.5, 0) else true, Edge = given.Edge })
+	local surface = Components.surface(frame, { Title = titleLabel, Lock = if given.Badge then UDim2.new(1, -120, 0.5, 0) else true, Edge = given.Edge, Gradient = given.Gradient })
 	local state, refresh = interactive(frame, surface.render)
 
 	local card: Card
@@ -1595,7 +1687,7 @@ function Components.tabs(parent: Instance, tabs: { TabSpec }, onSelect: (id: str
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Text = string.upper(spec.label),
-			FontFace = Faces.SemiBold,
+			FontFace = Faces.Bold,
 			TextSize = Theme.TextSize.Small,
 			TextColor3 = Colors.TextDim,
 			Parent = row,
@@ -1703,7 +1795,7 @@ function Components.segmented(parent: Instance?, options: { SegmentOption }, val
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Text = string.upper(option.label),
-			FontFace = Faces.SemiBold,
+			FontFace = Faces.Bold,
 			TextSize = Theme.TextSize.Small,
 			TextColor3 = Colors.TextDim,
 			TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1901,19 +1993,19 @@ function Components.progress(props: { [string]: any }?, color: Color3?): (Frame,
 		Name = "Label",
 		Text = given.Label or "",
 		Style = "overline",
-		Size = UDim2.new(0.6, 0, 0, 18),
+		Size = UDim2.new(0.6, 0, 0, 22),
 		Parent = frame,
 	})
 	local valueText = Components.text({
 		Name = "Value",
 		Text = given.Value or "",
 		Style = "number",
-		TextSize = 15,
+		TextSize = 17,
 		Color = Colors.Text,
 		AlignX = "Right",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0.4, 0, 0, 18),
+		Size = UDim2.new(0.4, 0, 0, 22),
 		Parent = frame,
 	})
 	local track, set = Components.bar({
@@ -1941,7 +2033,7 @@ local ROW_KEYS = { Description = true, Format = true, Live = true, Label = true,
 local CONTROL_WIDTH = 320
 
 local function rowHeight(description: string?): number
-	return if description then 68 else 56
+	return if description then 80 else 60
 end
 
 local function rowText(row: GuiObject, label: string, description: string?, controlWidth: number)
@@ -1956,7 +2048,7 @@ local function rowText(row: GuiObject, label: string, description: string?, cont
 		Parent = row,
 	})
 	Components.list(column, 2)
-	local title = Components.text({ Name = "Label", Text = label, Style = "strong", TextSize = 16, Color = Colors.Text, LayoutOrder = 1, ZIndex = row.ZIndex + 1, Parent = column })
+	local title = Components.text({ Name = "Label", Text = label, Style = "strong", Color = Colors.Text, LayoutOrder = 1, ZIndex = row.ZIndex + 1, Parent = column })
 	if description then
 		Components.text({ Name = "Description", Text = description, Style = "small", Color = Colors.TextDim, LayoutOrder = 2, ZIndex = row.ZIndex + 1, Parent = column })
 	end
@@ -2444,7 +2536,7 @@ function Components.statBar(props: { [string]: any }?, color: Color3?): (Frame, 
 	local valueWidth = given.ValueWidth or 44
 	local merged: { [string]: any } = {
 		Name = "Stat",
-		Size = UDim2.new(1, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 26),
 		BackgroundTransparency = 1,
 	}
 	for key, value in given do
@@ -2465,7 +2557,7 @@ function Components.statBar(props: { [string]: any }?, color: Color3?): (Frame, 
 		Name = "Value",
 		Text = given.Value or "",
 		Style = "number",
-		TextSize = 14,
+		TextSize = 16,
 		AlignX = "Right",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
@@ -2496,7 +2588,7 @@ function Components.eyebrow(text: string, props: { [string]: any }?): Frame
 	local given = props or {}
 	local merged: { [string]: any } = {
 		Name = "Eyebrow",
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 24),
 		BackgroundTransparency = 1,
 	}
 	for key, value in given do
@@ -2612,7 +2704,7 @@ function Components.storeCard(props: { [string]: any }?): (TextButton, Card)
 		ClipsDescendants = true,
 		Size = UDim2.fromOffset(232, 92),
 	}
-	local skip = { Name = true, Subtitle = true, Icon = true, Accent = true, Chip = true, ChipColor = true, Price = true, PriceText = true, Selected = true, Locked = true, Disabled = true, Premium = true, onClick = true }
+	local skip = { Width = true, Gradient = true, Name = true, Subtitle = true, Icon = true, Accent = true, Chip = true, ChipColor = true, Price = true, PriceText = true, Selected = true, Locked = true, Disabled = true, Premium = true, onClick = true }
 	for key, value in given do
 		if not skip[key] then
 			merged[key] = value
@@ -2620,7 +2712,7 @@ function Components.storeCard(props: { [string]: any }?): (TextButton, Card)
 	end
 	local frame = make("TextButton", merged, { corner(Theme.SmallCorner) })
 	local height = if merged.Size.Y.Offset > 0 then merged.Size.Y.Offset else 92
-	local well = height - Space.S * 2
+	local well = math.min(height - Space.S * 2, 64)
 	-- The art well
 	local art = make("Frame", {
 		Name = "Art",
@@ -2643,10 +2735,9 @@ function Components.storeCard(props: { [string]: any }?): (TextButton, Card)
 		Name = "Name",
 		Text = given.Name or "",
 		Style = "subheading",
-		TextSize = 17,
 		Color = Colors.TextDim,
 		Position = UDim2.fromOffset(textLeft, Space.S),
-		Size = UDim2.new(1, -(textLeft + Space.S), 0, 22),
+		Size = UDim2.new(1, -(textLeft + Space.S), 0, 26),
 		ZIndex = 2,
 		Parent = frame,
 	})
@@ -2654,18 +2745,31 @@ function Components.storeCard(props: { [string]: any }?): (TextButton, Card)
 		Name = "Subtitle",
 		Text = given.Subtitle or "",
 		Style = "caption",
-		Color = Colors.TextMuted,
-		Position = UDim2.fromOffset(textLeft, Space.S + 22),
-		Size = UDim2.new(1, -(textLeft + Space.S), 0, 18),
+		Color = Colors.TextDim,
+		Position = UDim2.fromOffset(textLeft, Space.S + 26),
+		Size = UDim2.new(1, -(textLeft + Space.S), 0, 20),
 		ZIndex = 2,
 		Parent = frame,
 	})
-	-- The bottom line: state chip on the left, price on the right
+	-- The bottom line: state chip on the left, price on the right. When both do not fit side by
+	-- side (a long "Available soon"), the price takes its own line under the chip.
+	local footerWidth = ((given.Width or (if merged.Size.X.Scale == 0 then merged.Size.X.Offset else 232)) - (textLeft + Space.S))
+	local chipWidth = 0
+	if given.Chip then
+		chipWidth = Components.textWidth(string.upper(given.Chip), Theme.Roles.overline.size, Theme.Roles.overline.face) + Space.S * 2 + 4
+	end
+	local priceWidth = 0
+	if given.PriceText then
+		priceWidth = Components.textWidth(given.PriceText, 16, Theme.Faces.MonoBold) + 4
+	elseif given.Price then
+		priceWidth = 96
+	end
+	local stacked = given.Chip ~= nil and priceWidth > 0 and chipWidth + priceWidth + Space.S > footerWidth
 	local footer = make("Frame", {
 		Name = "Footer",
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, textLeft, 1, -Space.S),
-		Size = UDim2.new(1, -(textLeft + Space.S), 0, 24),
+		Size = UDim2.new(1, -(textLeft + Space.S), 0, if stacked then 54 else 26),
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = frame,
@@ -2674,27 +2778,27 @@ function Components.storeCard(props: { [string]: any }?): (TextButton, Card)
 	if given.Chip then
 		chipFrame = Components.badge(given.Chip, given.ChipColor or Colors.TextMuted)
 		local chip = chipFrame :: Frame
-		chip.AnchorPoint = Vector2.new(0, 0.5)
-		chip.Position = UDim2.fromScale(0, 0.5)
+		chip.AnchorPoint = if stacked then Vector2.zero else Vector2.new(0, 0.5)
+		chip.Position = if stacked then UDim2.fromOffset(0, 0) else UDim2.fromScale(0, 0.5)
 		chip.ZIndex = 3
 		chip.Parent = footer
 	end
 	if given.Price or given.PriceText then
-		local priceFrame = if given.Price then Components.price(nil, given.Price, { Height = 24, TextSize = 14 }) else nil
+		local priceFrame = if given.Price then Components.price(nil, given.Price, { Height = 26, TextSize = 16 }) else nil
 		if priceFrame then
-			priceFrame.AnchorPoint = Vector2.new(1, 0.5)
-			priceFrame.Position = UDim2.fromScale(1, 0.5)
+			priceFrame.AnchorPoint = if stacked then Vector2.new(0, 1) else Vector2.new(1, 0.5)
+			priceFrame.Position = if stacked then UDim2.fromScale(0, 1) else UDim2.fromScale(1, 0.5)
 			priceFrame.Parent = footer
 		else
 			Components.text({
 				Name = "PriceText",
 				Text = given.PriceText,
 				Style = "number",
-				TextSize = 14,
-				AlignX = "Right",
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.fromScale(1, 0.5),
-				Size = UDim2.new(0.6, 0, 1, 0),
+				TextSize = 16,
+				AlignX = if stacked then "Left" else "Right",
+				AnchorPoint = if stacked then Vector2.new(0, 1) else Vector2.new(1, 0.5),
+				Position = if stacked then UDim2.fromScale(0, 1) else UDim2.fromScale(1, 0.5),
+				Size = if stacked then UDim2.new(1, 0, 0, 24) else UDim2.new(1, -(chipWidth + Space.S), 1, 0),
 				ZIndex = 3,
 				Parent = footer,
 			})
@@ -2713,7 +2817,7 @@ function Components.storeCard(props: { [string]: any }?): (TextButton, Card)
 		})
 	end
 
-	local surface = Components.surface(frame, { Title = titleLabel, Lock = UDim2.new(1, -Space.S - 16, 0, Space.S + 8), Edge = "left" })
+	local surface = Components.surface(frame, { Title = titleLabel, Lock = UDim2.new(1, -Space.S - 16, 0, Space.S + 8), Edge = "left", Gradient = given.Gradient })
 	local state, refresh = interactive(frame, surface.render)
 	local card: Card
 	card = {

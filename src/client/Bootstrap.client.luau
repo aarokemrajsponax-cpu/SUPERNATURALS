@@ -23,6 +23,7 @@ local ORDER = {
 	"OwnerController",
 	"CosmeticFxController",
 	"InviteController",
+	"LoungeController",
 	"NameplateController",
 	"MusicController",
 }

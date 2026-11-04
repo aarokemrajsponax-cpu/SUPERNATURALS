@@ -162,7 +162,12 @@ function MatchService:isCombatAllowed(fighter): boolean
 	if match then
 		return MatchFlow.isFighting(match.flow)
 	end
-	-- Outside matches you can practise on training dummies
+	-- Outside matches: where they stand decides (training hall, CPU practice, showcase; the
+	-- lobby refuses). Long casts ask again at every step, so a cast ends if its caster leaves.
+	local power = self.services.PowerService
+	if power and power.combatContext then
+		return power:combatContext(fighter).allowed
+	end
 	return true
 end
 
@@ -259,8 +264,15 @@ function MatchService:_onRequest(player: Player, action: string, argument: any, 
 			end
 		end
 		if MatchConfig.Modes[argument].Solo then
+			if typeof(options) == "table" and typeof(options.cpuPower) == "string" and Powers.get(options.cpuPower) and not Powers.isReleased(options.cpuPower) then
+				local owner = self.services.OwnerService
+				if not (owner and owner:isOwner(player)) then
+					self:_notice(player, Powers.unreleasedMessage(options.cpuPower))
+					return
+				end
+			end
 			self:_leaveQueues(player)
-			if not self:_startMatch(argument, { player }, self:_cpuOptions(options), arenaId) then
+			if not self:_startMatch(argument, { player }, self:_cpuOptions(options, player), arenaId) then
 				self:_notice(player, "All arenas are busy. Try again in a moment.")
 			end
 		else
@@ -624,10 +636,13 @@ end
 
 -- What a solo player asked for in CPU Practice: which power the CPU plays, at
 -- what degree and difficulty (anything unknown falls back to a sensible choice)
-function MatchService:_cpuOptions(options: any)
+function MatchService:_cpuOptions(options: any, player: Player?)
+	-- Unreleased fighters are never a CPU pick (the owner may choose one for testing)
+	local owner = self.services.OwnerService
+	local mayTest = player ~= nil and owner ~= nil and owner:isOwner(player)
 	local cpu = { power = "Random", degree = 1, difficulty = "Normal" }
 	if typeof(options) == "table" then
-		if typeof(options.cpuPower) == "string" and (options.cpuPower == "Random" or Powers.get(options.cpuPower)) then
+		if typeof(options.cpuPower) == "string" and (options.cpuPower == "Random" or (Powers.get(options.cpuPower) and (mayTest or Powers.isReleased(options.cpuPower)))) then
 			cpu.power = options.cpuPower
 		end
 		if typeof(options.cpuDegree) == "number" and options.cpuDegree >= 1 and options.cpuDegree <= Powers.MaxDegrees then
@@ -641,7 +656,7 @@ function MatchService:_cpuOptions(options: any)
 	if cpu.power == "Random" then
 		local choices = {}
 		for _, powerId in Powers.Order do
-			if Powers.get(powerId) then
+			if Powers.get(powerId) and Powers.isReleased(powerId) then
 				table.insert(choices, powerId)
 			end
 		end

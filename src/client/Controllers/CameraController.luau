@@ -29,6 +29,8 @@ local player = Players.LocalPlayer
 local CameraController = {}
 
 local BASE_FOV = 70
+-- Extra field of view while sprinting (see setSpeedFov)
+local fovOffset = 0
 -- Lock-on framing and limits (studs, seconds)
 local LOCK = {
 	Range = 60,
@@ -510,9 +512,28 @@ function CameraController:punch(amount: number)
 		return
 	end
 	local camera = workspace.CurrentCamera
-	camera.FieldOfView = BASE_FOV + amount
+	camera.FieldOfView = BASE_FOV + fovOffset + amount
 	TweenService:Create(camera, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		FieldOfView = BASE_FOV,
+		FieldOfView = BASE_FOV + fovOffset,
+	}):Play()
+end
+
+-- A lasting widening of the view while the player is moving fast (sprint). Eases in and out
+-- quickly; punches and perfect-dodge zooms return to this value instead of the plain base.
+function CameraController:setSpeedFov(offset: number)
+	if not Settings.get("cameraShake") then
+		offset = 0
+	end
+	if offset == fovOffset then
+		return
+	end
+	fovOffset = offset
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	TweenService:Create(camera, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		FieldOfView = BASE_FOV + fovOffset,
 	}):Play()
 end
 

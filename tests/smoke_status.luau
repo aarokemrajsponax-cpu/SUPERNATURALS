@@ -166,12 +166,12 @@ t.check("a nameplate shows name, title and plate colors, small and readable", fu
 	player:SetAttribute("SNPlate", "plate_smoke_test")
 	local plate = Nameplates.build(player, nil)
 	assert(plate.MaxDistance == 60, "visible to about 60 studs")
-	assert(plate.Size.X.Offset <= 240 and plate.Size.Y.Offset <= 60, "quiet size")
+	assert(plate.Size.X.Offset <= 300 and plate.Size.Y.Offset <= 72, "quiet size (nameplates are bigger and bolder since 4 Nov, still compact)")
 	local name = t.findNamed(plate, "Name")
 	local title = t.findNamed(plate, "Title")
-	assert(name and name.Text == "Alice D" and name.TextSize >= 14, "display name")
-	assert(title and title.Text == "Founding Recruit" and title.TextSize >= 14, "title under it")
-	assert(name.LayoutOrder < title.LayoutOrder, "the title line sits under the name")
+	assert(name and name.Text == "Alice D" and name.TextSize >= 20, "display name")
+	assert(title and title.Text == "Founding Recruit" and title.TextSize >= 16, "title under it")
+	assert(name.Parent.LayoutOrder < title.Parent.LayoutOrder, "the title line sits under the name")
 	local strip = t.findNamed(plate, "Strip")
 	local bands = 0
 	for _, item in strip:GetChildren() do

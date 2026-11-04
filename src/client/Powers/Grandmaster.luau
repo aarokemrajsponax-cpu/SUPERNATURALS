@@ -297,6 +297,12 @@ local function limbTrail(kit, limb: BasePart?, duration: number)
 	if not limb or kit.Vfx.reduced() then
 		return
 	end
+	-- The fighter may have been removed since this was scheduled
+	if not pcall(function()
+		return limb.Size.Y
+	end) then
+		return
+	end
 	local colors = palette(kit)
 	local strong = kit.degree >= 3
 	local a0 = Instance.new("Attachment")
@@ -1460,5 +1466,38 @@ function Grandmaster.appearance(kit)
 		stop()
 	end
 end
+
+-- Layered signature on top (core flash, glow, shaped burst, ground shockwave, light, shake)
+local Signature = require(script.Parent.Parent.Effects.Signature)
+Signature.decorate(Grandmaster, "Grandmaster", {
+	IronFistImpact = { "impact", 2 },
+	TwinFist = { "impact", 1 },
+	CounterPalm = { "impact", 2 },
+	Step = { "trail", 1.5, 8 },
+	TigerWindup = { "windup", 1, 4 },
+	TigerTell = { "windup", 1, 4 },
+	TigerStrike = { "impact", 2 },
+	TigerThrust = { { "trail", 1.5, 8 }, { "impact", 2 } },
+	CraneStance = { "cast", 1 },
+	CraneCounter = { "impact", 2 },
+	CraneFinish = { "impact", 2 },
+	MountainWindup = { "windup", 2, 6 },
+	MountainPalm = { "impact", 2 },
+	SweepWindup = { "windup", 1, 7 },
+	Sweep = { "impact", 2 },
+	Knockdown = { "impact", 1 },
+	HundredWindup = { "windup", 1, 4 },
+	HundredOpener = { "impact", 1 },
+	HundredBeat = { "impact", 1 },
+	HundredFinish = { "impact", 3 },
+	FocusStance = { "cast", 2 },
+	AnswerWindup = { "windup", 2, 5 },
+	AnswerPalm = { "impact", 3 },
+	UltStance = { "ultwindup", 3, 14 },
+	UltOpener = { "impact", 2 },
+	UltBeat = { "impact", 1 },
+	UltFinish = { "impact", 3 },
+	UltShockwave = { "ultimate", 3, 26 },
+})
 
 return Grandmaster

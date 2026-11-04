@@ -3,6 +3,13 @@
 -- on the right with a typewriter effect, a Continue button, a quiet Skip button and progress dots.
 -- panel.onVisibility(open) is called when a conversation starts and ends (the HUD fades with it).
 --
+-- say(lines, options): face, title, skippable, skipLabel, onDone (the last line was acknowledged or
+-- auto-closed), onSkip (the player pressed Skip), onTalking(bool), autoClose (seconds after the last
+-- line finishes typing before the panel closes by itself), choices { { id, label } } with
+-- onChoice(id) (the last line shows these buttons instead of Continue and Skip).
+-- A new say() replaces the current conversation silently, and hide() closes it silently: neither
+-- calls onDone or onSkip, so a replaced line can never fire the old line's callback.
+--
 -- Also here: the rig that animates a copy of Jeffery's model (idle hover bob, head turns,
 -- blinking, gestures while talking, facial expressions). The world copy and the portrait copy
 -- use the same rig. In the world his face is the SurfaceGui built by World/Jeffery; in the
@@ -281,6 +288,14 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		Name = "Skip", Variant = "Ghost", KeepCase = true, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16 - 136 - 8, 1, -12),
 		Size = UDim2.fromOffset(148, 44), ZIndex = 22, Parent = card,
 	})
+	-- Choice buttons (shown on the last line of a conversation that has choices)
+	local choicesRow = make("Frame", {
+		Name = "Choices", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16, 1, -12),
+		Size = UDim2.new(1, -240, 0, 44), BackgroundTransparency = 1, Visible = false, ZIndex = 22, Parent = card,
+	}, { make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder,
+	}) })
 
 	-- Phones and small windows: the portrait shrinks and the role line goes
 	local function relayout()
@@ -376,6 +391,32 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		end)
 	end
 
+	local close: (skipped: boolean, silent: boolean?) -> ()
+
+	local function showChoices()
+		for _, child in choicesRow:GetChildren() do
+			if child:IsA("GuiObject") then
+				child:Destroy()
+			end
+		end
+		for order, choice in options.choices or {} do
+			local width = math.max(120, Components.textWidth(choice.label, 18) + 48)
+			Components.button(choice.label, {
+				Name = "Choice_" .. choice.id, Variant = if order == 1 then "Primary" else "Secondary", KeepCase = true,
+				Size = UDim2.fromOffset(width, 44), LayoutOrder = order, ZIndex = 23, Parent = choicesRow,
+			}, function()
+				local callback = options.onChoice
+				close(false, true)
+				if callback then
+					callback(choice.id)
+				end
+			end)
+		end
+		choicesRow.Visible = true
+		continueButton.Visible = false
+		skipButton.Visible = false
+	end
+
 	local function finishTyping()
 		token += 1
 		typing = false
@@ -387,10 +428,26 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 			options.onTalking(false)
 		end
 		continueButton.Text = if index >= #lines then "Got it" else "Continue"
+		if index >= #lines then
+			if options.choices and #options.choices > 0 then
+				showChoices()
+			elseif typeof(options.autoClose) == "number" then
+				-- Action steps: the panel gets out of the way by itself so the player can act
+				local mine = token
+				task.delay(options.autoClose, function()
+					if open and token == mine and not typing then
+						close(false)
+					end
+				end)
+			end
+		end
 	end
 
 	local function showLine()
 		local text = lines[index]
+		choicesRow.Visible = false
+		continueButton.Visible = true
+		skipButton.Visible = options.skippable ~= false
 		line.Text = text
 		paintDots()
 		token += 1
@@ -425,7 +482,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		end)
 	end
 
-	local function close(skipped: boolean)
+	function close(skipped: boolean, silent: boolean?)
 		if not open then
 			return
 		end
@@ -446,8 +503,9 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 			rigStep:Disconnect()
 			rigStep = nil
 		end
-		local callback = if skipped then options.onSkip else options.onDone
+		local callback = if silent then nil elseif skipped then options.onSkip else options.onDone
 		options = {}
+		choicesRow.Visible = false
 		if callback then
 			callback()
 		end
@@ -455,7 +513,7 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 
 	function panel.say(newLines: { string }, newOptions: { [string]: any }?)
 		if open then
-			close(true)
+			close(true, true)
 		end
 		lines = newLines
 		options = newOptions or {}
@@ -510,13 +568,13 @@ function DialoguePanel.build(parent: Instance, modelProvider: (() -> Model?)?): 
 		close(true)
 	end
 	function panel.hide()
-		close(true)
+		close(true, true)
 	end
 	function panel.isOpen()
 		return open
 	end
 	function panel.state()
-		return { index = index, total = #lines, typing = typing, text = lines[index], open = open }
+		return { index = index, total = #lines, typing = typing, text = lines[index], open = open, choices = choicesRow.Visible }
 	end
 
 	continueButton.Activated:Connect(panel.press)

@@ -83,6 +83,9 @@
         "ProgressRequest": {
           "$className": "RemoteEvent"
         },
+        "JefferyChat": {
+          "$className": "RemoteEvent"
+        },
         "SettingsRequest": {
           "$className": "RemoteEvent"
         },
@@ -90,6 +93,9 @@
           "$className": "RemoteEvent"
         },
         "StatusEvent": {
+          "$className": "RemoteEvent"
+        },
+        "LoungeRequest": {
           "$className": "RemoteEvent"
         }
       }

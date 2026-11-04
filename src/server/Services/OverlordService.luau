@@ -1066,6 +1066,17 @@ function OverlordService:handle(player: Player, action: string, payload: any)
 		return if ok then succeed(combos) else fail("store_failed")
 	elseif action == Action.Announce then
 		return self:_announce(actor, payload)
+	elseif action == Action.GoalsState or action == Action.GoalsSet then
+		-- Community like goals: CommunityService does the work and checks the owner again
+		local community = self.services.CommunityService
+		if not community then
+			return fail("bad_request")
+		end
+		if action == Action.GoalsState then
+			return succeed(community:goalsView())
+		end
+		local result = community:setLikes(player, payload.likes)
+		return if result.ok then succeed(result.data) else fail(result.code)
 	elseif action == Action.ScheduleAdd then
 		return self:_scheduleAdd(actor, payload)
 	elseif action == Action.ScheduleList then

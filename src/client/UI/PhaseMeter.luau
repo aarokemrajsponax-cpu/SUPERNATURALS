@@ -26,7 +26,7 @@ local WIDTH = 300
 
 -- What the meter should say for a character's attributes and the player's Money. Pure, so
 -- the tests can call it without a screen.
-function PhaseMeter.describe(attributes: { [string]: any }, money: number): { visible: boolean, share: number, full: boolean, title: string, detail: string, affordable: boolean }
+function PhaseMeter.describe(attributes: { [string]: any }, money: number, device: string?): { visible: boolean, share: number, full: boolean, title: string, detail: string, affordable: boolean }
 	local nextName = attributes[Attribute.PhaseNext]
 	local fee = attributes[Attribute.PhaseFee]
 	local meter = attributes[Attribute.PhaseMeter]
@@ -38,19 +38,21 @@ function PhaseMeter.describe(attributes: { [string]: any }, money: number): { vi
 	local full = share >= 1
 	local affordable = money >= fee
 	local cost = if fee <= 0 then "Free" else `{Components.formatNumber(fee)} Money`
+	-- The words for the device in hand: a key, a gamepad button or the touch button
+	local press = if device == "touch" then "tap Evolve" elseif device == "gamepad" then "press Start" else "press T"
 	local detail
 	if not full then
 		detail = `Fight to fill the meter. Costs {cost}.`
 	elseif not affordable then
 		detail = `Meter full. Need {cost}. You have {Components.formatNumber(money)}.`
 	else
-		detail = if fee <= 0 then "Meter full: press T to evolve (free)" else `Meter full: press T to evolve ({cost})`
+		detail = if fee <= 0 then `Meter full: {press} to evolve (free)` else `Meter full: {press} to evolve ({cost})`
 	end
 	return { visible = true, share = share, full = full, title = `Next phase: {nextName}`, detail = detail, affordable = affordable }
 end
 
 -- Builds the meter inside `parent` (the HUD column) and keeps it current
-function PhaseMeter.mount(parent: Instance)
+function PhaseMeter.mount(parent: Instance, device: (() -> string)?)
 	local frame = Components.panel({
 		Name = "PhaseMeter",
 		LayoutOrder = 0,
@@ -64,7 +66,7 @@ function PhaseMeter.mount(parent: Instance)
 	Components.list(frame, Space.XS)
 	local top = make("Frame", { Name = "Top", LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, Parent = frame })
 	local title = Components.text({ Name = "Title", Text = "", Style = "label", Size = UDim2.new(1, -44, 1, 0), Parent = top })
-	local percent = Components.text({ Name = "Percent", Text = "", Style = "number", TextSize = 14, AlignX = "Right", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(40, 22), Parent = top })
+	local percent = Components.text({ Name = "Percent", Text = "", Style = "number", TextSize = 16, AlignX = "Right", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(40, 22), Parent = top })
 	local track = make("Frame", {
 		Name = "Track",
 		LayoutOrder = 2,
@@ -91,13 +93,14 @@ function PhaseMeter.mount(parent: Instance)
 	local lastKey = ""
 	local function refresh()
 		local character = player.Character
-		local info = if character then PhaseMeter.describe(character:GetAttributes(), Profile.currency("money")) else nil
+		local kind = if device then device() else "keyboard"
+		local info = if character then PhaseMeter.describe(character:GetAttributes(), Profile.currency("money"), kind) else nil
 		if not info or not info.visible then
 			frame.Visible = false
 			lastKey = ""
 			return
 		end
-		local key = `{info.title}|{info.detail}|{math.floor(info.share * 100)}|{info.affordable}`
+		local key = `{info.title}|{info.detail}|{math.floor(info.share * 100)}|{info.affordable}|{kind}`
 		if key == lastKey then
 			return
 		end
@@ -107,9 +110,10 @@ function PhaseMeter.mount(parent: Instance)
 		percent.Text = `{math.floor(info.share * 100)}%`
 		detail.Text = info.detail
 		local ready = info.full and info.affordable
-		cap.Visible = ready
-		detail.Position = UDim2.fromOffset(if ready then 38 else 0, 0)
-		detail.Size = UDim2.new(1, if ready then -38 else 0, 1, 0)
+		local showCap = ready and kind == "keyboard"
+		cap.Visible = showCap
+		detail.Position = UDim2.fromOffset(if showCap then 38 else 0, 0)
+		detail.Size = UDim2.new(1, if showCap then -38 else 0, 1, 0)
 		detail.TextColor3 = if ready then Colors.Text elseif info.full then Colors.Warning else Colors.TextDim
 		local color = if info.full then (if info.affordable then Colors.Accent else Colors.Warning) else Colors.Cyan
 		fill.BackgroundColor3 = color
@@ -119,7 +123,17 @@ function PhaseMeter.mount(parent: Instance)
 			stroke.Transparency = if ready then 0.2 else 0.5
 		end
 	end
-	local connection = RunService.Heartbeat:Connect(refresh)
+	-- Ten times a second is plenty for a meter that fills over a fight
+	local elapsed = 0
+	local connection = RunService.Heartbeat:Connect(function(dt)
+		elapsed += dt
+		if elapsed >= 0.1 then
+			elapsed = 0
+			if frame.Parent and frame.Parent.Parent and (frame.Parent :: any).Visible ~= false then
+				refresh()
+			end
+		end
+	end)
 	frame.Destroying:Connect(function()
 		connection:Disconnect()
 	end)

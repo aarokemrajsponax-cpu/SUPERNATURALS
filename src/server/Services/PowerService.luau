@@ -35,6 +35,7 @@ local MatchFlow = require(ReplicatedStorage.Shared.Match.MatchFlow)
 local Powers = require(ReplicatedStorage.Shared.Powers)
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local AbilityKit = require(script.Parent.Parent.Combat.AbilityKit)
+local AnimationStyle = require(script.Parent.Parent.Combat.AnimationStyle)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local PowerRequest = Remotes:WaitForChild("PowerRequest") :: RemoteEvent
@@ -281,6 +282,9 @@ function PowerService:grantTrial(player: Player, powerId: any, hours: any, sourc
 	if typeof(powerId) ~= "string" or not Powers.isPremium(powerId) then
 		return false, "Only premium fighters have trials."
 	end
+	if self:_heldBack(player, powerId) then
+		return false, Powers.unreleasedMessage(powerId)
+	end
 	if typeof(hours) ~= "number" or hours ~= hours or hours <= 0 or hours > 168 then
 		return false, "That trial length is not valid."
 	end
@@ -393,6 +397,12 @@ function PowerService:owns(player: Player, powerId: string): boolean
 	return self:trialEndsAt(player, powerId) ~= nil
 end
 
+-- Is this fighter held back from this player? Unreleased fighters are refused for everyone
+-- but the owner, who keeps them for testing.
+function PowerService:_heldBack(player: Player, powerId: any): boolean
+	return typeof(powerId) == "string" and Powers.get(powerId) ~= nil and not Powers.isReleased(powerId) and not self:_isOwner(player)
+end
+
 -- Can this player use this power and degree at all? Premium powers they don't
 -- own can still be tried (trial) outside ranked fights.
 function PowerService:check(player: Player, powerId: string, degree: number): (boolean, string?, boolean)
@@ -403,6 +413,9 @@ function PowerService:check(player: Player, powerId: string, degree: number): (b
 	local profile = self:_profile(player)
 	local owner = self.services.OwnerService
 	local isOwner = owner and owner:isOwner(player)
+	if self:_heldBack(player, powerId) then
+		return false, Powers.unreleasedMessage(powerId), false
+	end
 	if not isOwner and not Powers.degreeUnlocked(powerId, degree, powerData(profile, powerId)) then
 		return false, `{def.degrees[degree].name} is locked. Reach mastery level {def.degrees[degree].unlock.mastery} or unlock it.`, false
 	end
@@ -426,7 +439,7 @@ function PowerService:_selected(player: Player): { power: string, degree: number
 	local selected = profile and profile.selected
 	local powerId = Powers.Default
 	local degree = 1
-	if selected and typeof(selected.power) == "string" and Powers.get(selected.power) then
+	if selected and typeof(selected.power) == "string" and Powers.get(selected.power) and not self:_heldBack(player, selected.power) then
 		powerId = selected.power
 		if typeof(selected.degree) == "number" then
 			degree = math.clamp(math.floor(selected.degree), 1, math.max(1, Powers.degreeCount(powerId)))
@@ -869,7 +882,7 @@ function PowerService:snapshot(player: Player)
 	}
 	for _, powerId in Powers.Order do
 		local def = Powers.get(powerId)
-		if def then
+		if def and not self:_heldBack(player, powerId) then
 			local hasSlot = self:hasExtraSlot(player, powerId)
 			local degrees = {}
 			for degree = 1, Powers.degreeCount(powerId) do
@@ -920,6 +933,10 @@ function PowerService:_quote(player: Player, powerId: any, degree: any, loadout:
 		self:_reply(player, newResult("Quote", false, Code.BadRequest, "That power doesn't exist."))
 		return
 	end
+	if self:_heldBack(player, powerId) then
+		self:_reply(player, newResult("Quote", false, Code.NotOwned, Powers.unreleasedMessage(powerId)))
+		return
+	end
 	local view = self:_view(player)
 	local entry, verdict = self:_entry(player, view, powerId, degree, self:hasExtraSlot(player, powerId))
 	entry.power = powerId
@@ -960,6 +977,9 @@ function PowerService:confirmSelection(player: Player, powerId: any, degree: any
 	if not wellFormed(powerId, degree, loadout) then
 		self.antiExploit:flag(player, "junk selection request")
 		return refuse(Code.BadRequest, "That power doesn't exist.")
+	end
+	if self:_heldBack(player, powerId) then
+		return refuse(Code.NotOwned, Powers.unreleasedMessage(powerId))
 	end
 	local def = Powers.get(powerId)
 	local view = self:_view(player)
@@ -1127,6 +1147,9 @@ function PowerService:trial(player: Player, powerId: any, degree: any, loadout: 
 		self.antiExploit:flag(player, "junk trial request")
 		return refuse(Code.BadRequest, "That power doesn't exist.")
 	end
+	if self:_heldBack(player, powerId) then
+		return refuse(Code.NotOwned, Powers.unreleasedMessage(powerId))
+	end
 	if locked[player] then
 		return refuse(Code.InMatch, "Your power and degree are locked until the fight ends.")
 	end
@@ -1255,6 +1278,10 @@ function PowerService:_onRequest(player: Player, action: string, first: any, sec
 	end
 	local powerId: string = first
 	local def = Powers.get(powerId)
+	if self:_heldBack(player, powerId) then
+		toast(player, Powers.unreleasedMessage(powerId), "error")
+		return
+	end
 
 	if action == Action.Select then
 		-- The old name for Confirm without a loadout: same prices, same rules, plus the toast
@@ -1725,6 +1752,8 @@ function PowerService:equip(fighter, powerId: string, degree: number, loadout: {
 		self:_safe(module.onEquip, fighter, runtime, AbilityKit.forFighter(fighter))
 	end
 	self:_applyAppearance(fighter)
+	-- Movement style (Roblox animation pack) for this fighter's character
+	AnimationStyle.queue(model, powerId, fighter.player ~= nil)
 end
 
 -- Does this fighter's player own their power's cosmetic pass? Cosmetics change looks only.

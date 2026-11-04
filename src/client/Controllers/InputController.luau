@@ -5,8 +5,10 @@
 --   Gamepad:          X Light, Y Heavy (hold to charge), L1 Block (hold), B Dodge,
 --                     L1+X Grab, L1+Y Sweep, L3 Sprint (toggle), R3 Lock-on,
 --                     View/Select Taunt (abilities keep R1/R2/L2 and the D-pad)
---   Touch:            a cluster of round buttons around Roblox's jump button,
---                     clear of the ability bar and the thumbstick
+--   Touch:            an arch of round buttons over the bottom-right thumb area (a big
+--                     attack button beside Roblox's jump button, the other actions and the
+--                     ability buttons on rings around it; see UI/TouchArch). Shown only in
+--                     fights and training (UI/CombatView).
 -- Bindings (with their key hints) live in Bindings so the HUD can show them.
 -- Feinting is Block pressed during your own heavy's wind-up: the server decides.
 
@@ -17,8 +19,11 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Protocol = require(ReplicatedStorage.Shared.Protocol)
+local Selection = require(ReplicatedStorage.Shared.Config.Selection)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local Shell = require(script.Parent.Parent.UI.Shell)
+local TouchArch = require(script.Parent.Parent.UI.TouchArch)
+local CombatView = require(script.Parent.Parent.UI.CombatView)
 
 local Colors = Theme.Colors
 local Faces = Theme.Faces
@@ -29,20 +34,21 @@ local InputController = {}
 local KeyCode = Enum.KeyCode
 local InputType = Enum.UserInputType
 
--- touch = { dx, dy, size } in points from the centre of Roblox's jump button
--- (scaled up on big screens); hint = false keeps it out of the HUD's hint strip
+-- touch = true puts the action in the touch arch (UI/TouchArch decides where);
+-- hint = false keeps it out of the HUD's hint strip. Grab and sweep are chords on the gamepad's
+-- block button (L1+X, L1+Y), so their pads list is empty.
 InputController.Bindings = {
-	{ name = "SNLight", label = "Light", keys = { InputType.MouseButton1 }, pads = { KeyCode.ButtonX }, keyText = "M1", padText = "X", touch = { -92, 0, 78 } },
-	{ name = "SNHeavy", label = "Heavy", keys = { KeyCode.E }, pads = { KeyCode.ButtonY }, keyText = "E", padText = "Y", touch = { -92, -86, 64 } },
-	{ name = "SNBlock", label = "Block", keys = { KeyCode.F }, pads = { KeyCode.ButtonL1 }, keyText = "F", padText = "L1", touch = { -158, -86, 56 } },
-	{ name = "SNDodge", label = "Dodge", keys = { KeyCode.Q }, pads = { KeyCode.ButtonB }, keyText = "Q", padText = "B", touch = { 0, -86, 60 } },
+	{ name = "SNLight", label = "Light", keys = { InputType.MouseButton1 }, pads = { KeyCode.ButtonX }, keyText = "M1", padText = "X", touch = true },
+	{ name = "SNHeavy", label = "Heavy", keys = { KeyCode.E }, pads = { KeyCode.ButtonY }, keyText = "E", padText = "Y", touch = true },
+	{ name = "SNBlock", label = "Block", keys = { KeyCode.F }, pads = { KeyCode.ButtonL1 }, keyText = "F", padText = "L1", touch = true },
+	{ name = "SNDodge", label = "Dodge", keys = { KeyCode.Q }, pads = { KeyCode.ButtonB }, keyText = "Q", padText = "B", touch = true },
 	-- Gamepad grab and sweep are chords on the block button (handled in Light and Heavy)
-	{ name = "SNGrab", label = "Grab", keys = { KeyCode.G }, pads = {}, keyText = "G", padText = "L1+X", touch = { -158, -160, 46 } },
-	{ name = "SNSweep", label = "Sweep", keys = { KeyCode.C }, pads = {}, keyText = "C", padText = "L1+Y", touch = { -102, -160, 46 } },
-	{ name = "SNSprint", label = "Sprint", touchLabel = "Run", keys = { KeyCode.LeftShift }, pads = { KeyCode.ButtonL3 }, keyText = "Shift", padText = "L3", touch = { -46, -160, 46 } },
-	{ name = "SNLock", label = "Lock", keys = { KeyCode.Z, InputType.MouseButton3 }, pads = { KeyCode.ButtonR3 }, keyText = "Z", padText = "R3", touch = { 10, -160, 46 } },
+	{ name = "SNGrab", label = "Grab", keys = { KeyCode.G }, pads = {}, keyText = "G", padText = "L1+X", touch = true },
+	{ name = "SNSweep", label = "Sweep", keys = { KeyCode.C }, pads = {}, keyText = "C", padText = "L1+Y", touch = true },
+	{ name = "SNSprint", label = "Sprint", touchLabel = "Run", keys = { KeyCode.LeftShift }, pads = { KeyCode.ButtonL3 }, keyText = "Shift", padText = "L3", touch = true },
+	{ name = "SNLock", label = "Lock", keys = { KeyCode.Z, InputType.MouseButton3 }, pads = { KeyCode.ButtonR3 }, keyText = "Z", padText = "R3", touch = true },
 	-- Evolve into the next phase once the Phase meter is full (the server decides; Start is the only free pad button)
-	{ name = "SNEvolve", label = "Evolve", keys = { KeyCode.T }, pads = { KeyCode.ButtonStart }, keyText = "T", padText = "Start", touch = { -222, -86, 56 } },
+	{ name = "SNEvolve", label = "Evolve", keys = { KeyCode.T }, pads = { KeyCode.ButtonStart }, keyText = "T", padText = "Start", touch = true },
 	{ name = "SNTaunt", label = "Taunt", keys = { KeyCode.V }, pads = { KeyCode.ButtonSelect }, keyText = "V", padText = "View", hint = false },
 }
 -- Older code reads binding.inputs
@@ -53,6 +59,9 @@ for _, binding in InputController.Bindings do
 	end
 	binding.inputs = inputs
 end
+
+-- What still works in the lobby (matches Selection.LobbyActions on the server)
+local LOBBY_OK = { SNDodge = true, SNSprint = true, SNTaunt = true, SNLock = true }
 
 -- The bound handlers by action name: (actionName, state, input) -> result
 InputController.handlers = {} :: { [string]: (string, Enum.UserInputState, any) -> Enum.ContextActionResult? }
@@ -170,6 +179,14 @@ function InputController:Start()
 	for _, binding in InputController.Bindings do
 		local action = actions[binding.name]
 		local function handler(_, state, input)
+			-- Outside a fight and training only movement and emotes work (the server refuses the rest
+			-- too); letting go of something always works
+			if began(state) and not LOBBY_OK[binding.name] and not CombatView.active(player.Character, Shell.getMode()) then
+				if input and input.UserInputType == InputType.MouseButton1 then
+					return Enum.ContextActionResult.Pass
+				end
+				return Enum.ContextActionResult.Sink
+			end
 			action(state, input)
 			-- Let clicks through to buttons and the 3D world as normal
 			if input and input.UserInputType == InputType.MouseButton1 then
@@ -210,17 +227,16 @@ end
 
 -- Touch -------------------------------------------------------------------------------
 
--- Where Roblox puts its jump button (centre, from the bottom-right corner) and how
--- much bigger the cluster is on a tablet. Matches the PlayerModule's TouchJump.
+-- Where Roblox puts its jump button (centre, from the bottom-right corner) and how much bigger
+-- the cluster is on a tablet. Matches the PlayerModule's TouchJump.
 local function touchFrame(viewport: Vector2): (Vector2, number)
-	local small = math.min(viewport.X, viewport.Y) <= 500
-	if small then
-		return Vector2.new(-60, -55), 1
-	end
-	return Vector2.new(-110, -150), 1.3
+	local x, y = TouchArch.jumpFrame(viewport.X, viewport.Y)
+	return Vector2.new(x, y), TouchArch.scale(viewport.X, viewport.Y)
 end
 InputController.touchFrame = touchFrame
 
+-- The ability buttons are drawn 64 px square (AbilityBar); the arch scales them to the slot
+local ABILITY_DESIGN = 64
 local HOLD_ACTIONS = { SNHeavy = true, SNBlock = true, SNLock = true }
 
 function InputController:_buildTouch(actions)
@@ -237,8 +253,7 @@ function InputController:_buildTouch(actions)
 	local toggled = { SNSprint = false }
 
 	local function makeButton(binding)
-		local spec = binding.touch
-		local primary = binding.name == "SNLight"
+		local primary = binding.name == TouchArch.MAIN
 		local button = Instance.new("TextButton")
 		button.Name = "Touch" .. binding.label
 		button.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -260,10 +275,11 @@ function InputController:_buildTouch(actions)
 		label.Name = "Label"
 		label.AnchorPoint = Vector2.new(0.5, 0.5)
 		label.Position = UDim2.fromScale(0.5, 0.5)
-		label.Size = UDim2.new(1, -8, 0, 18)
+		label.Size = UDim2.new(1, -2, 0, 18)
 		label.BackgroundTransparency = 1
 		label.FontFace = Faces.Bold
-		label.TextSize = if primary then 15 else (if spec[3] < 50 then 12 else 13)
+		-- Six letters (EVOLVE) need a smaller size to fit the smallest buttons
+		label.TextSize = if primary then 16 elseif #(binding.touchLabel or binding.label) > 5 then 12 else 14
 		label.TextColor3 = Colors.Text
 		label.TextTruncate = Enum.TextTruncate.AtEnd
 		label.Text = string.upper(binding.touchLabel or binding.label)
@@ -272,7 +288,17 @@ function InputController:_buildTouch(actions)
 		local scale = Instance.new("UIScale")
 		scale.Parent = button
 		button.Parent = gui
-		buttons[binding.name] = { button = button, stroke = stroke, label = label, scale = scale, binding = binding, primary = primary }
+		buttons[binding.name] = {
+			button = button,
+			stroke = stroke,
+			label = label,
+			scale = scale,
+			binding = binding,
+			primary = primary,
+			slot = nil,
+			-- Evolve is shown only while the Phase meter is full (see _refreshTouch)
+			wanted = if binding.name == "SNEvolve" then false else nil,
+		}
 		return button
 	end
 
@@ -321,15 +347,43 @@ function InputController:_buildTouch(actions)
 	UserInputService.TouchEnded:Connect(release)
 	self.touchButtons = buttons
 
+	-- Places the arch: the main button, our own buttons and the ability buttons AbilityBar
+	-- handed over. Runs when the screen changes size or the set of buttons changes, never per frame.
 	local function layout()
 		local camera = workspace.CurrentCamera
 		local viewport = if camera then camera.ViewportSize else Vector2.new(1280, 720)
-		local jump, scale = touchFrame(viewport)
-		for _, entry in buttons do
-			local spec = entry.binding.touch
-			local size = math.floor(spec[3] * scale + 0.5)
-			entry.button.Size = UDim2.fromOffset(size, size)
-			entry.button.Position = UDim2.new(1, math.floor(jump.X + spec[1] * scale + 0.5), 1, math.floor(jump.Y + spec[2] * scale + 0.5))
+		local exists = {}
+		for name in buttons do
+			exists[name] = true
+		end
+		local abilityFrames = {}
+		for _, entry in TouchArch.state.abilities do
+			exists[entry.name] = true
+			abilityFrames[entry.name] = entry.frame
+		end
+		local result = TouchArch.compute(viewport.X, viewport.Y, TouchArch.items(exists))
+		self.arch = result
+		TouchArch.state.arch = result
+		for name, entry in buttons do
+			local slot = result.slots[name]
+			entry.slot = slot
+			entry.button.Visible = slot ~= nil and entry.wanted ~= false
+			if slot then
+				entry.button.Size = UDim2.fromOffset(slot.size, slot.size)
+				entry.button.Position = UDim2.new(1, math.floor(slot.x + 0.5), 1, math.floor(slot.y + 0.5))
+			end
+		end
+		for name, frame in abilityFrames do
+			local slot = result.slots[name]
+			frame.Visible = slot ~= nil
+			if slot then
+				frame.Size = UDim2.fromOffset(ABILITY_DESIGN, ABILITY_DESIGN)
+				frame.Position = UDim2.new(1, math.floor(slot.x + 0.5), 1, math.floor(slot.y + 0.5))
+				local scale = frame:FindFirstChild("ArchScale")
+				if scale then
+					scale.Scale = slot.size / ABILITY_DESIGN
+				end
+			end
 		end
 	end
 	layout()
@@ -343,6 +397,8 @@ function InputController:_buildTouch(actions)
 	watchCamera()
 	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(watchCamera)
 	self.layoutTouch = layout
+	TouchArch.state.layer = gui
+	TouchArch.state.relayout = layout
 
 	-- Shown on touch devices while there's a fight to have; button states follow the game
 	local elapsed = 0
@@ -364,14 +420,32 @@ function InputController:_refreshTouch(toggled)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local mode = Shell.getMode()
-	gui.Enabled = InputController.device() == "touch"
+	local shown = InputController.device() == "touch"
 		and humanoid ~= nil
 		and humanoid.Health > 0
 		and mode ~= "Editor"
 		and mode ~= "Cinematic"
 		and not Shell.isOpen()
-	if not gui.Enabled or not character then
+		and CombatView.active(character, mode)
+	if gui.Enabled ~= shown then
+		gui.Enabled = shown
+	end
+	if not shown or not character then
 		return
+	end
+	-- Evolve keeps its place in the arch (so nothing shifts mid-fight) but shows only when the
+	-- Phase meter is full
+	local evolve = self.touchButtons.SNEvolve
+	if evolve then
+		local meter = character:GetAttribute(Protocol.Attribute.PhaseMeter)
+		local ready = typeof(character:GetAttribute(Protocol.Attribute.PhaseNext)) == "string"
+			and typeof(meter) == "number"
+			and meter >= Selection.Phase.MeterMax
+		local visible = ready and evolve.slot ~= nil
+		evolve.wanted = ready
+		if evolve.button.Visible ~= visible then
+			evolve.button.Visible = visible
+		end
 	end
 	local combat = self.combat
 	local on = {

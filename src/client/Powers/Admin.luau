@@ -2265,4 +2265,34 @@ function Admin.appearance(kit)
 	end
 end
 
+-- Layered signature on top (core flash, glow, shaped burst, ground shockwave, light, shake)
+local Signature = require(script.Parent.Parent.Effects.Signature)
+Signature.decorate(Admin, "Admin", {
+	CommandExecute = { "impact", 2 },
+	TeleportOpen = { "cast", 1 },
+	TeleportArrive = { "impact", 1 },
+	FreezeCast = { "windup", 1, 4 },
+	FreezeLock = { "impact", 1 },
+	ForceField = { "cast", 1 },
+	BarrierCast = { "windup", 1, 5 },
+	BarrierUp = { "cast", 2 },
+	JailCast = { "windup", 2, 5 },
+	JailLock = { "impact", 2 },
+	GravityCast = { "windup", 1, 5 },
+	GravityHeavy = { "impact", 1 },
+	FlingCast = { "windup", 1, 4 },
+	FlingThrow = { { "trail", 1.5, 14 }, { "impact", 2 } },
+	LockdownCast = { "windup", 2, 7 },
+	LockdownUp = { "impact", 2 },
+	GravityFieldCast = { "windup", 2, 7 },
+	GravityField = { "cast", 2 },
+	SequenceStart = { "cast", 1 },
+	SequenceBlink = { "trail", 1.2, 10 },
+	SequenceStrike = { "impact", 2 },
+	AreaCast = { "windup", 2, 8 },
+	AreaExecute = { "impact", 3 },
+	BanHammerWindup = { "ultwindup", 3, 14 },
+	BanHammerSlam = { "ultimate", 3, 24 },
+})
+
 return Admin

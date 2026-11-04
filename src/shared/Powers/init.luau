@@ -1,4 +1,4 @@
--- The eight powers: where their definitions live and the rules every screen
+-- The eight powers (seven are released at launch, see Powers.Unreleased): where their definitions live and the rules every screen
 -- and service shares about them (degree unlocks, loadouts, ability stats per
 -- degree, combat stats). Each power's own numbers are in the file named after
 -- it next to this one.
@@ -24,6 +24,9 @@ Powers.Order = {
 	"Grandmaster",
 }
 
+-- Held for a later update, owner decision 3 Nov 2026. Remove the entry to release the fighter.
+Powers.Unreleased = { Shapeshifter = true }
+
 Powers.Default = "StrongDude"
 -- Degrees a power has unless its definition says otherwise (`degreeCount`)
 Powers.Degrees = 3
@@ -46,6 +49,28 @@ Powers.Defs = defs
 
 function Powers.get(powerId: string): any?
 	return defs[powerId]
+end
+
+-- Can players use this fighter? Unreleased ones are for the owner's testing only.
+function Powers.isReleased(id: any): boolean
+	return typeof(id) == "string" and defs[id] ~= nil and not Powers.Unreleased[id]
+end
+
+-- The released fighters, in selection order
+function Powers.released(): { string }
+	local list = {}
+	for _, id in Powers.Order do
+		if not Powers.Unreleased[id] then
+			table.insert(list, id)
+		end
+	end
+	return list
+end
+
+-- The plain refusal for a fighter that is not out yet
+function Powers.unreleasedMessage(id: string): string
+	local def = defs[id]
+	return `The {if def then def.name else "fighter"} arrives in a later update.`
 end
 
 -- How many degrees this power has (0 for an unknown power)

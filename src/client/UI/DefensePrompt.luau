@@ -45,7 +45,7 @@ local ICONS = { Prompt = "⚠️", Timing = "🎯", Mash = "✊", Redirect = "�
 local function text(props: { [string]: any }): TextLabel
 	local label = make("TextLabel", {
 		BackgroundTransparency = 1,
-		Font = props.Font or Theme.Fonts.Heading,
+		FontFace = Theme.FaceForFont[(props.Font or Theme.Fonts.Heading).Name] or Theme.Faces.Bold,
 		TextColor3 = props.TextColor3 or Colors.Text,
 		TextSize = props.TextSize or 16,
 		TextXAlignment = props.TextXAlignment or Enum.TextXAlignment.Left,
@@ -86,7 +86,7 @@ end
 function DefensePrompt:show(data)
 	self:hide(data.id)
 	local kind = data.kind
-	local height = if kind == "Timing" then 96 elseif kind == "Mash" then 92 else 70
+	local height = if kind == "Timing" then 108 elseif kind == "Mash" then 104 else 80
 	local card = make("TextButton", {
 		Name = kind,
 		AutoButtonColor = false,
@@ -114,35 +114,35 @@ function DefensePrompt:show(data)
 		ZIndex = 2,
 		Parent = card,
 	}, { Components.corner(UDim.new(0, 10)) })
-	text({ Text = ICONS[kind] or "!", Size = UDim2.fromScale(1, 1), TextSize = 24, TextXAlignment = Enum.TextXAlignment.Center, Parent = tile })
+	text({ Text = ICONS[kind] or "!", Size = UDim2.fromScale(1, 1), TextSize = 28, TextXAlignment = Enum.TextXAlignment.Center, Parent = tile })
 	local title = text({
 		Text = TITLES[kind] or kind,
 		Font = Theme.Fonts.Title,
-		TextSize = 22,
+		TextSize = 26,
 		TextColor3 = Colors.Gold,
-		Position = UDim2.fromOffset(66, 10),
-		Size = UDim2.new(1, -78, 0, 26),
+		Position = UDim2.fromOffset(66, 8),
+		Size = UDim2.new(1, -78, 0, 32),
 		Parent = card,
 	})
 	local hint = text({
 		Text = "",
 		Font = Theme.Fonts.Body,
-		TextSize = 14,
+		TextSize = 16,
 		TextColor3 = Colors.TextDim,
-		Position = UDim2.fromOffset(66, 36),
-		Size = UDim2.new(1, -78, 0, 18),
+		Position = UDim2.fromOffset(66, 42),
+		Size = UDim2.new(1, -78, 0, 24),
 		Parent = card,
 	})
 	if typeof(data.label) == "string" and data.label ~= "" and kind ~= "Mash" then
 		text({
 			Text = string.upper(data.label),
 			Font = Theme.Fonts.Heading,
-			TextSize = 12,
+			TextSize = 15,
 			TextColor3 = Colors.TextDim,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.new(1, -14, 0, 14),
-			Size = UDim2.fromOffset(150, 16),
+			Size = UDim2.fromOffset(150, 22),
 			Parent = card,
 		})
 	end
@@ -218,11 +218,11 @@ function DefensePrompt:show(data)
 			entry.counter = text({
 				Text = `0 / {entry.required}`,
 				Font = Theme.Fonts.Numbers,
-				TextSize = 16,
+				TextSize = 18,
 				TextXAlignment = Enum.TextXAlignment.Right,
 				AnchorPoint = Vector2.new(1, 0),
 				Position = UDim2.new(1, -14, 0, 14),
-				Size = UDim2.fromOffset(80, 20),
+				Size = UDim2.fromOffset(80, 26),
 				Parent = card,
 			})
 		end

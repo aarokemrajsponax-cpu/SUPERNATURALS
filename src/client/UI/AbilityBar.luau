@@ -4,6 +4,8 @@
 -- power's extra meters, like The Grandmaster's Focus and Perfect Form). Buttons
 -- are tappable on touch and show a short explanation when a press can't work
 -- ("Not enough Grit"). No emoji: icons come from UI/Icons by ability.
+-- On touch the buttons leave this bar and join the arch of thumb buttons (see TouchArch and
+-- InputController); the resource meter stays here, under the vitals.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +17,7 @@ local Protocol = require(ReplicatedStorage.Shared.Protocol)
 local Theme = require(script.Parent.Theme)
 local Components = require(script.Parent.Components)
 local Icons = require(script.Parent.Icons)
+local TouchArch = require(script.Parent.TouchArch)
 
 local Attribute = Protocol.Attribute
 local Colors = Theme.Colors
@@ -306,6 +309,37 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 		return button
 	end
 
+	-- Where the buttons live: this bar, or (on touch) the arch of thumb buttons
+	local inArch = false
+	local function place()
+		local layer = TouchArch.state.layer
+		local wantArch = device() == "touch" and layer ~= nil
+		inArch = wantArch
+		row.Visible = not wantArch
+		holder.Size = UDim2.new(1, 0, 0, if wantArch then 22 else ULT_SIZE + KEY_ROW + 22)
+		local list = {}
+		for _, button in buttons do
+			local frame = button.frame
+			local scale = frame:FindFirstChild("ArchScale")
+			if wantArch then
+				frame.Parent = layer
+				frame.AnchorPoint = Vector2.new(0.5, 0.5)
+				if not scale then
+					scale = make("UIScale", { Name = "ArchScale", Parent = frame })
+				end
+				table.insert(list, { name = "Ability_" .. tostring(button.slot), slot = button.slot, frame = frame })
+			else
+				frame.Parent = row
+				frame.AnchorPoint = Vector2.zero
+				frame.Position = UDim2.new()
+				if scale then
+					scale:Destroy()
+				end
+			end
+		end
+		TouchArch.setAbilityButtons(list)
+	end
+
 	local function rebuild()
 		for _, button in buttons do
 			button.frame:Destroy()
@@ -314,6 +348,7 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 		for order, entry in abilities:slots() do
 			table.insert(buttons, buildButton(entry, order))
 		end
+		place()
 	end
 
 	abilities.rejected:Connect(function(abilityId, text)
@@ -347,13 +382,17 @@ function AbilityBar.build(row: Frame, abilities, device: () -> string)
 			signature = now
 			rebuild()
 		end
-		holder.Visible = #buttons > 0
+		-- Moved between the bar and the arch (a gamepad or mouse touched, or the layer appeared)
+		if inArch ~= (device() == "touch" and TouchArch.state.layer ~= nil) then
+			place()
+		end
 
 		local powerDef = Powers.get(character:GetAttribute(Attribute.Power))
 		local resourceDef = powerDef and powerDef.resource
 		local resource = character:GetAttribute(Attribute.Resource) or 0
 		local resourceMax = character:GetAttribute(Attribute.ResourceMax) or 0
 		meter.Visible = resourceDef ~= nil and resourceMax > 0
+		holder.Visible = #buttons > 0 and (not inArch or meter.Visible)
 		if resourceDef then
 			resourceLabel.Text = `{string.upper(resourceDef.name)}  {math.floor(resource)}/{resourceMax}`
 			fill.BackgroundColor3 = resourceDef.color or Colors.Cyan

@@ -54,9 +54,16 @@ def apply_gradient(layer, box, grad, mask):
     if tr:
         al = 1 - np.interp(t, np.array([a[0] for a in tr]), [a[1] for a in tr])
     arr = np.array(layer)
-    region = arr[y:y + h, x:x + w]
-    if region.shape[:2] != (h, w):
+    # A box that runs past the image edge (a card scrolled partly out of view) is clipped to it,
+    # not skipped: skipping left such cards plain white
+    H, W = arr.shape[:2]
+    x0, y0 = max(x, 0), max(y, 0)
+    x1, y1 = min(x + w, W), min(y + h, H)
+    if x1 <= x0 or y1 <= y0:
         return layer
+    rgb = rgb[y0 - y:y1 - y, x0 - x:x1 - x]
+    al = al[y0 - y:y1 - y, x0 - x:x1 - x]
+    region = arr[y0:y1, x0:x1]
     region[..., :3] = (region[..., :3].astype(np.float32) * rgb).astype(np.uint8)
     region[..., 3] = (region[..., 3].astype(np.float32) * al).astype(np.uint8)
     return Image.fromarray(arr, "RGBA")

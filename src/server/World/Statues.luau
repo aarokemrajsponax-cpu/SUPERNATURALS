@@ -75,6 +75,8 @@ local FINISH = {
 	bronze = { rgb(140, 106, 63), M.Metal, "SN_Bronze", 0.04, 0.05 },
 	bright = { rgb(181, 139, 79), M.Metal, "SN_Bronze", 0.03, 0.08 }, -- polished bronze where hands wore it
 	gold = { rgb(217, 178, 95), M.Foil, "SN_GoldLeaf", 0.01, 0 },
+	cloth = { rgb(46, 47, 52), M.Fabric, nil, 0.02, 0 }, -- deep charcoal fabric of the veil
+	copper = { rgb(176, 108, 66), M.Metal, "SN_Bronze", 0.03, 0.06 },
 	glow = { rgb(126, 200, 255), M.Neon, nil, 0, 0 }, -- takes the power's colour
 }
 
@@ -626,6 +628,18 @@ function carve.Shapeshifter(c)
 	return { aim = V(0, 6.2, 0) }
 end
 
+-- Held back for a later update (Powers.Unreleased): a tall shrouded form in charcoal cloth with
+-- soft folds, tied with a thin copper cord. It stands where the statue will be.
+function carve.Veiled(c)
+	drape(c, "Veil", { center = V(0, 0, 0), rx = 0.42, rz = 0.36, top = 6.9, flare = 0.55, count = 16, from = -180, to = 180, zig = 14, depth = 0.2, finish = "cloth", hem = 0.06, ragged = 0.08 })
+	drape(c, "VeilCape", { center = V(0, 0, 0), rx = 0.62, rz = 0.5, top = 6.3, flare = 0.3, count = 12, from = -180, to = 180, zig = 18, depth = 0.18, finish = "cloth", hem = function(_, t) return 3.3 + 0.35 * math.sin(t * 24) end })
+	blob(c, "Cranium", V(0, 7.15, 0), 1.0, "cloth", { shadow = false })
+	blob(c, "VeilShoulders", V(0, 6.2, 0), 1.35, "cloth")
+	ring(c, "Cord", V(0, 4.3, 0), UP, 0.82, 14, 0.07, 0.07, "copper", { shadow = false })
+	seg(c, "CordEnd", V(0.8, 4.3, -0.2), V(0.9, 2.7, -0.3), 0.05, 0.05, "copper", { shadow = false })
+	return { aim = V(0, 5.2, 0) }
+end
+
 -- FURNACE, programme IV (Machine Master): the right arm is a machine of iron, pistons, gears and a
 -- glowing seam, raised and open; the left hand rests on a forge hammer. Goggles on the brow.
 function carve.MachineMaster(c)
@@ -1004,7 +1018,8 @@ local function lights(c, base: CFrame, s: number, design, aim: Vector3, shadows:
 	spot.Name = "KeyLight"
 	spot.Face = Enum.NormalId.Front
 	spot.Color = KEY_COLOR
-	spot.Brightness = 2.6
+	local dim = design.dim or 1
+	spot.Brightness = 2.6 * dim
 	spot.Range = math.min(70 * s, 90)
 	spot.Angle = 70
 	spot.Shadows = shadows
@@ -1015,7 +1030,7 @@ local function lights(c, base: CFrame, s: number, design, aim: Vector3, shadows:
 	cool.Name = "RimLight"
 	cool.Face = Enum.NormalId.Front
 	cool.Color = RIM_COLOR
-	cool.Brightness = 1.8
+	cool.Brightness = 1.8 * dim
 	cool.Range = math.min(48 * s, 70)
 	cool.Angle = 80
 	cool.Shadows = false
@@ -1172,6 +1187,20 @@ function Statues.build(powerId: string, base: CFrame, opts: { height: number?, s
 	end
 	local base0 = Statues.Designs[powerId]
 	local design = describe(powerId, base0 or GENERIC)
+	-- A fighter held for a later update keeps its plinth but stands veiled (Powers.Unreleased)
+	local veiled = false
+	do
+		local ok, Powers = pcall(function()
+			return require((ReplicatedStorage :: any).Shared.Powers)
+		end)
+		if ok and type(Powers) == "table" and type(Powers.Unreleased) == "table" and Powers.Unreleased[powerId] then
+			veiled = true
+			design.codename = "CLASSIFIED"
+			design.title = "TO BE REVEALED"
+			design.attribute = "veiled"
+			design.dim = 0.55
+		end
+	end
 	if not base0 then
 		design.codename = string.upper(tostring(powerId))
 		design.title = tostring(powerId)
@@ -1183,6 +1212,9 @@ function Statues.build(powerId: string, base: CFrame, opts: { height: number?, s
 	model.Name = "Statue_" .. tostring(powerId)
 	model:SetAttribute("PowerId", tostring(powerId))
 	model:SetAttribute("Codename", design.codename)
+	if veiled then
+		model:SetAttribute("Veiled", true)
+	end
 	local seed = (table.find(Statues.Order, powerId) or 9) * 7919 + 17
 	local c = { color = design.color, parent = model, random = Random.new(seed), count = 0, bad = 0, h = height / 8, origin = base }
 	stretched = 0
@@ -1208,7 +1240,7 @@ function Statues.build(powerId: string, base: CFrame, opts: { height: number?, s
 	local figure = Instance.new("Model")
 	figure.Name = "Figure"
 	figure.Parent = model
-	local source = sculpted(powerId)
+	local source = if veiled then nil else sculpted(powerId)
 	local seated = false
 	if source then
 		seated = guarded("sculpted figure", function()
@@ -1230,7 +1262,7 @@ function Statues.build(powerId: string, base: CFrame, opts: { height: number?, s
 	if not seated then
 		c.parent = figure
 		c.origin = ground
-		local maker = carve[powerId]
+		local maker = if veiled then carve.Veiled else carve[powerId]
 		local result = nil
 		local ok = maker ~= nil
 			and guarded("figure", function()

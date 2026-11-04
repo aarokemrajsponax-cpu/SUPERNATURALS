@@ -60,7 +60,7 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 	end
 	local held = prompt.HoldDuration > 0
 	local action = if prompt.ActionText ~= "" then prompt.ActionText else "Use"
-	local width = math.clamp(Components.textWidth(action, 16) + 108, 150, 300)
+	local width = math.clamp(Components.textWidth(action, 20) + 112, 170, 340)
 
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "SNPrompt"
@@ -68,7 +68,7 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 	gui.AlwaysOnTop = true
 	gui.LightInfluence = 0
 	gui.ResetOnSpawn = false
-	gui.Size = UDim2.fromOffset(width, if prompt.ObjectText ~= "" then 64 else 48)
+	gui.Size = UDim2.fromOffset(width, if prompt.ObjectText ~= "" then 76 else 56)
 	gui.StudsOffset = Vector3.new(0, 0, 0)
 	gui.SizeOffset = Vector2.new(0, 0)
 	gui.Adornee = if prompt.Parent and prompt.Parent:IsA("Attachment") or prompt.Parent and prompt.Parent:IsA("BasePart") then prompt.Parent else nil
@@ -98,11 +98,11 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 	local cap = Components.keycap(keyText(prompt, inputType), {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Height = 28,
+		Height = 32,
 		Parent = ringHolder,
 	})
 	cap.AutomaticSize = Enum.AutomaticSize.None
-	cap.Size = UDim2.fromOffset(28, 28)
+	cap.Size = UDim2.fromOffset(32, 32)
 	local setRing = function(_: number) end
 	if held then
 		local ring, set = Components.ring({
@@ -133,10 +133,10 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 		Text = action,
 		Style = "body",
 		Weight = "SemiBold",
-		TextSize = 16,
+		TextSize = 18,
 		Color = Colors.Text,
 		LayoutOrder = 1,
-		Size = UDim2.new(1, 0, 0, 20),
+		Size = UDim2.new(1, 0, 0, 26),
 		Parent = textArea,
 	})
 	if prompt.ObjectText ~= "" then
@@ -144,10 +144,10 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 			Name = "Object",
 			Text = prompt.ObjectText,
 			Style = "caption",
-			TextSize = 14,
+			TextSize = 16,
 			Color = Colors.TextDim,
 			LayoutOrder = 2,
-			Size = UDim2.new(1, 0, 0, 18),
+			Size = UDim2.new(1, 0, 0, 22),
 			Parent = textArea,
 		})
 	end

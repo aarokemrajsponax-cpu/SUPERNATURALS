@@ -140,7 +140,7 @@ for _, spec in {
 	{ "GuiObject", { "MouseEnter", "MouseLeave", "InputBegan", "InputEnded" } },
 	{ "GuiButton", { "Activated", "MouseButton1Click" } },
 	{ "TextBox", { "FocusLost", "Focused" } },
-	{ "Humanoid", { "Died", "HealthChanged" } },
+	{ "Humanoid", { "Died", "HealthChanged", "StateChanged" } },
 	{ "Players", { "PlayerAdded", "PlayerRemoving" } },
 	{ "Player", { "CharacterAdded", "CharacterRemoving" } },
 	{ "RunService", { "Heartbeat", "RenderStepped", "Stepped" } },
@@ -300,6 +300,17 @@ roblox.implementMethod("TweenService", "Create", function(_, instance, info, goa
 	local tween = { Completed = completed, PlaybackState = "Begin", Instance = instance }
 	local cancelled = false
 	function tween.Play()
+		-- Preview renders: Engine.tweenFreeze = 0.4 shows every tween 40% of the way, at once
+		local frozen = Engine.tweenFreeze
+		if frozen then
+			for key, value in goal do
+				pcall(function()
+					local from = instance[key]
+					instance[key] = if type(value) == "number" then from + (value - from) * frozen else from:Lerp(value, frozen)
+				end)
+			end
+			return
+		end
 		task.delay((info.Time or 0) / Engine.speed, function()
 			if cancelled then
 				return
@@ -961,6 +972,61 @@ function Engine.newTextService()
 		}
 	end
 	return ts
+end
+
+-- A stand-in HttpService for the Ask Jeffery provider path (JefferyChatService.http):
+--   local http = Engine.newHttpService()
+--   http.secrets.ANTHROPIC_API_KEY = "test-key"      -- GetSecret errors for a name that is not set
+--   http.queue = { { status = 200, body = { content = { { type = "text", text = "Hi" } } } } }
+--     each entry answers one RequestAsync: { status, body (table or string), error = "msg" (the call
+--     throws), delay = seconds }. When the queue is empty the call throws "no response queued".
+--   http.requests records { Url, Method, Headers, Body (string), json (decoded Body) } per call.
+--   http.encodeFails / http.decodeFails make JSONEncode / JSONDecode throw.
+function Engine.newHttpService()
+	local http = { secrets = {} :: { [string]: any }, queue = {} :: { any }, requests = {} :: { any }, encodeFails = false, decodeFails = false }
+	function http.GetSecret(_, name)
+		local value = http.secrets[name]
+		if value == nil then
+			error("Secret " .. tostring(name) .. " is not a valid secret")
+		end
+		return value
+	end
+	function http.JSONEncode(_, value)
+		if http.encodeFails then
+			error("cannot encode (simulated)")
+		end
+		return serde.encode("json", value)
+	end
+	function http.JSONDecode(_, text)
+		if http.decodeFails then
+			error("cannot decode (simulated)")
+		end
+		return serde.decode("json", text)
+	end
+	function http.RequestAsync(_, options)
+		local entry = table.remove(http.queue, 1)
+		local record = { Url = options.Url, Method = options.Method, Headers = options.Headers, Body = options.Body }
+		pcall(function()
+			record.json = serde.decode("json", options.Body)
+		end)
+		table.insert(http.requests, record)
+		if entry == nil then
+			error("no response queued (simulated)")
+		end
+		if entry.delay then
+			task.wait(entry.delay)
+		end
+		if entry.error then
+			error(entry.error)
+		end
+		local body = entry.body
+		if type(body) == "table" then
+			body = serde.encode("json", body)
+		end
+		local status = entry.status or 200
+		return { Success = status >= 200 and status < 300, StatusCode = status, StatusMessage = "", Headers = {}, Body = body or "" }
+	end
+	return http
 end
 
 -- Cross-server services -------------------------------------------------------------------

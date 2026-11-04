@@ -533,4 +533,24 @@ function Strong.appearance(kit)
 	end
 end
 
+-- Layered signature on top (core flash, glow, dust spikes, rings, light, shake)
+local Signature = require(script.Parent.Parent.Effects.Signature)
+Signature.decorate(Strong, "StrongDude", {
+	GroundbreakerWindup = { "windup", 2, 7 },
+	GroundbreakerImpact = { "impact", 2 },
+	StompWindup = { "windup", 1, 6 },
+	StompImpact = { "impact", 2 },
+	GripCatch = { "impact", 1 },
+	GripSlam = { "impact", 2 },
+	ChargeWindup = { "windup", 2, 5 },
+	ChargeImpact = { "impact", 2 },
+	Uppercut = { "impact", 2 },
+	FissureWindup = { "windup", 2, 6 },
+	Fissure = { "trail", 2, 30 },
+	IronBody = { "cast", 2 },
+	IronBodyCounter = { "impact", 1 },
+	WorldBreakerWindup = { "ultwindup", 3, 16 },
+	WorldBreakerImpact = { "ultimate", 3, 24 },
+})
+
 return Strong

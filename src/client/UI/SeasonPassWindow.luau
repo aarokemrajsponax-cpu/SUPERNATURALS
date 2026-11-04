@@ -26,14 +26,14 @@ local make = Components.make
 
 local SeasonPassWindow = {}
 
-local CELL_W = 132
-local CELL_H = 120
+local CELL_W = 156
+local CELL_H = 140
 local GAP = 8
-local LABEL_W = 88
-local HEADER_H = 24
-local OFFER_H = 76
--- Top 52, points 36, the track (header, two rows, scrollbar), a gap, then the offers
-local PAGE_H = 96 + (HEADER_H + GAP + CELL_H * 2 + GAP + 10) + 4 + OFFER_H
+local LABEL_W = 120
+local HEADER_H = 28
+local OFFER_H = 116
+-- Top 64, points 40, the track (header, two rows, scrollbar), a gap, then the offers
+local PAGE_H = 118 + (HEADER_H + GAP + CELL_H * 2 + GAP + 10) + 4 + OFFER_H
 
 local KIND_WORD = { title = "Title", plate = "Nameplate", aura = "Aura", knockout = "Knockout effect" }
 
@@ -141,22 +141,22 @@ local function buildCell(parent: Instance, state, track: string, tier: number, x
 		Name = "Name",
 		Text = reward.name,
 		Style = "small",
-		TextSize = 14,
+		TextSize = 16,
 		Weight = "SemiBold",
 		Color = if dim then Colors.TextMuted else Colors.Text,
 		Lines = 2,
-		Position = UDim2.fromOffset(8, 16),
-		Size = UDim2.new(1, -16, 0, 36),
+		Position = UDim2.fromOffset(8, 18),
+		Size = UDim2.new(1, -16, 0, 44),
 		Parent = cell,
 	})
 	Components.text({
 		Name = "Kind",
 		Text = reward.kind,
 		Style = "small",
-		TextSize = 14,
+		TextSize = 16,
 		Color = Colors.TextMuted,
-		Position = UDim2.fromOffset(8, 50),
-		Size = UDim2.new(1, -16, 0, 18),
+		Position = UDim2.fromOffset(8, 64),
+		Size = UDim2.new(1, -16, 0, 22),
 		Parent = cell,
 	})
 	local footer = UDim2.new(1, -16, 0, 44)
@@ -165,8 +165,8 @@ local function buildCell(parent: Instance, state, track: string, tier: number, x
 		Components.button("Claim", {
 			Name = "Claim",
 			Variant = "Primary",
-			TextSize = 14,
-			Position = UDim2.new(0, 8, 1, -52),
+			TextSize = 16,
+			Position = UDim2.new(0, 8, 1, -50),
 			Size = footer,
 			Parent = cell,
 		}, function()
@@ -178,11 +178,11 @@ local function buildCell(parent: Instance, state, track: string, tier: number, x
 			Name = "Status",
 			Text = label,
 			Style = "small",
-			TextSize = 14,
+			TextSize = 16,
 			Weight = "SemiBold",
 			Color = if status == "claimed" then Colors.Success elseif status == "premium" then Colors.Copper else Colors.TextMuted,
 			AlignY = "Center",
-			Position = UDim2.new(0, 8, 1, -52),
+			Position = UDim2.new(0, 8, 1, -50),
 			Size = footer,
 			Parent = cell,
 		})
@@ -230,13 +230,13 @@ local function buildOffer(parent: Instance, name: string, text: string, st, inde
 		Size = UDim2.new(0.5, -GAP / 2, 1, 0),
 		Parent = parent,
 	})
-	Components.text({ Name = "Name", Text = name, Style = "heading", TextSize = 18, Position = UDim2.fromOffset(Space.L, 8), Size = UDim2.new(1, -(Space.L * 2 + 150), 0, 24), Parent = card })
-	Components.text({ Name = "About", Text = text, Style = "small", TextSize = 14, Color = Colors.TextDim, Lines = 3, Position = UDim2.fromOffset(Space.L, 34), Size = UDim2.new(1, -(Space.L * 2 + 150), 0, 54), Parent = card })
+	Components.text({ Name = "Name", Text = name, Style = "heading", TextSize = 22, Position = UDim2.fromOffset(Space.L, 8), Size = UDim2.new(1, -(Space.L * 2 + 150), 0, 30), Parent = card })
+	Components.text({ Name = "About", Text = text, Style = "small", TextSize = 16, Color = Colors.TextDim, Lines = 3, Position = UDim2.fromOffset(Space.L, 40), Size = UDim2.new(1, -(Space.L * 2 + 150), 0, 68), Parent = card })
 	Components.text({
 		Name = "Price",
 		Text = st.priceText,
 		Style = "strong",
-		TextSize = 16,
+		TextSize = 18,
 		AlignX = "Right",
 		Color = if st.priceText:sub(1, 2) == "R$" then Colors.Robux else Colors.TextDim,
 		AnchorPoint = Vector2.new(1, 0),
@@ -248,7 +248,7 @@ local function buildOffer(parent: Instance, name: string, text: string, st, inde
 		Name = "Action",
 		Variant = if st.enabled and not st.owned then "Primary" else "Secondary",
 		KeepCase = true,
-		TextSize = 14,
+		TextSize = 16,
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -Space.L, 1, -8),
 		Size = UDim2.fromOffset(142, 44),
@@ -280,20 +280,20 @@ function SeasonPassWindow.register()
 			local page = make("Frame", { Name = "Page", Size = UDim2.new(1, -8, 0, PAGE_H), BackgroundTransparency = 1, Parent = content })
 
 			-- Top: season name and plain end date on the left, claim-all on the right
-			local top = make("Frame", { Name = "Top", Size = UDim2.new(1, 0, 0, 52), BackgroundTransparency = 1, Parent = page })
-			Components.text({ Name = "Season", Text = season.name, Style = "title", Size = UDim2.new(1, -190, 0, 30), Parent = top })
+			local top = make("Frame", { Name = "Top", Size = UDim2.new(1, 0, 0, 64), BackgroundTransparency = 1, Parent = page })
+			Components.text({ Name = "Season", Text = season.name, Style = "title", Size = UDim2.new(1, -190, 0, 34), Parent = top })
 			local ends = if running then `Runs until {season.endText}. Every tier can be reached by playing.` else `This season ended on {season.endText}. Rewards you reached can still be claimed.`
-			Components.text({ Name = "Ends", Text = ends, Style = "small", TextSize = 15, Color = Colors.TextDim, Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, -190, 0, 22), Parent = top })
+			Components.text({ Name = "Ends", Text = ends, Style = "small", TextSize = 16, Color = Colors.TextDim, Position = UDim2.fromOffset(0, 38), Size = UDim2.new(1, -190, 0, 24), Parent = top })
 			local claimAll
 
 			-- Points line with a bar to the next tier
-			local progress = make("Frame", { Name = "Progress", Position = UDim2.fromOffset(0, 54), Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1, Parent = page })
-			local pointsText = Components.text({ Name = "Points", Text = "", Style = "strong", TextSize = 16, Size = UDim2.new(1, 0, 0, 22), Parent = progress })
-			local barFrame, setBar = Components.bar({ Name = "Bar", Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 8), Parent = progress }, Colors.Copper)
+			local progress = make("Frame", { Name = "Progress", Position = UDim2.fromOffset(0, 68), Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, Parent = page })
+			local pointsText = Components.text({ Name = "Points", Text = "", Style = "strong", TextSize = 20, Size = UDim2.new(1, 0, 0, 26), Parent = progress })
+			local barFrame, setBar = Components.bar({ Name = "Bar", Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 8), Parent = progress }, Colors.Copper)
 			barFrame.BorderSizePixel = 0
 
 			-- The track
-			local trackTop = 96
+			local trackTop = 118
 			local trackHeight = HEADER_H + GAP + CELL_H * 2 + GAP + 10
 			local labels = make("Frame", { Name = "Labels", Position = UDim2.fromOffset(0, trackTop), Size = UDim2.fromOffset(LABEL_W, trackHeight), BackgroundTransparency = 1, Parent = page })
 			local scroll = Components.scroll({
@@ -347,10 +347,10 @@ function SeasonPassWindow.register()
 
 				-- Row labels
 				local rowY = { free = HEADER_H + GAP, premium = HEADER_H + GAP + CELL_H + GAP }
-				Components.text({ Name = "FreeLabel", Text = "Free", Style = "heading", TextSize = 18, Position = UDim2.fromOffset(0, rowY.free + 8), Size = UDim2.fromOffset(LABEL_W, 24), Parent = labels })
-				Components.text({ Name = "FreeNote", Text = "Money and looks", Style = "small", TextSize = 14, Color = Colors.TextMuted, Lines = 2, Position = UDim2.fromOffset(0, rowY.free + 34), Size = UDim2.fromOffset(LABEL_W, 36), Parent = labels })
-				Components.text({ Name = "PremiumLabel", Text = "Premium", Style = "heading", TextSize = 18, Color = Colors.Copper, Position = UDim2.fromOffset(0, rowY.premium + 8), Size = UDim2.fromOffset(LABEL_W, 24), Parent = labels })
-				Components.text({ Name = "PremiumNote", Text = if state.premium then "Unlocked" else "Locked", Style = "small", TextSize = 14, Color = if state.premium then Colors.Success else Colors.TextMuted, Position = UDim2.fromOffset(0, rowY.premium + 34), Size = UDim2.fromOffset(LABEL_W, 20), Parent = labels })
+				Components.text({ Name = "FreeLabel", Text = "Free", Style = "heading", TextSize = 22, Position = UDim2.fromOffset(0, rowY.free + 8), Size = UDim2.fromOffset(LABEL_W, 24), Parent = labels })
+				Components.text({ Name = "FreeNote", Text = "Money and looks", Style = "small", TextSize = 16, Color = Colors.TextMuted, Lines = 2, Position = UDim2.fromOffset(0, rowY.free + 38), Size = UDim2.fromOffset(LABEL_W, 46), Parent = labels })
+				Components.text({ Name = "PremiumLabel", Text = "Premium", Style = "heading", TextSize = 22, Color = Colors.Copper, Position = UDim2.fromOffset(0, rowY.premium + 8), Size = UDim2.fromOffset(LABEL_W, 24), Parent = labels })
+				Components.text({ Name = "PremiumNote", Text = if state.premium then "Unlocked" else "Locked", Style = "small", TextSize = 16, Color = if state.premium then Colors.Success else Colors.TextMuted, Position = UDim2.fromOffset(0, rowY.premium + 38), Size = UDim2.fromOffset(LABEL_W, 24), Parent = labels })
 
 				-- Tiers
 				for tier = 1, SeasonPass.TierCount do
@@ -359,7 +359,7 @@ function SeasonPassWindow.register()
 						Name = "Tier_" .. tier,
 						Text = `Tier {tier}`,
 						Style = "number",
-						TextSize = 14,
+						TextSize = 16,
 						Weight = "SemiBold",
 						Color = if tier == state.tier then Colors.Cyan elseif tier < state.tier then Colors.TextDim else Colors.TextMuted,
 						Position = UDim2.fromOffset(x + 2, 0),
@@ -385,7 +385,7 @@ function SeasonPassWindow.register()
 					Name = "ClaimAll",
 					Variant = if #keys > 0 then "Primary" else "Secondary",
 					KeepCase = true,
-					TextSize = 14,
+					TextSize = 16,
 					AnchorPoint = Vector2.new(1, 0),
 					Position = UDim2.new(1, 0, 0, 4),
 					Size = UDim2.fromOffset(176, 44),

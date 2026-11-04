@@ -394,8 +394,10 @@ function ArenaService:lobbyCenter(): Vector3
 end
 
 function ArenaService:trainingSpawn(): CFrame
+	-- Just inside the entrance on the east wall, looking along the plaza
 	local center = MatchConfig.TrainingGround.Center
-	return CFrame.lookAt(center + Vector3.new(20, 4, 0), center + Vector3.new(0, 4, 0))
+	local entrance = TrainingHall.EntranceOffset
+	return CFrame.lookAt(center + entrance, center + Vector3.new(0, entrance.Y, entrance.Z))
 end
 
 function ArenaService:trainingDummySpots(): { CFrame }

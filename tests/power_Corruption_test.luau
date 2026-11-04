@@ -329,6 +329,26 @@ check("every effect and projectile the server sends has a client drawing", funct
 	end
 end)
 
+-- Ranked Duels only take a fighter the player owns (a trial stays out), so both players unlock
+-- Corruption through the Gems path, the way a real player would, before they queue
+local function ownForDuel(...)
+	local players = { ... }
+	for _, player in players do
+		if not services.PowerService:owns(player, "Corruption") then
+			services.CurrencyService:add(player, { gems = DEF.premium.gems }, "test")
+			request("PowerRequest", player, Protocol.PowerAction.UnlockPower, "Corruption")
+		end
+	end
+	game.waitFor(function()
+		for _, player in players do
+			if not services.PowerService:owns(player, "Corruption") then
+				return false
+			end
+		end
+		return true
+	end, 3, "both players to own Corruption")
+end
+
 -- Equipping ---------------------------------------------------------------------------------
 
 check("two players equip Corruption and start a duel: stats, an empty meter, the first overwrite", function()
@@ -337,6 +357,7 @@ check("two players equip Corruption and start a duel: stats, an empty meter, the
 	game.waitFor(function()
 		return A() ~= nil and A().power ~= nil and B() ~= nil and B().power ~= nil
 	end, 2, "powers to be equipped")
+	ownForDuel(alice, bob)
 	equip(A(), 1)
 	equip(B(), 1)
 	for _, fighter in { A(), B() } do

@@ -13,6 +13,7 @@ local Players = game:GetService("Players")
 
 local AudioLibrary = require(ReplicatedStorage.Shared.Config.AudioLibrary)
 local Match = require(ReplicatedStorage.Shared.Config.Match)
+local Homes = require(ReplicatedStorage.Shared.Config.Homes)
 local Seasons = require(ReplicatedStorage.Shared.Seasons)
 local Settings = require(script.Parent.Parent.Settings)
 local Shell = require(script.Parent.Parent.UI.Shell)
@@ -20,12 +21,14 @@ local Shell = require(script.Parent.Parent.UI.Shell)
 local MusicController = {}
 
 -- Which categories play where
+-- (Retuned 4 Nov after the owner's playtest: energy in fights and the hall, calm where people chill)
 local PLAYLISTS = {
-	Hall = { "Chill" },
-	Lounge = { "Classical", "Chill" },
-	Training = { "SciFi", "Cinematic" },
-	Concourse = { "SciFi", "Cinematic" },
-	Fight = { "Electronic", "Rock" },
+	Hall = { "Electronic", "SciFi" },
+	Lounge = { "Chill", "Pop", "Classical" },
+	Bases = { "Chill", "Pop" },
+	Training = { "Electronic", "Phonk" },
+	Concourse = { "SciFi", "Cinematic", "Electronic" },
+	Fight = { "Phonk", "Rock", "Electronic" },
 }
 -- Holiday tracks join the calm playlists; matched on Roblox's track names
 local SEASON_WORDS = {
@@ -34,7 +37,7 @@ local SEASON_WORDS = {
 	Halloween = { "Halloween" },
 	Easter = { "Easter" },
 }
-local CALM = { Hall = true, Lounge = true }
+local CALM = { Hall = true, Lounge = true, Bases = true }
 
 local BASE_VOLUME = 0.5
 local FADE = TweenInfo.new(1.2, Enum.EasingStyle.Sine)
@@ -47,6 +50,19 @@ local LOUNGE_CENTER = Vector3.new(0, 0, 700)
 local TRAINING_CENTER = Match.TrainingGround.Center
 local CONCOURSE_X = 820
 
+-- Inside a base whose owner chose a music style on the jukebox (attribute MusicStyle on the base
+-- model, set by BaseService from a validated list), the zone reads "Bases:<Category>"
+local function baseStyleAt(position: Vector3): string?
+	local origin = Homes.BaseOrigin
+	local slot = math.floor((position.X - origin.X + Homes.SlotSpacing / 2) / Homes.SlotSpacing) + 1
+	if slot < 1 or slot > Homes.Slots or position.Z < origin.Z - 40 or position.Z > origin.Z + 60 then
+		return nil
+	end
+	local model = workspace:FindFirstChild("Base_" .. slot)
+	local style = model and model:GetAttribute("MusicStyle")
+	return if typeof(style) == "string" and style ~= "" then style else nil
+end
+
 local function zoneAt(position: Vector3): string
 	if Shell.getMode() == "Match" then
 		return "Fight"
@@ -57,6 +73,12 @@ local function zoneAt(position: Vector3): string
 	if (position - TRAINING_CENTER).Magnitude < 90 then
 		return "Training"
 	end
+	-- Player Base Street and the homes beyond it are far out east
+	local homes = Homes.BaseOrigin
+	if (position - Homes.StreetCenter).Magnitude < 1400 or (position.X > homes.X - 400 and position.Z > homes.Z - 400) then
+		local style = baseStyleAt(position)
+		return if style then "Bases:" .. style else "Bases"
+	end
 	if position.X > CONCOURSE_X then
 		return "Concourse"
 	end
@@ -65,7 +87,11 @@ end
 
 local function playlistFor(zone: string): { { [string]: any } }
 	local list = {}
-	for _, category in PLAYLISTS[zone] or PLAYLISTS.Hall do
+	local style = string.match(zone, "^Bases:(%a+)$")
+	if style then
+		zone = "Bases"
+	end
+	for _, category in if style then { style } else (PLAYLISTS[zone] or PLAYLISTS.Hall) do
 		for _, track in AudioLibrary.inCategory(category) do
 			table.insert(list, track)
 		end

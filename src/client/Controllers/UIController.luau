@@ -15,6 +15,7 @@ local PlayWindow = require(script.Parent.Parent.UI.PlayWindow)
 local SettingsWindow = require(script.Parent.Parent.UI.SettingsWindow)
 local MatchHud = require(script.Parent.Parent.UI.MatchHud)
 local AbilityBar = require(script.Parent.Parent.UI.AbilityBar)
+local CombatView = require(script.Parent.Parent.UI.CombatView)
 local PowersWindow = require(script.Parent.Parent.UI.PowersWindow)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -53,6 +54,7 @@ function UIController:Start()
 	require(script.Parent.Parent.UI.LearnWindow).register()
 	require(script.Parent.Parent.UI.LockerWindow).register()
 	require(script.Parent.Parent.UI.WatchWindow).register()
+	require(script.Parent.Parent.UI.WheelWindow).register() -- also registers the Refreshments window
 	require(script.Parent.Parent.UI.PracticeWindow).register()
 
 	local hud = Hud.build(gui, self.input.Bindings, self.input.device, self.effects.currentGuard)
@@ -102,6 +104,28 @@ function UIController:Start()
 		end
 	end)
 
+	-- Where the player stands decides what the screen shows (UI/CombatView reads the server's
+	-- context): the combat HUD only in a fight or in training, and the fight layout (no dock,
+	-- wallet or player card) in a match and in the Training Studio.
+	local combatActive = false
+	local function syncContext()
+		local character = player.Character
+		local mode = Shell.getMode()
+		local active = CombatView.active(character, mode)
+		if active ~= combatActive then
+			combatActive = active
+			hud.setCombat(active)
+		end
+		if mode == "Lobby" or mode == "Training" then
+			local want = if CombatView.practising(character) then "Training" else "Lobby"
+			if want ~= mode then
+				Shell.setMode(want)
+			end
+		end
+	end
+	self.syncContext = syncContext
+	syncContext()
+
 	local elapsed = 0
 	RunService.Heartbeat:Connect(function(dt)
 		elapsed += dt
@@ -109,8 +133,12 @@ function UIController:Start()
 			return
 		end
 		elapsed = 0
-		hud.update()
-		abilityBar.update()
+		syncContext()
+		-- Nothing below the lobby essentials runs while the combat interface is away
+		if combatActive then
+			hud.update()
+			abilityBar.update()
+		end
 		play.update()
 		if inMatch then
 			matchHud.update()
