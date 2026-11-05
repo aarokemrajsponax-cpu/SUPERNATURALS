@@ -1002,7 +1002,13 @@ function PowersWindow.register()
 				if not ok then
 					-- No layout yet (a stand-in engine): estimate from the screen
 					local view = workspace.CurrentCamera.ViewportSize
-					size = Vector2.new(math.min(1120, view.X - 140), math.max(170, math.min(520, view.Y - 290)))
+					if Shell.isCompact() then
+						-- Phone: the window is the whole canvas; the body is what is left under the header
+						local scale = Shell.scale()
+						size = Vector2.new(view.X / scale - 2 * Space.L, (view.Y - 58) / scale - 60 - 2 * Space.L)
+					else
+						size = Vector2.new(math.min(1120, view.X - 140), math.max(170, math.min(520, view.Y - 290)))
+					end
 				end
 				local w, h = size.X, size.Y
 				if w <= 0 then
@@ -1034,6 +1040,7 @@ function PowersWindow.register()
 				layout()
 			end)
 			body:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+			Shell.compactChanged:Connect(layout)
 
 			-- The dossier -----------------------------------------------------------------------
 			local function section(order: number, title: string): Frame

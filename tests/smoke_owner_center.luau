@@ -257,14 +257,14 @@ end)
 local OwnerCenter = t.client("UI.OwnerCenter")
 local window = t.findNamed(gui, "Window_OwnerCenter")
 
-t.check("the section list has the groups and all 17 sections", function()
-	local expected = { "dashboard", "monitor", "history", "abuse", "world", "player", "seasonal", "holiday", "presets", "custom", "scheduler", "control", "god", "fighters", "summon", "announce", "emergency" }
+t.check("the section list has the groups and all 18 sections", function()
+	local expected = { "dashboard", "monitor", "history", "abuse", "world", "player", "seasonal", "holiday", "presets", "custom", "scheduler", "control", "god", "fighters", "summon", "announce", "goals", "emergency" }
 	local count = 0
 	for _, group in OwnerCenter.Groups do
 		assert(t.findNamed(window, "Group_" .. group.title), "group " .. group.title)
 		count += #group.items
 	end
-	assert(count == 17, "17 sections, got " .. count)
+	assert(count == 18, "18 sections, got " .. count)
 	for _, id in expected do
 		assert(t.findNamed(window, "Nav_" .. id), "nav item " .. id)
 	end
@@ -274,7 +274,7 @@ t.check("the window is not the old panel", function()
 	assert(not t.findNamed(player.PlayerGui, "SNOwner"), "the old owner panel is not built")
 end)
 
-local SECTIONS = { "dashboard", "monitor", "history", "abuse", "world", "player", "seasonal", "holiday", "presets", "custom", "scheduler", "control", "god", "fighters", "summon", "announce", "emergency" }
+local SECTIONS = { "dashboard", "monitor", "history", "abuse", "world", "player", "seasonal", "holiday", "presets", "custom", "scheduler", "control", "god", "fighters", "summon", "announce", "goals", "emergency" }
 for _, size in { { 1280, 720 }, { 667, 375 } } do
 	t.check(`every section builds and passes the audit at {size[1]}x{size[2]}`, function()
 		t.setScreen(size[1], size[2])

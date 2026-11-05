@@ -74,8 +74,9 @@ local function money(player): number
 end
 
 local function open(player, owner)
-	Base.antiExploit:allow(player, "Base")
-	return Base:enter(player, owner)
+	local entered = Base:enter(player, owner)
+	task.wait(0.1)
+	return entered
 end
 
 local alice = joinLoaded("Alice", 901) -- the host
@@ -87,9 +88,9 @@ local street = Base.street
 
 api.check("old profiles and new ones read Friends; the home and room are inside the budgets", function()
 	assert(Data:get(alice).hosting.access == "Friends", "default access")
-	local old = Schema.repair({ base = { access = "Everyone" } })
+	local old = (Schema.migrate({ base = { access = "Everyone" } }))
 	assert(old.hosting.access == "Friends", "an old saved base.access of Everyone is ignored")
-	local junk = Schema.repair({ hosting = { access = "Banana", jukebox = "Nope", fireworks = 9999, effects = { Aurora = true, Fake = true }, visitors = { { id = 1, name = "A" }, "x" } } })
+	local junk = (Schema.migrate({ hosting = { access = "Banana", jukebox = "Nope", fireworks = 9999, effects = { Aurora = true, Fake = true }, visitors = { { id = 1, name = "A" }, "x" } } }))
 	assert(junk.hosting.access == "Friends" and junk.hosting.jukebox == Homes.DefaultMusic, "junk falls back")
 	assert(junk.hosting.fireworks == Homes.FireworksMaxCharges and junk.hosting.effects.Aurora and not junk.hosting.effects.Fake, "bounded and filtered")
 	assert(#junk.hosting.visitors == 1, "bad visitor rows dropped")
@@ -273,7 +274,7 @@ end)
 
 api.check("Reflex cabinet: false start, server-timed reaction, personal best, one reward a day", function()
 	reflexPrompt = aliceBase.built.prompts.Reflex
-	Homes.Reflex.waitMin, Homes.Reflex.waitMax = 0.3, 0.35
+	Homes.Reflex.waitMin, Homes.Reflex.waitMax = 1.0, 1.05
 	local before = money(bob)
 	-- false start
 	pressPrompt(bob, reflexPrompt) -- starts the wait
@@ -284,7 +285,7 @@ api.check("Reflex cabinet: false start, server-timed reaction, personal best, on
 	-- a good run
 	task.wait(1.6)
 	pressPrompt(bob, reflexPrompt)
-	task.wait(0.6) -- the wait ends and "go" is sent
+	task.wait(0.8) -- the wait ends and "go" is sent
 	assert(aliceBase.built.gameRoom.model:GetAttribute("ReflexState") == "go", "go")
 	clockNow += 0.4
 	pressPrompt(bob, reflexPrompt)
@@ -293,14 +294,14 @@ api.check("Reflex cabinet: false start, server-timed reaction, personal best, on
 	assert(money(bob) == before + Homes.Activities.Reflex.dailyMoney, "first valid play pays")
 	-- a slower second run keeps the best and pays nothing
 	pressPrompt(bob, reflexPrompt)
-	task.wait(0.6)
+	task.wait(0.8)
 	clockNow += 0.9
 	pressPrompt(bob, reflexPrompt)
 	assert(Data:get(bob).hosting.bests.Reflex == best, "a slower time does not replace the best")
 	assert(money(bob) == before + Homes.Activities.Reflex.dailyMoney, "no second reward")
 	-- an impossible time is raised to the human minimum
 	pressPrompt(bob, reflexPrompt)
-	task.wait(0.6)
+	task.wait(0.8)
 	pressPrompt(bob, reflexPrompt)
 	assert(Data:get(bob).hosting.bests.Reflex >= Homes.Reflex.minMs, "never below the minimum")
 end)
@@ -383,9 +384,11 @@ api.check("effects are locked without the Base Effects Pack and work with it", f
 	local ok, message = Base:setEffect(alice, "Aurora", true)
 	assert(not ok and string.find(message, "Base Effects Pack", 1, true), "the reason names the pack")
 	-- the pass is granted (the same record PurchaseService writes)
-	Data:update(alice, function(data)
-		data.passes.BaseEffectsPack = true
-	end)
+	-- the purchase finishes the way Roblox reports it (PurchaseService records the pass)
+	Engine.buyPass(alice, PASS_ID)
+	api.waitFor(function()
+		return Base:ownsEffects(alice)
+	end, 3, "pass recorded")
 	for _, key in Homes.EffectOrder do
 		task.wait(0.4)
 		api.request("BaseRequest", alice, "Effect", key, true)
@@ -436,7 +439,8 @@ api.check("Fireworks Show product: one saved charge per PurchaseId, idempotent; 
 	api.request("BaseRequest", alice, "Fireworks")
 	task.wait(0.1)
 	assert(Data:get(alice).hosting.fireworks == 1, "a second show cannot start on top of the first")
-	task.wait(1.6)
+	clockNow += Homes.FireworksSeconds + 1 -- the show reads the server clock
+	task.wait(0.8)
 	assert(aliceBase.showing == false and #aliceBase.built.home.Fireworks:GetChildren() == 0, "the show ends and clears up")
 end)
 
@@ -448,4 +452,5 @@ api.check("the panel state reaches the owner and reflects the real profile", fun
 	assert(state.bests.PowerMeter == 0 and typeof(state.effects.Aurora) == "boolean")
 end)
 
-api.finish()
+local failed = api.finish()
+process.exit(if failed == 0 then 0 else 1)

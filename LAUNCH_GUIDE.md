@@ -70,7 +70,7 @@ Go to create.roblox.com, **Creations**, SUPERNATURALS, **Monetization**.
 - Descriptions: use the item's `benefit` text from `Monetization.luau` (it is exact and honest).
   Prices are suggestions; you choose.
 
-### Game passes (7)
+### Game passes (8)
 
 | Key in Monetization.luau | Name | What it gives | Suggested price |
 |---|---|---|---|
@@ -81,8 +81,9 @@ Go to create.roblox.com, **Creations**, SUPERNATURALS, **Monetization**.
 | CelestialDragonStyle | Celestial Dragon Style | Grandmaster cosmetic style, looks only | 249 R$ |
 | VIP | VIP | VIP nameplate and title, gold name in the lounge, looks only | 299 R$ |
 | FoundersCollection | Founders Collection | Four exclusive cosmetics (aura, knockout effect, nameplate, title) | 799 R$ |
+| BaseEffectsPack | Base Effects Pack | Five looks for your own base (aurora, indoor snow, ember fireplace, light show, fireflies), looks only | 199 R$ |
 
-### Developer products (12)
+### Developer products (13)
 
 | Key | Name | What it gives | Suggested price |
 |---|---|---|---|
@@ -98,6 +99,7 @@ Go to create.roblox.com, **Creations**, SUPERNATURALS, **Monetization**.
 | TrialAdmin | Admin Powers Trial | 24 hours of Admin Powers in every mode | 49 R$ |
 | LoungeSpin | Lounge Wheel Spin | 1 spin on the Lounge wheel (random prize) | 25 R$ |
 | LoungeSpin5 | Lounge Wheel Spins x5 | 5 spins on the Lounge wheel (random prizes) | 99 R$ |
+| FireworksShow | Fireworks Show | One saved 45 second fireworks show for your base, launched from the base panel | 25 R$ |
 
 The two wheel products are paid random items. The rule that goes with them: **the odds of every
 prize are shown** (on the wheel in the lounge and in the Wheel window, as percentages that add to
@@ -175,6 +177,8 @@ Images: a pass needs a square image. Simple branded icons for every item are in
 - **Your Control Center (OWNER button):** dashboard, events for this server or all servers,
   announcements (filtered by Roblox), a scheduler for events, a custom event maker, emergency
   restore. Try an event in "This server" before using "All servers".
+- **Community goals:** check your like count on the game page now and then and enter it in
+  OWNER, Community goals. At 1,000, 5,000 and 25,000 likes every player gets a reward.
 - **Watch the numbers:** Creator Hub, Analytics: retention, the onboarding funnel (each step of
   Jeffery's tour), economy (Money and Gems in and out) and monetization.
 - **Updates:** pull Claude's work in GitHub Desktop, `rojo serve` syncs it into Studio, test,

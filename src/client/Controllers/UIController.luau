@@ -52,6 +52,7 @@ function UIController:Start()
 	SettingsWindow.register()
 	require(script.Parent.Parent.UI.ArchiveWindow).register()
 	require(script.Parent.Parent.UI.LearnWindow).register()
+	require(script.Parent.Parent.UI.BaseWindow).register()
 	require(script.Parent.Parent.UI.LockerWindow).register()
 	require(script.Parent.Parent.UI.WatchWindow).register()
 	require(script.Parent.Parent.UI.WheelWindow).register() -- also registers the Refreshments window

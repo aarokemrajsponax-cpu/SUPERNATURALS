@@ -108,7 +108,7 @@ function WheelArt.draw(parent: GuiObject, options: { [string]: any }?)
 		local hasText = prize.mark ~= nil and prize.mark ~= ""
 		local holder = frame(parent, "Label" .. index, centered(Vector2.new(x, y), Vector2.new(0.17, 0.15)))
 		if prize.symbol then
-			local box = frame(holder, "Symbol", centered(Vector2.new(0.5, if hasText then 0.22 else 0.5), Vector2.new(0.3, if hasText then 0.42 else 0.5)))
+			local box = frame(holder, "Symbol", centered(Vector2.new(0.5, if hasText then 0.22 else 0.5), Vector2.new(if hasText then 0.4 else 0.6, if hasText then 0.45 else 0.75)))
 			-- Keep the symbol square whatever the holder's shape
 			local ratio = Instance.new("UIAspectRatioConstraint")
 			ratio.AspectRatio = if prize.symbol == "plate" then 1.7 else 1

@@ -15,13 +15,14 @@ product are in `marketing/store_icons/`.
 
 **Before launch (about 45 minutes)**
 1. Studio, Game Settings, Security: turn on "Enable Studio Access to API Services", then publish.
-2. Creator Hub, Monetization, Developer Products: create these 12, turn **Managed Pricing** on for
+2. Creator Hub, Monetization, Developer Products: create these 13, turn **Managed Pricing** on for
    each (regional prices), and paste each id into `src/shared/Config/Monetization.luau`:
    Pouch of Gems (100 Gems, 49 R$), Chest of Gems (450 Gems, 199 R$), Vault of Gems (1,100 Gems,
    449 R$), Hoard of Gems (2,600 Gems, 999 R$), Treasury of Gems (7,000 Gems, 2,499 R$),
    Season Premium (499 R$), Season Tier Skip (49 R$), Corruption Trial (49 R$), Syntax Trial (49 R$),
    Admin Powers Trial (49 R$), **Lounge Wheel Spin ("LoungeSpin", 1 spin, 25 R$)** and
-   **Lounge Wheel Spins x5 ("LoungeSpin5", 5 spins, 99 R$)**. Prices are suggestions; descriptions
+   **Lounge Wheel Spins x5 ("LoungeSpin5", 5 spins, 99 R$)** and **Fireworks Show ("FireworksShow",
+   one 45 second show for your base, 25 R$)**. Prices are suggestions; descriptions
    are the `benefit` text in Monetization.luau. The two wheel products are paid random items, so
    the rule is fixed: **the odds of every prize are shown on the wheel and in the Wheel window
    before any spin or purchase** (`src/shared/Config/Wheel.luau`, shown as percentages adding to
@@ -30,14 +31,17 @@ product are in `marketing/store_icons/`.
    `ArePaidRandomItemsRestricted`; an error counts as restricted). Paste the two ids into
    `Products.LoungeSpin.id` and `Products.LoungeSpin5.id`. Until then the window says "Available
    soon" and the free daily spin still works.
-3. Creator Hub, Monetization, Passes: create these 7 (Managed Pricing is already on for passes)
+3. Creator Hub, Monetization, Passes: create these 8 (Managed Pricing is already on for passes)
    and paste each id: Corruption (6,666 R$), Syntax (9,999 R$), Admin Powers (12,000 R$),
-   Extra Ability Slot (349 R$), Celestial Dragon Style (249 R$), VIP (299 R$), Founders Collection (799 R$).
+   Extra Ability Slot (349 R$), Celestial Dragon Style (249 R$), VIP (299 R$), Founders Collection (799 R$),
+   Base Effects Pack ("BaseEffectsPack", five looks for your own base, 199 R$).
 4. Upload the icon and thumbnails from `marketing/` (README there says which goes where).
 5. Play once in a live server: finish Jeffery's tour, play a match, buy one product in Studio's
    free test purchase, rejoin and check everything saved. Press P to open the Control Center.
 
 **After launch**
+5b. Now and then, check your like count on the game page and enter it in OWNER, Community goals.
+   Every goal it reaches gives every player the reward (not only people who liked the game).
 6. When the game has been live one day: Creator Hub, the game, Engagement, Referral Rewards, Add
    Reward Details (name it after the Recruiter title), Save, Publish.
 7. Optional: make a Roblox group and paste its id into `Community.GroupId`
@@ -46,8 +50,8 @@ product are in `marketing/store_icons/`.
 9. Optional: Engagement, Notifications: an invite message containing {experienceName}; paste its id
    into `Community.InviteMessageId`.
 10. Optional: Private servers (Creator Hub, Access) at a small monthly price.
-11. Optional: listen to the 62 public music uploads in `docs/specs/Audio_verified.md` (tier B) and
-    say which to add; the 52 licensed tracks already play by area.
+11. Music: 89 licensed tracks already play by area. The 25 uploads by unknown accounts in
+    `docs/specs/Audio_verified.md` stay out unless you own or license them.
 
 **Decisions only you can make**
 - Answered 4 Nov: the Animal Shapeshifter is held for a later update; five battlegrounds stay;
@@ -99,6 +103,10 @@ Two developer products add spin credits (`PurchaseService:_grantWheelProduct`, t
 | LoungeSpin5 "Lounge Wheel Spins x5" | 0: OWNER ACTION REQUIRED, paste over `Products.LoungeSpin5.id` | 5 spins on the Lounge wheel. | 99 R$ | Name "Lounge Wheel Spins x5". Description: the `benefit` text in `Monetization.luau`. |
 
 Rule: odds are always shown (percentages, adding to 100, on the physical wheel and in the Wheel window, above the buy buttons). Free spin once per UTC day for everyone. Never offered to players for whom `ArePaidRandomItemsRestricted` is true (or unknown). Prizes: Money, small Gem amounts, 24 hour trials of Corruption, Syntax and Admin Powers, three wheel-exclusive cosmetics; an owned cosmetic or unusable trial pays `DuplicateMoney` instead. To change odds or prizes edit `Wheel.luau` only (keep the total at 100).
+
+### Base products (new, Bases 2.0)
+
+Fireworks Show (`FireworksShow`, suggested 25 R$, id 0 until you paste it) saves one 45 second show for the buyer's own base, granted by the same idempotent, save-before-grant `ProcessReceipt`; the owner launches it from the base panel and everyone in the base sees it. Nothing is random. The Base Effects Pack game pass (`BaseEffectsPack`, suggested 199 R$, id 0) unlocks five looks the owner switches on in their own base (aurora, indoor snowfall, ember fireplace, dance floor light show, fireflies). Looks only.
 
 No other developer products exist in the code. Starter Pack is not built (no matching benefits exist in code).
 

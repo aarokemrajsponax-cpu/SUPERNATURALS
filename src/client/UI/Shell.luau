@@ -145,6 +145,8 @@ local powerNames: { [string]: string } = {}
 local openId: string? = nil
 local mode = "Lobby"
 local compact = false
+local dockColumn: UIListLayout
+local dockGrid: UIGridLayout
 -- Toasts sit bottom right (bottom left of the top bar on touch, where the thumb buttons live)
 local toastLeft = false
 
@@ -408,8 +410,20 @@ local function relayout()
 			end
 		end
 		dockWidth = itemSize.X + DOCK_PADDING * 2
+		local twoColumns = compact and (count * 44 + (count - 1) * DOCK_GAP + DOCK_PADDING * 2) > available
+		if twoColumns then
+			dockWidth = DOCK_COMPACT * 2 + DOCK_GAP + DOCK_PADDING * 2
+			dockColumn.Parent = nil
+			dockGrid.Parent = dock
+			dock.AnchorPoint = Vector2.new(0, 0)
+			dock.Position = UDim2.fromOffset(EDGE, top)
+		else
+			dockGrid.Parent = nil
+			dockColumn.Parent = dock
+			dock.AnchorPoint = Vector2.new(0, 0.5)
+			dock.Position = UDim2.fromOffset(EDGE, top + available / 2)
+		end
 		dock.Size = UDim2.fromOffset(dockWidth, 0)
-		dock.Position = UDim2.fromOffset(EDGE, top + available / 2)
 	end
 
 	-- Windows: centred in the space the chrome leaves, never bigger than it
@@ -428,7 +442,8 @@ local function relayout()
 			frame.Size = UDim2.fromOffset(w, h)
 			frame.Position = UDim2.fromOffset(left + availableWidth / 2, top + available / 2)
 		end
-	end	if compact ~= wasCompact then
+	end
+	if compact ~= wasCompact then
 		compactEvent:Fire(compact)
 	end
 end
@@ -891,7 +906,15 @@ local function buildDock()
 	})
 	Components.padding(DOCK_PADDING).Parent = dock
 	dockList = dock
-	Components.list(dock, DOCK_GAP, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
+	dockColumn = Components.list(dock, DOCK_GAP, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
+	-- Phones that cannot fit one column of 44 px items use two columns instead (relayout swaps)
+	dockGrid = make("UIGridLayout", {
+		CellSize = UDim2.fromOffset(DOCK_COMPACT, DOCK_COMPACT),
+		CellPadding = UDim2.fromOffset(DOCK_GAP, DOCK_GAP),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		FillDirectionMaxCells = 2,
+	})
 end
 
 -- Windows -------------------------------------------------------------------------------------
@@ -1055,6 +1078,8 @@ function Shell.open(id: string, args: any?)
 		entry.fade = nil
 	end
 	frame.Visible = true
+	-- Size the window (full canvas on phones) before it lays itself out in onOpen
+	relayout()
 	if entry.handlers.onOpen then
 		entry.handlers.onOpen(args)
 	end

@@ -59,7 +59,7 @@ Tests run in Lune on a stand-in engine; nothing has been verified in a live Robl
 Done since the last checkpoint: click-to-target and aimed abilities with lower costs and faster
 regeneration (targeting_test 10/10), battleground concourse with 20 themed chambers, Training
 Studio with practice fights against Jeffery (practice_test 14/14), Spectating Lounge with the free
-prediction board, Player Base Street with homes and basement vaults.
+prediction board, Player Base Street with homes and basement vaults. Community like goals: owner enters the like count, everyone gets each reached goal, hub board, Jeffery reminder (community_goals_test 11/11).
 
 ## Usage notes
 A 5-hour window has supported roughly 30 to 90 minutes of three or four Sonnet agents. Narrow

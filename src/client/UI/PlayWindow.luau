@@ -283,6 +283,7 @@ function PlayWindow.register(): Controller
 			local renderActionHook: () -> () = function() end
 
 			-- Left: the choices
+			local backToModes: TextButton
 			local left = make("Frame", {
 				Name = "Modes",
 				Size = UDim2.new(0.44, -Space.S, 1, 0),
@@ -355,6 +356,28 @@ function PlayWindow.register(): Controller
 				Parent = details,
 			})
 			Components.list(info, Space.M)
+
+			-- Phones: one column. The mode list and the mode's details take turns on the canvas.
+			local pane = "list"
+			local function applyPane()
+				local phone = Shell.isCompact()
+				left.Visible = not phone or pane == "list"
+				details.Visible = not phone or pane == "detail"
+				left.Size = if phone then UDim2.fromScale(1, 1) else UDim2.new(0.44, -Space.S, 1, 0)
+				details.Size = if phone then UDim2.fromScale(1, 1) else UDim2.new(0.56, -Space.S, 1, 0)
+				backToModes.Visible = phone
+			end
+			backToModes = Components.button("All modes", {
+				Name = "AllModes",
+				Variant = "Secondary",
+				LayoutOrder = 0,
+				Size = UDim2.new(1, 0, 0, Theme.Size.Control),
+				Parent = info,
+			}, function()
+				pane = "list"
+				applyPane()
+			end)
+			Shell.compactChanged:Connect(applyPane)
 
 			local head = make("Frame", { Name = "Head", LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 56), BackgroundTransparency = 1, Parent = info })
 			local headIcon: Frame? = nil
@@ -744,6 +767,8 @@ function PlayWindow.register(): Controller
 					Body = data.Description,
 					onClick = function()
 						show(id)
+						pane = "detail"
+						applyPane()
 					end,
 				})
 				cards[id] = card
@@ -785,6 +810,7 @@ function PlayWindow.register(): Controller
 			onQueueChanged = renderAction
 			renderActionHook = renderAction
 			show(selected)
+			applyPane()
 
 			return {
 				onOpen = function(args)
@@ -795,9 +821,12 @@ function PlayWindow.register(): Controller
 					end
 					if typeof(args) == "table" and typeof(args.mode) == "string" and LOOK[args.mode] then
 						show(args.mode)
+						pane = "detail"
 					else
 						show(selected)
+						pane = "list"
 					end
+					applyPane()
 				end,
 				focus = function()
 					return cards[selected] and cards[selected].frame

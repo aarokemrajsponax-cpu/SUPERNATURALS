@@ -41,7 +41,7 @@ end
 function CommunityGoals.build(page: Frame, _ctx: any)
 	local scroll = Kit.page(page)
 	Kit.heading(scroll, "Community goals", 1)
-	Kit.para(scroll, "Roblox does not tell the game its like count. Check the likes on the game page now and then and enter the number here. When it reaches a goal, every player gets the reward, whether or not they liked the game, including players who join later. Lowering the number never takes a reward back.", 2)
+	Kit.para(scroll, "Roblox does not tell the game its like count, so enter it here from the game page. At each goal every player gets the reward, liked or not.", 2)
 
 	local status = Kit.card(scroll, 3, { Name = "Status" })
 	local countLine = Components.text({ Name = "Count", Text = "Loading", Style = "subheading", Wrap = true, LayoutOrder = 1, Parent = status })
@@ -49,7 +49,7 @@ function CommunityGoals.build(page: Frame, _ctx: any)
 	local list = Kit.stack(status, 3, "Goals", 6)
 
 	local form = Kit.card(scroll, 4, { Name = "Form" })
-	Kit.caption(form, "Current likes on the game page", 1)
+	Kit.caption(form, "Current likes on the game page. Lowering the number later never takes a reward back.", 1)
 	local box = Kit.input(form, { Name = "Likes", Placeholder = "For example 640", MaxLen = 13, LayoutOrder = 2 })
 	local feedback = Components.text({ Name = "Feedback", Text = "", Style = "body", Wrap = true, LayoutOrder = 4, Parent = form })
 
@@ -114,7 +114,7 @@ function CommunityGoals.build(page: Frame, _ctx: any)
 				end
 			end,
 		})
-	end, { Name = "Save", LayoutOrder = 3 })
+	end, { Name = "Save", LayoutOrder = 3, Size = UDim2.fromOffset(180, Theme.Size.Control) })
 
 	load()
 	return { show = load }

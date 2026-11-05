@@ -165,3 +165,16 @@ Newest first within each group. "Pending" means the owner has been asked to conf
     Strong Dude Superhero, The Ghost Ninja, Machine Master Robot, The Grandmaster Mage,
     Corruption Vampire, Syntax Levitation, Admin Powers Knight, the held-back Shapeshifter
     Werewolf. Combat poses stay on top.
+47. **Community like goals instead of a reward for liking (4 Nov).** The owner asked for a
+    reward when players like the game. Roblox gives a game no way to see who liked or favorited
+    it, and paying individuals for a like is widely treated as against the rules. So nobody is
+    paid for liking. Instead the game has like goals (`Community.LikeGoals`: 1,000 likes gives
+    everyone the Supporter title, 5,000 gives 150 Gems, 25,000 gives the Crowd Glow aura). The
+    server cannot read the count, so the owner types it into OWNER, Community goals (owner by
+    UserId; whole number 0 to 1e9; rate limited). It is saved in a DataStore as { likes, setAt },
+    sent to every server with MessagingService, and each server gives every reached goal once to
+    every player, including players who join later (`profile.community.goals`). Lowering the count
+    never takes anything back. The hub shows a board with progress and the last count and date,
+    and everyone gets a notice when a goal is reached. Jeffery says one reminder after a
+    player's third finished match that a like helps reach the next goal; it promises that player
+    nothing, and he answers "rewards for liking" with the same honest explanation.

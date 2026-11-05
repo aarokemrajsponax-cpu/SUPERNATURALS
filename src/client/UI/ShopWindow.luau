@@ -344,8 +344,8 @@ function ShopWindow.register()
 			local items = ShopWindow.items()
 			local railButtons = {}
 
-			local rail = make("Frame", { Name = "Rail", Size = UDim2.new(0, RAIL_WIDTH, 1, 0), BackgroundTransparency = 1, Parent = body })
-			Components.list(rail, Space.S)
+			local rail = Components.scroll({ Name = "Rail", Size = UDim2.new(0, RAIL_WIDTH, 1, 0), Parent = body })
+			local railList = Components.list(rail, Space.S)
 			local main = make("Frame", {
 				Name = "Main",
 				Position = UDim2.fromOffset(RAIL_WIDTH + Space.L, 0),
@@ -356,7 +356,22 @@ function ShopWindow.register()
 			local heading = Components.text({ Name = "Heading", Text = "", Style = "title", Size = UDim2.new(1, 0, 0, 32), Parent = main })
 			local blurb = Components.text({ Name = "Blurb", Text = "", Style = "small", Color = Colors.TextDim, Position = UDim2.fromOffset(0, 34), Size = UDim2.new(1, 0, 0, 22), Parent = main })
 			local grid = Components.scroll({ Name = "Cards", Position = UDim2.fromOffset(0, 64), Size = UDim2.new(1, 0, 1, -64), Padding = 2, Parent = main })
-			Components.grid(grid, UDim2.new(0.5, -Space.S, 0, CARD_HEIGHT), Space.L)
+			local cardGrid = Components.grid(grid, UDim2.new(0.5, -Space.S, 0, CARD_HEIGHT), Space.L)
+
+			-- Phones: categories become a row of tabs above one column of cards
+			local function applyLayout()
+				local phone = Shell.isCompact()
+				rail.ScrollingDirection = if phone then Enum.ScrollingDirection.X else Enum.ScrollingDirection.Y
+				rail.AutomaticCanvasSize = if phone then Enum.AutomaticSize.X else Enum.AutomaticSize.Y
+				railList.FillDirection = if phone then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical
+				rail.Size = if phone then UDim2.new(1, 0, 0, 48) else UDim2.new(0, RAIL_WIDTH, 1, 0)
+				main.Position = if phone then UDim2.fromOffset(0, 56) else UDim2.fromOffset(RAIL_WIDTH + Space.L, 0)
+				main.Size = if phone then UDim2.new(1, 0, 1, -56) else UDim2.new(1, -(RAIL_WIDTH + Space.L), 1, 0)
+				cardGrid.CellSize = if phone then UDim2.new(1, -Space.S, 0, 196) else UDim2.new(0.5, -Space.S, 0, CARD_HEIGHT)
+				for _, button in railButtons do
+					button.Size = if phone then UDim2.fromOffset(190, 44) else UDim2.new(1, 0, 0, 48)
+				end
+			end
 
 			local redraw
 			local function draw()
@@ -404,6 +419,8 @@ function ShopWindow.register()
 				end)
 				railButtons[category.id] = button
 			end
+			applyLayout()
+			Shell.compactChanged:Connect(applyLayout)
 
 			-- Roblox's window closed: say what happened, never claim a grant here (the server does that)
 			MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(_, _, purchased)

@@ -30,7 +30,7 @@ here has been verified in a live Roblox server yet (see `PROJECT_STATUS.md`).
 | R3 | Futuristic facility, no grass (§5, P.S. 8.0) | Enclosed octagonal hub | World/Nexus (or World/Hub) | DONE | smoke (lobby), integration | Owner: ease the sci-fi slightly (in progress) |
 | R4 | Stores and areas must work (§5) | Master Shop, every door does something | ShopWindow, PurchaseService | DONE (windows) | shop_test (planned) | No walk-in Master Shop room yet; the shop is a window |
 | R5 | Thanksgiving switch-over (§3, 25.3) | Calendar and Thanksgiving dressing | Seasons/Calendar, SeasonalDecor/Thanksgiving | DONE | smoke (holidays) | Harvest Week dressing, calendar and season pass |
-| R6 | Player bases as a second home (§6, refs 5–6) | Base Street, base interiors, basement vault | (new) | PARTIAL | | Owner wants bases far richer: activities, hosting, paid effects |
+| R6 | Player bases as a second home (§6, refs 5–6) | Base Street, base interiors, basement vault | (new) | DONE in code (5 Nov) | base_test, base2_test, smoke_base_panel | Access modes, ask to leave, visitors and hearts, host bonus, game room (Power Meter, Reflex, jukebox, party mode, seats), Base Effects Pack pass and Fireworks Show product, base panel; not yet seen in Studio |
 | R7 | Battlefields (§7, refs 7–8) | About 20 themed chambers with spectator galleries | Arenas/* | DONE (5 designs, 20 chambers) | smoke_arenas | Each design needs more distinct gameplay |
 | R8 | Combat overhaul (§8, §17, P.S. 9.0) | Fighting System v2, client feel | Combat/Defense/Ability services, Controllers | PARTIAL | combat_test 40/40, smoke_combat 11/11 | Owner: effects too dull, smoother movement and animation needed |
 | R9 | Targeting (§9) | Click-to-target (Corruption, Syntax, Admin), aimed shots (Machine Master), teleport targeting and directional slashes (Ghost) | (new TargetingController, server validation) | DONE (offline tests) | | |
@@ -76,8 +76,8 @@ here has been verified in a live Roblox server yet (see `PROJECT_STATUS.md`).
 | R49 | Pass ownership checks (P.S. 11.0 1.10) | UserOwnsGamePassAsync with retry | PurchaseService, PowerService | DONE (offline tests) | | |
 | R50 | Dynamic Price Check (P.S. 11.0 Part 2) | Creator Hub test | none | OWNER ACTION REQUIRED | | Cannot be run from here |
 | R51 | FINAL_OWNER_HANDOFF.md (P.S. 11.0 Part 3) | Owner checklist and inventories | FINAL_OWNER_HANDOFF.md | DONE | | |
-| R52 | Spectating Lounge (P.S. 13.0, ref 15) | Lounge, match screens, spectator cameras | Watch (server spectating exists) | PARTIAL | | Owner wants a much richer social lounge |
-| R53 | Refreshments (P.S. 13.0 §3) | Earned-credit consumables, casual modes only | (new) | NOT STARTED | | Planned with the lounge upgrade |
+| R52 | Spectating Lounge (P.S. 13.0, ref 15) | Lounge, match screens, spectator cameras | Watch (server spectating exists) | DONE in code (5 Nov) | lounge_test, wheel_test | Tiered seats, booths, match screens with idle roster, Quick Draw table, photo corner, warm lighting, Lounge wheel with odds board; not yet seen in Studio |
+| R53 | Refreshments (P.S. 13.0 §3) | Earned-credit consumables, casual modes only | (new) | DONE in code (5 Nov) | refreshments_test | Money only, casual modes only, at most a 10 percent reward boost, never combat stats |
 | R54 | Prediction board, no wagering (P.S. 13.0 §4) | Free predictions, community percentages, accuracy stats | MatchService, ProgressionService | DONE | | No rewards for predictions |
 | R55 | Usage budget and project docs (P.S. 14.0) | Docs, model choice, checkpoints | these files | DONE | | Owner checks `/usage` |
 | R56 | Psychology and motivation (P.S. 15.0, 19.0) | Mastery, achievements, rivalry, leaderboards, post-match feedback | ProgressionService (mastery, challenges) | DONE (offline tests) | | Achievements, titles, boards, calendars, season pass |
