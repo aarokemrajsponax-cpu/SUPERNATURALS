@@ -1,0 +1,638 @@
+-- Robux purchases through Roblox's own purchase flow: game passes (premium
+-- powers) and developer products (gem packs). Nothing is granted because a
+-- client asked; passes come from Roblox's ownership check or its purchase
+-- event, products only from ProcessReceipt. Receipts are idempotent: each
+-- PurchaseId is granted once, and only reported as granted after the grant
+-- is saved, so Roblox retries anything that didn't stick.
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
+local Protocol = require(ReplicatedStorage.Shared.Protocol)
+local Schema = require(ReplicatedStorage.Shared.Data.Schema)
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local DataEvent = Remotes:WaitForChild("DataEvent") :: RemoteEvent
+
+local Decision = Enum.ProductPurchaseDecision
+
+local PurchaseService = {}
+
+-- What Roblox said about each player's passes (only passes it answered for)
+local ownership: { [number]: { [string]: boolean } } = {}
+local lastPrompt: { [number]: number } = {}
+-- PurchaseIds being granted right now, so a second call for one waits its turn
+local processing: { [string]: boolean } = {}
+local grantedCallbacks: { (Player, string) -> () } = {}
+local passById: { [number]: string } = {}
+local productById: { [number]: string } = {}
+
+local function toast(player: Player, text: string, kind: string)
+	if player.Parent then
+		DataEvent:FireClient(player, Protocol.DataEvent.Toast, { text = text, kind = kind })
+	end
+end
+
+local function validId(id: any): boolean
+	return typeof(id) == "number" and id > 0 and id == math.floor(id)
+end
+
+-- Calls fn, retrying with a doubling wait; returns (true, result) or (false, error)
+local function retry(attempts: number, fn: () -> any): (boolean, any)
+	local ok, result = false, nil
+	for attempt = 1, attempts do
+		ok, result = pcall(fn)
+		if ok then
+			return true, result
+		end
+		if attempt < attempts then
+			task.wait(Schema.Config.RetryBaseDelay * 2 ^ (attempt - 1))
+		end
+	end
+	return false, result
+end
+
+function PurchaseService:Init(services)
+	self.services = services
+	self.data = services.DataService
+	self.currency = services.CurrencyService
+	self.antiExploit = services.AntiExploitService
+	for key, pass in Monetization.Passes do
+		if validId(pass.id) then
+			if passById[pass.id] then
+				warn(`[Purchase] passes {passById[pass.id]} and {key} share the id {pass.id}`)
+			end
+			passById[pass.id] = key
+		end
+	end
+	for key, product in Monetization.Products do
+		if validId(product.id) then
+			if productById[product.id] then
+				warn(`[Purchase] products {productById[product.id]} and {key} share the id {product.id}`)
+			end
+			productById[product.id] = key
+		end
+	end
+end
+
+function PurchaseService:Start()
+	MarketplaceService.ProcessReceipt = function(receipt)
+		return self:_processReceipt(receipt)
+	end
+
+	-- Fired by Roblox on the server when a pass purchase window closes
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
+		local key = passById[passId]
+		if key and wasPurchased == true then
+			-- The event is only a hint; Roblox's ownership check is the proof
+			task.spawn(function()
+				local ok, owns = retry(Monetization.OwnershipCheckAttempts, function()
+					return MarketplaceService:UserOwnsGamePassAsync(player.UserId, passId)
+				end)
+				if ok and owns == true and player.Parent then
+					self:_recordPass(player, key)
+				elseif not ok then
+					warn(`[Purchase] couldn't confirm {player.Name}'s {key} purchase yet; the next join check will`)
+				end
+			end)
+		end
+	end)
+
+	Players.PlayerAdded:Connect(function(player)
+		self:_checkPasses(player)
+	end)
+	for _, player in Players:GetPlayers() do
+		task.spawn(self._checkPasses, self, player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		ownership[player.UserId] = nil
+		lastPrompt[player.UserId] = nil
+	end)
+
+	self:_connectShopRequests()
+end
+
+-- Asks Roblox which passes the player owns, then brings the profile's saved
+-- copy in line. Passes Roblox can't answer for keep their saved value.
+function PurchaseService:_checkPasses(player: Player)
+	local answers = {}
+	for key, pass in Monetization.Passes do
+		if validId(pass.id) then
+			local ok, owns = retry(Monetization.OwnershipCheckAttempts, function()
+				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.id)
+			end)
+			if ok then
+				answers[key] = owns == true
+			else
+				warn(`[Purchase] couldn't check {player.Name}'s {key} pass, using their saved ownership: {owns}`)
+			end
+		end
+	end
+	if player.Parent == nil then
+		return
+	end
+	local known = ownership[player.UserId] or {}
+	ownership[player.UserId] = known
+	for key, owns in answers do
+		-- A purchase in this session already counts, whatever the earlier check said
+		if known[key] ~= true then
+			known[key] = owns
+		end
+	end
+	local profile = self.data:waitFor(player)
+	if not profile then
+		return
+	end
+	local gained = {}
+	local changed = false
+	for key, owns in answers do
+		local saved = profile.passes[key] == true
+		if known[key] and not saved then
+			table.insert(gained, key)
+			changed = true
+		elseif not known[key] and saved then
+			changed = true
+		end
+	end
+	if changed then
+		self.data:update(player, function(data)
+			for key in answers do
+				data.passes[key] = if known[key] then true else nil
+			end
+		end)
+	end
+	for _, key in gained do
+		self:_firePassGranted(player, key)
+	end
+	-- Cosmetic bundles: every join makes sure the listed items are owned (granting is idempotent)
+	for key in Monetization.Passes do
+		if self:ownsPass(player, key) then
+			self:_grantPassCosmetics(player, key)
+		end
+	end
+end
+
+-- Gives the cosmetics a pass lists (Monetization.Passes[key].cosmetics) through CosmeticService,
+-- and marks a VIP player. Only called once ownership is verified with Roblox or the saved profile.
+function PurchaseService:_grantPassCosmetics(player: Player, passKey: string)
+	local pass = Monetization.Passes[passKey]
+	if not pass or player.Parent == nil then
+		return
+	end
+	if pass.vipName then
+		player:SetAttribute(Protocol.Attribute.Vip, true)
+	end
+	local cosmetics = self.services and self.services.CosmeticService
+	if cosmetics and pass.cosmetics then
+		for _, id in pass.cosmetics do
+			cosmetics:grant(player, id, "shop")
+		end
+	end
+end
+
+function PurchaseService:_firePassGranted(player: Player, passKey: string)
+	for _, callback in grantedCallbacks do
+		task.spawn(callback, player, passKey)
+	end
+end
+
+-- Records a pass Roblox just sold the player
+function PurchaseService:_recordPass(player: Player, passKey: string)
+	local known = ownership[player.UserId] or {}
+	ownership[player.UserId] = known
+	known[passKey] = true
+	local profile = self.data:get(player)
+	local isNew = not (profile and profile.passes[passKey] == true)
+	self.data:update(player, function(data)
+		data.passes[passKey] = true
+	end)
+	if isNew then
+		task.spawn(function()
+			self.data:saveNow(player)
+		end)
+		self:_firePassGranted(player, passKey)
+	end
+	self:_grantPassCosmetics(player, passKey)
+	toast(player, `{Monetization.Passes[passKey].name} unlocked! Thank you for your support.`, "success")
+end
+
+-- Whether the purchase window may open again for this player (stops prompt spam)
+function PurchaseService:_promptAllowed(player: Player): boolean
+	local now = os.clock()
+	local last = lastPrompt[player.UserId]
+	if last and now - last < Monetization.PromptCooldown then
+		return false
+	end
+	lastPrompt[player.UserId] = now
+	return true
+end
+
+-- Whether a receipt has every field the grant depends on, and was paid in Robux
+function PurchaseService.validReceipt(receipt: any): boolean
+	if typeof(receipt) ~= "table" then
+		return false
+	end
+	if typeof(receipt.PurchaseId) ~= "string" or receipt.PurchaseId == "" or #receipt.PurchaseId > 128 then
+		return false
+	end
+	if not validId(receipt.PlayerId) or not validId(receipt.ProductId) then
+		return false
+	end
+	-- Roblox always sends these; the stand-in engine may omit CurrencyType
+	if receipt.CurrencyType ~= nil and receipt.CurrencyType ~= Enum.CurrencyType.Robux then
+		return false
+	end
+	if typeof(receipt.CurrencySpent) ~= "number" or receipt.CurrencySpent ~= receipt.CurrencySpent or receipt.CurrencySpent < 0 then
+		return false
+	end
+	return true
+end
+
+-- The one ProcessReceipt. The reward comes from the product id in Monetization, never from
+-- CurrencySpent, so regional (Managed Pricing) prices don't change what a purchase gives.
+function PurchaseService:_processReceipt(receipt: any): Enum.ProductPurchaseDecision
+	if not PurchaseService.validReceipt(receipt) then
+		warn("[Purchase] refused a malformed receipt")
+		return Decision.NotProcessedYet
+	end
+	local productKey = productById[receipt.ProductId]
+	if not productKey then
+		warn(`[Purchase] receipt {receipt.PurchaseId} is for unknown product {receipt.ProductId}; add its id to Monetization`)
+		return Decision.NotProcessedYet
+	end
+	local purchaseId = receipt.PurchaseId
+	if processing[purchaseId] then
+		return Decision.NotProcessedYet
+	end
+	processing[purchaseId] = true
+	local ok, result = pcall(self._grantReceipt, self, receipt, productKey)
+	processing[purchaseId] = nil
+	if not ok then
+		warn(`[Purchase] receipt {purchaseId} failed: {result}`)
+		return Decision.NotProcessedYet
+	end
+	return result
+end
+
+function PurchaseService:_grantReceipt(receipt: any, productKey: string): Enum.ProductPurchaseDecision
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	if not player then
+		-- Roblox asks again when they're next in a server
+		return Decision.NotProcessedYet
+	end
+	local profile = self.data:waitFor(player)
+	if not profile or player.Parent == nil then
+		return Decision.NotProcessedYet
+	end
+	local purchaseId = receipt.PurchaseId
+	if table.find(profile.receipts, purchaseId) then
+		return Decision.PurchaseGranted
+	end
+	if not self.data:isPersistent(player) then
+		-- Never grant into progress that can't be saved; Roblox keeps the receipt
+		toast(player, "Your purchase will arrive once saving works again. Try rejoining.", "info")
+		return Decision.NotProcessedYet
+	end
+
+	local product = Monetization.Products[productKey]
+	if product.seasonPass then
+		return self:_grantSeasonProduct(player, purchaseId, product)
+	end
+	if product.wheelSpins then
+		return self:_grantWheelProduct(player, purchaseId, product)
+	end
+	if product.trial then
+		return self:_grantTrialProduct(player, purchaseId, product)
+	end
+	if product.fireworks then
+		return self:_grantFireworksProduct(player, purchaseId, product)
+	end
+	local amounts = { money = product.money, gems = product.gems }
+	local before = {
+		money = self.currency:balance(player, "money"),
+		gems = self.currency:balance(player, "gems"),
+	}
+	if not self.currency:add(player, amounts, "Robux " .. productKey .. " " .. purchaseId) then
+		return Decision.NotProcessedYet
+	end
+	-- What was really added (balances stop at the cap)
+	local added = {
+		money = self.currency:balance(player, "money") - before.money,
+		gems = self.currency:balance(player, "gems") - before.gems,
+	}
+	self.data:update(player, function(data)
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+
+	if self.data:saveNow(player) then
+		toast(player, `{product.name}: +{self.currency.describe(amounts)}. Thank you for your purchase!`, "reward")
+		return Decision.PurchaseGranted
+	end
+
+	-- Not saved: take the grant back so Roblox's retry can't give it twice
+	self.data:update(player, function(data)
+		data.currencies.money = math.max(0, data.currencies.money - added.money)
+		data.currencies.gems = math.max(0, data.currencies.gems - added.gems)
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- Season pass products (SeasonPremium, SeasonTierSkip). The receipt id and the pass change are
+-- written together and saved before Roblox hears "granted"; a failed save is rolled back, so a
+-- retry can never give a tier twice and a premium unlock is never lost.
+function PurchaseService:_grantSeasonProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local seasonPass = self.services and self.services.SeasonPassService
+	if not seasonPass then
+		return Decision.NotProcessedYet
+	end
+	local backup = Schema.copy(self.data:get(player).pass)
+	self.data:update(player, function(data)
+		seasonPass.applyPurchase(data, product.seasonPass, os.time())
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		if product.seasonPass == "premium" then
+			toast(player, "Season premium track unlocked for this season. Thank you!", "reward")
+		else
+			toast(player, "One tier of season pass points added. Thank you!", "reward")
+		end
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.pass = backup
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] season receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- Fighter trial products (TrialCorruption, TrialSyntax, TrialAdmin). Same pattern as the season
+-- products: the receipt id and the trial time are written together and saved before Roblox hears
+-- "granted"; a failed save is rolled back so a retry can never give a trial twice.
+function PurchaseService:_grantTrialProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local powers = self.services and self.services.PowerService
+	if not powers then
+		return Decision.NotProcessedYet
+	end
+	local powerId = product.trial.power
+	local before = self.data:get(player).trials[powerId]
+	self.data:update(player, function(data)
+		powers.applyTrial(data, powerId, product.trial.hours, os.time())
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		toast(player, `{product.name}: 24 hours of full use in every mode. Thank you!`, "reward")
+		powers:onTrialChanged(player, powerId)
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.trials[powerId] = before
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] trial receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- Lounge wheel spin products (LoungeSpin, LoungeSpin5). The receipt id and the spin credits are
+-- written together and saved before Roblox hears "granted"; a failed save is rolled back, so a
+-- retry can never give the spins twice. The prize is drawn later, on the server, when the player
+-- spins (WheelService), with every prize and chance shown first.
+function PurchaseService:_grantWheelProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local wheel = self.services and self.services.WheelService
+	if not wheel then
+		return Decision.NotProcessedYet
+	end
+	local before = Schema.copy(self.data:get(player).wheel)
+	self.data:update(player, function(data)
+		wheel.addCredits(data, product.wheelSpins)
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		toast(player, `{product.name}: {product.wheelSpins} {if product.wheelSpins == 1 then "spin" else "spins"} added. Thank you!`, "reward")
+		wheel:onCreditsChanged(player)
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.wheel = before
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] wheel receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- Fireworks Show (FireworksShow): the receipt id and one saved show charge are written together
+-- and saved before Roblox hears "granted"; a failed save is rolled back, so a retry can never
+-- give a charge twice. A purchase made while the owner is away from their base is never lost.
+function PurchaseService:_grantFireworksProduct(player: Player, purchaseId: string, product): Enum.ProductPurchaseDecision
+	local bases = self.services and self.services.BaseService
+	if not bases then
+		return Decision.NotProcessedYet
+	end
+	local before = self.data:get(player).hosting.fireworks
+	self.data:update(player, function(data)
+		bases.addFireworkCharges(data, product.fireworks)
+		table.insert(data.receipts, purchaseId)
+		while #data.receipts > Schema.Config.MaxReceipts do
+			table.remove(data.receipts, 1)
+		end
+	end)
+	if self.data:saveNow(player) then
+		toast(player, `{product.name}: one show saved. Launch it from your base panel. Thank you!`, "reward")
+		bases:onChargesChanged(player)
+		return Decision.PurchaseGranted
+	end
+	self.data:update(player, function(data)
+		data.hosting.fireworks = before
+		local index = table.find(data.receipts, purchaseId)
+		if index then
+			table.remove(data.receipts, index)
+		end
+	end)
+	warn(`[Purchase] fireworks receipt {purchaseId} for {player.Name} couldn't be saved; Roblox will retry it`)
+	return Decision.NotProcessedYet
+end
+
+-- The shop's requests. The client only names an item; the server checks the key, that the id
+-- is set, ownership and the rate, then opens Roblox's own prompt.
+function PurchaseService:_connectShopRequests()
+	local request = Remotes:FindFirstChild("ShopRequest")
+	if not request then
+		return
+	end
+	local Action = Protocol.ShopAction
+	request.OnServerEvent:Connect(function(player, action, key)
+		if typeof(action) ~= "string" or typeof(key) ~= "string" or #key > 48 then
+			return
+		end
+		if self.antiExploit and not self.antiExploit:allow(player, "Shop") then
+			return
+		end
+		if action == Action.PromptPass then
+			self:promptPass(player, key)
+		elseif action == Action.PromptProduct then
+			self:promptProduct(player, key)
+		end
+	end)
+end
+
+-- Public API -----------------------------------------------------------------------------------
+
+-- Whether the player owns a pass (by its key in Monetization.Passes). Uses
+-- Roblox's answer when it gave one, otherwise the ownership saved in their profile.
+function PurchaseService:ownsPass(player: Player, passKey: string): boolean
+	if typeof(passKey) ~= "string" or not Monetization.Passes[passKey] then
+		return false
+	end
+	local known = ownership[player.UserId]
+	if known and known[passKey] ~= nil then
+		return known[passKey]
+	end
+	local profile = self.data:get(player)
+	return profile ~= nil and profile.passes[passKey] == true
+end
+
+-- Opens Roblox's purchase window for a pass. Returns true if it opened.
+function PurchaseService:promptPass(player: Player, passKey: string): boolean
+	local pass = if typeof(passKey) == "string" then Monetization.Passes[passKey] else nil
+	if not pass then
+		return false
+	end
+	if not validId(pass.id) then
+		toast(player, Monetization.NotOnSaleText, "error")
+		return false
+	end
+	if self:ownsPass(player, passKey) then
+		toast(player, `You already own {pass.name}.`, "info")
+		return false
+	end
+	if not self:_promptAllowed(player) then
+		return false
+	end
+	local ok, err = pcall(function()
+		MarketplaceService:PromptGamePassPurchase(player, pass.id)
+	end)
+	if not ok then
+		warn(`[Purchase] couldn't open the {passKey} purchase for {player.Name}: {err}`)
+		toast(player, "The purchase window couldn't open. Please try again.", "error")
+		return false
+	end
+	return true
+end
+
+-- Opens Roblox's purchase window for a developer product. Returns true if it opened.
+function PurchaseService:promptProduct(player: Player, productKey: string): boolean
+	local product = if typeof(productKey) == "string" then Monetization.Products[productKey] else nil
+	if not product then
+		return false
+	end
+	if not validId(product.id) then
+		toast(player, Monetization.NotOnSaleText, "error")
+		return false
+	end
+	if not self.data:isPersistent(player) then
+		toast(player, "Purchases are paused while saving is off. Rejoin to buy.", "error")
+		return false
+	end
+	if product.seasonPass then
+		local seasonPass = self.services and self.services.SeasonPassService
+		if not seasonPass then
+			return false
+		end
+		local ok, reason
+		if product.seasonPass == "premium" then
+			ok, reason = seasonPass:canSellPremium(player)
+		else
+			ok, reason = seasonPass:canSellSkip(player)
+		end
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
+	end
+	if product.wheelSpins then
+		local wheel = self.services and self.services.WheelService
+		if not wheel then
+			return false
+		end
+		local ok, reason = wheel:canSellSpins(player, product.wheelSpins)
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
+	end
+	if product.fireworks then
+		local bases = self.services and self.services.BaseService
+		if not bases then
+			return false
+		end
+		local ok, reason = bases:canSellFireworks(player)
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
+	end
+	if product.trial then
+		local powers = self.services and self.services.PowerService
+		if not powers then
+			return false
+		end
+		local ok, reason = powers:canSellTrial(player, product.trial.power, product.trial.hours)
+		if not ok then
+			toast(player, reason or "That is not available right now.", "info")
+			return false
+		end
+	end
+	if not self:_promptAllowed(player) then
+		return false
+	end
+	local ok, err = pcall(function()
+		MarketplaceService:PromptProductPurchase(player, product.id)
+	end)
+	if not ok then
+		warn(`[Purchase] couldn't open the {productKey} purchase for {player.Name}: {err}`)
+		toast(player, "The purchase window couldn't open. Please try again.", "error")
+		return false
+	end
+	return true
+end
+
+-- The pass key that unlocks a power ("Corruption" -> "CorruptionPower"), if any
+function PurchaseService:passForPower(powerId: string): string?
+	return Monetization.passForPower(powerId)
+end
+
+-- callback(player, passKey) when the server learns a player owns a pass their
+-- profile didn't have yet (bought in this server, or elsewhere since last time)
+function PurchaseService:onPassGranted(callback: (Player, string) -> ())
+	table.insert(grantedCallbacks, callback)
+end
+
+return PurchaseService

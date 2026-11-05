@@ -1,0 +1,3 @@
+-- Replaces Roblox's default "Health" script, which slowly regenerates health.
+-- In SUPERNATURALS, health only changes through combat (and is restored on respawn
+-- or when a match ends), so this script intentionally does nothing.

@@ -1,0 +1,8 @@
+# Rojo
+/*.rbxl
+/*.rbxlx
+/*.lock
+sourcemap.json
+/rojo.exe
+/build
+__pycache__/

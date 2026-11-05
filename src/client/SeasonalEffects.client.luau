@@ -1,0 +1,315 @@
+-- Seasonal Sync (player side): weather, floating sprites, fireworks, animated
+-- decorations and a welcome banner for whichever holiday the server switched on.
+
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Seasons = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Seasons"))
+local Theme = require(script.Parent:WaitForChild("UI"):WaitForChild("Theme"))
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local rng = Random.new()
+local Tags = Seasons.Tags
+local Colors = Theme.Colors
+
+local function keypoints(points: { { number } }): NumberSequence
+	local list = {}
+	for _, point in points do
+		table.insert(list, NumberSequenceKeypoint.new(point[1], point[2]))
+	end
+	return NumberSequence.new(list)
+end
+
+-- Invisible, client-only part for effects to live in
+local function effectPart(size: Vector3): Part
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Transparency = 1
+	part.Size = size
+	return part
+end
+
+-- Weather: snow, glitter, embers... from a big sheet of particles that follows the camera
+local function startWeather(weather)
+	local sheet = effectPart(Vector3.new(90, 1, 90))
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new(weather.color, weather.color2 or weather.color)
+	emitter.LightEmission = weather.lightEmission or 0
+	emitter.Size = keypoints({ { 0, weather.size }, { 1, weather.size * 0.6 } })
+	emitter.Transparency = keypoints({ { 0, 1 }, { 0.12, 0.1 }, { 0.85, 0.2 }, { 1, 1 } })
+	emitter.Rate = weather.rate
+	local lifetime = weather.lifetime or 8
+	emitter.Lifetime = NumberRange.new(lifetime, lifetime * 1.4)
+	emitter.Speed = NumberRange.new(weather.speed * 0.7, weather.speed * 1.3)
+	emitter.SpreadAngle = Vector2.new(15, 15)
+	emitter.EmissionDirection = if weather.rise then Enum.NormalId.Top else Enum.NormalId.Bottom
+	emitter.Rotation = NumberRange.new(0, 360)
+	emitter.RotSpeed = NumberRange.new(-40, 40)
+	emitter.Acceleration = Vector3.new(0.5, 0, 0.3)
+	emitter.Parent = sheet
+	sheet.Parent = camera
+
+	local height = if weather.rise then -6 else 35
+	local connection = RunService.RenderStepped:Connect(function()
+		sheet.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, height, 0))
+	end)
+	return function()
+		connection:Disconnect()
+		sheet:Destroy()
+	end
+end
+
+-- (Emoji sprites were retired in the craft pass: no emoji anywhere in the game. Each season
+-- is carried by its decorations, weather particles and lighting instead.)
+
+-- Fireworks launched around the spawn area
+local FIREWORK_COLORS = {
+	Color3.fromRGB(255, 80, 80),
+	Color3.fromRGB(255, 210, 80),
+	Color3.fromRGB(80, 200, 255),
+	Color3.fromRGB(170, 100, 255),
+	Color3.fromRGB(120, 255, 140),
+	Color3.fromRGB(255, 255, 255),
+	Color3.fromRGB(255, 120, 200),
+}
+
+local function launchFirework(folder: Instance)
+	local angle = rng:NextNumber(0, math.pi * 2)
+	local radius = rng:NextNumber(25, 70)
+	local start = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+	local burstAt = start + Vector3.new(rng:NextNumber(-6, 6), rng:NextNumber(45, 75), rng:NextNumber(-6, 6))
+	local color = FIREWORK_COLORS[rng:NextInteger(1, #FIREWORK_COLORS)]
+	local fade = FIREWORK_COLORS[rng:NextInteger(1, #FIREWORK_COLORS)]
+
+	local rocket = effectPart(Vector3.new(0.4, 0.4, 0.4))
+	rocket.Shape = Enum.PartType.Ball
+	rocket.Transparency = 0
+	rocket.Material = Enum.Material.Neon
+	rocket.Color = color
+	rocket.CFrame = CFrame.new(start)
+	local top = Instance.new("Attachment")
+	top.Position = Vector3.new(0, 0.2, 0)
+	top.Parent = rocket
+	local bottom = Instance.new("Attachment")
+	bottom.Position = Vector3.new(0, -0.2, 0)
+	bottom.Parent = rocket
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = top
+	trail.Attachment1 = bottom
+	trail.Lifetime = 0.5
+	trail.Color = ColorSequence.new(color)
+	trail.LightEmission = 1
+	trail.Transparency = NumberSequence.new(0, 1)
+	trail.Parent = rocket
+	rocket.Parent = folder
+
+	local flight = TweenService:Create(rocket, TweenInfo.new(rng:NextNumber(1.1, 1.6), Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		CFrame = CFrame.new(burstAt),
+	})
+	flight.Completed:Once(function()
+		rocket.Transparency = 1
+		local burst = Instance.new("ParticleEmitter")
+		burst.Color = ColorSequence.new(color, fade)
+		burst.LightEmission = 1
+		burst.LightInfluence = 0
+		burst.Size = keypoints({ { 0, 0.8 }, { 1, 0 } })
+		burst.Transparency = keypoints({ { 0, 0 }, { 0.7, 0.2 }, { 1, 1 } })
+		burst.Lifetime = NumberRange.new(1.2, 2)
+		burst.Speed = NumberRange.new(28, 38)
+		burst.SpreadAngle = Vector2.new(180, 180)
+		burst.Drag = 2.5
+		burst.Acceleration = Vector3.new(0, -10, 0)
+		burst.Rate = 0
+		burst.Parent = rocket
+		burst:Emit(140)
+
+		local flash = Instance.new("PointLight")
+		flash.Color = color
+		flash.Range = 60
+		flash.Brightness = 6
+		flash.Parent = rocket
+		TweenService:Create(flash, TweenInfo.new(1.2), { Brightness = 0 }):Play()
+		task.delay(3, function()
+			rocket:Destroy()
+		end)
+	end)
+	flight:Play()
+end
+
+local function startFireworks()
+	local running = true
+	local folder = Instance.new("Folder")
+	folder.Name = "Fireworks"
+	folder.Parent = camera
+	task.spawn(function()
+		while running do
+			-- Now and then, a big volley
+			local count = if rng:NextNumber() < 0.15 then 4 else 1
+			for _ = 1, count do
+				launchFirework(folder)
+			end
+			task.wait(rng:NextNumber(0.6, 1.8))
+		end
+	end)
+	return function()
+		running = false
+		folder:Destroy()
+	end
+end
+
+-- Animates decorations the server tagged: floating, spinning, flickering, twinkling
+local function startDecorAnimations()
+	local bases = setmetatable({}, { __mode = "k" })
+	local phases = setmetatable({}, { __mode = "k" })
+	local function remember(instance, value)
+		if bases[instance] == nil then
+			bases[instance] = value
+			phases[instance] = rng:NextNumber(0, math.pi * 2)
+		end
+		return bases[instance], phases[instance]
+	end
+
+	local connection = RunService.Heartbeat:Connect(function()
+		local t = os.clock()
+		for _, instance in CollectionService:GetTagged(Tags.Bob) do
+			if instance:IsA("PVInstance") then
+				local base, phase = remember(instance, instance:GetPivot())
+				instance:PivotTo(base + Vector3.new(0, math.sin(t * 1.4 + phase) * 0.6, 0))
+			end
+		end
+		for _, instance in CollectionService:GetTagged(Tags.Spin) do
+			if instance:IsA("PVInstance") then
+				local base, phase = remember(instance, instance:GetPivot())
+				instance:PivotTo(CFrame.new(base.Position) * CFrame.Angles(0, t * 0.7 + phase, 0) * base.Rotation)
+			end
+		end
+		for _, light in CollectionService:GetTagged(Tags.Flicker) do
+			if light:IsA("Light") then
+				local base, phase = remember(light, light.Brightness)
+				light.Brightness = base * (0.85 + 0.5 * math.noise(t * 4, phase))
+			end
+		end
+		for _, part in CollectionService:GetTagged(Tags.Twinkle) do
+			if part:IsA("BasePart") then
+				local _, phase = remember(part, part.Transparency)
+				part.Transparency = 0.7 * math.max(0, math.sin(t * 1.7 + phase * 3)) ^ 6
+			end
+		end
+	end)
+	return function()
+		connection:Disconnect()
+	end
+end
+
+-- A quiet welcome card for the season, in the interface's own style (docs/specs/UI_Craft_Pass.md):
+-- a solid panel with a light top lip, a thin bar in the season's accent colour, the season's
+-- name in bold capitals and one plain line under it. It eases in under the top bar and leaves.
+local function showBanner(theme)
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "SeasonalBanner"
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 10
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Card"
+	frame.AnchorPoint = Vector2.new(0.5, 0)
+	frame.Position = UDim2.new(0.5, 0, 0, -140)
+	frame.Size = UDim2.new(0.9, 0, 0, 96)
+	frame.BackgroundColor3 = Colors.Panel
+	frame.BorderSizePixel = 0
+	frame.Parent = gui
+	local maxSize = Instance.new("UISizeConstraint")
+	maxSize.MaxSize = Vector2.new(520, 96)
+	maxSize.Parent = frame
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = Theme.Corner
+	corner.Parent = frame
+	local edge = Instance.new("UIStroke")
+	edge.Color = Colors.Stroke
+	edge.Transparency = 0.6
+	edge.Thickness = 1
+	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	edge.Parent = frame
+	local lip = Instance.new("Frame")
+	lip.Name = "Lip"
+	lip.BorderSizePixel = 0
+	lip.BackgroundColor3 = Colors.PanelHover
+	lip.Position = UDim2.fromOffset(4, 1)
+	lip.Size = UDim2.new(1, -8, 0, 1)
+	lip.Parent = frame
+	local bar = Instance.new("Frame")
+	bar.Name = "Accent"
+	bar.BorderSizePixel = 0
+	bar.BackgroundColor3 = theme.palette.accent
+	bar.Position = UDim2.fromOffset(0, 14)
+	bar.Size = UDim2.new(0, 3, 1, -28)
+	bar.Parent = frame
+
+	local function line(name: string, content: string, y: number, size: number, face: Font, color: Color3)
+		local label = Instance.new("TextLabel")
+		label.Name = name
+		label.BackgroundTransparency = 1
+		label.Position = UDim2.fromOffset(20, y)
+		label.Size = UDim2.new(1, -36, 0, size + 4)
+		label.Text = content
+		label.FontFace = face
+		label.TextSize = size
+		label.TextColor3 = color
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextTruncate = Enum.TextTruncate.AtEnd
+		label.Parent = frame
+	end
+	line("Title", Theme.caps(theme.name), 12, 26, Theme.Faces.ExtraBold, Colors.Text)
+	line("Subtitle", theme.subtitle, 50, 18, Theme.Faces.SemiBold, Colors.TextDim)
+
+	gui.Parent = player:WaitForChild("PlayerGui")
+	local slideIn = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0.5, 0, 0, 16),
+	})
+	slideIn:Play()
+	task.delay(7, function()
+		local slideOut = TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0, -140),
+		})
+		slideOut.Completed:Once(function()
+			gui:Destroy()
+		end)
+		slideOut:Play()
+	end)
+	return function()
+		gui:Destroy()
+	end
+end
+
+-- Switch effects whenever the server changes season
+local stopFunctions = {}
+
+local function stopAll()
+	for _, stop in stopFunctions do
+		stop()
+	end
+	table.clear(stopFunctions)
+end
+
+Seasons.observe(function(_, theme)
+	stopAll()
+	table.insert(stopFunctions, startDecorAnimations())
+	if not theme then
+		return
+	end
+	if theme.weather then
+		table.insert(stopFunctions, startWeather(theme.weather))
+	end
+	if theme.fireworks then
+		table.insert(stopFunctions, startFireworks())
+	end
+	table.insert(stopFunctions, showBanner(theme))
+end)
